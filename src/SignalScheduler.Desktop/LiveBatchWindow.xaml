@@ -16,6 +16,40 @@
    <Setter Property="BorderBrush" Value="#38566F"/>
    <Setter Property="Padding" Value="12,8"/>
   </Style>
+  <Style x:Key="RunAction" TargetType="Button">
+   <Setter Property="Background" Value="#16835D"/>
+   <Setter Property="Foreground" Value="#F7FFFC"/>
+   <Setter Property="BorderBrush" Value="#2DB98A"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="FontSize" Value="15"/>
+   <Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="MinWidth" Value="195"/>
+   <Setter Property="MinHeight" Value="48"/>
+   <Setter Property="Padding" Value="22,12"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="Background" Background="{TemplateBinding Background}"
+       BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+       CornerRadius="9" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center"
+        VerticalAlignment="Center" RecognizesAccessKey="True"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="Background" Property="Background" Value="#1B9A72"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Background" Property="Background" Value="#254258"/>
+        <Setter TargetName="Background" Property="BorderBrush" Value="#3B5B73"/>
+        <Setter Property="Foreground" Value="#AEC5D8"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <Style x:Key="SmallJobAction" TargetType="Button" BasedOn="{StaticResource QuietAction}">
    <Setter Property="Padding" Value="7,5"/>
    <Setter Property="MinHeight" Value="34"/>
@@ -181,9 +215,8 @@
      <TextBlock VerticalAlignment="Center" Text="启动前会显示消息数量；旧版失效图片将先检查并提示处理方式。"
       Foreground="#B2C9DD" TextWrapping="Wrap" Margin="0,0,12,0"/>
      <Button x:Name="StartButton" Grid.Column="1" Content="▶ 启动选中群组"
-      Background="#16835D" Foreground="White" BorderBrush="#1BA176"
-      FontSize="15" FontWeight="SemiBold" Padding="25,14"
-      MinWidth="195" MinHeight="48" Click="Start_Click" IsEnabled="False"/>
+      Style="{StaticResource RunAction}" Click="Start_Click" IsEnabled="False"
+      ToolTip="请先选择剧本及至少一个群组，启动前会再次确认"/>
     </Grid>
    </StackPanel>
   </Border>
