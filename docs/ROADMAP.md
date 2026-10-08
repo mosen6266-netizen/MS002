@@ -11,6 +11,9 @@
 - [x] Named Pipe IPC
 - [x] SQLite V8 schema
 - [x] Durable dispatch-state skeleton
+- [x] Atomic replay guard, account/group pre-send checks, restart quarantine
+- [x] Guardian pause/check barrier before daemon restart
+- [x] Fake-transport crash/cancellation/ambiguous-send regression tests
 - [x] Standard Windows installer source
 - [x] GitHub Actions Windows build
 - [x] CI build proof / installer artifact proof
@@ -31,11 +34,11 @@
 - [x] Guardian healthy/busy/fault state machine
 - [x] Reuse valid daemon / refuse to kill unknown port owner
 - [x] Privacy-filtered rotating signal-cli diagnostics
-- [ ] Two-phase restart handshake with durable task engine
+- [x] Two-phase restart handshake with durable task engine (pause/check; no automatic resume)
 - [x] Live account catalog sync preserving migrated remarks
 - [x] Live group catalog sync
 - [x] QR link flow
-- [ ] Durable send transport
+- [ ] Durable send transport (Signal sending remains disabled)
 
 ## Stage 4 — feature parity
 - [ ] Multi-account management UI
