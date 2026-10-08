@@ -64,16 +64,21 @@ jobs:
           Move-Item $signalRoot.FullName (Join-Path $runtime "signal-cli")
           if (-not (Test-Path (Join-Path $runtime "signal-cli/bin/signal-cli.bat"))) { throw "signal-cli.bat missing" }
 
-          # Eclipse Temurin JRE 25: pin 25.0.4.1+1 and verify Adoptium's published checksum.
+          # Eclipse Temurin JRE 25: pin 25.0.4.1+1 and verify the checksum asset from the official GitHub release.
           $jreVersion = "25.0.4.1+1"
-          $encoded = [uri]::EscapeDataString($jreVersion)
-          $adoptium = Invoke-RestMethod -Uri "https://api.adoptium.net/v3/assets/version/$encoded?architecture=x64&heap_size=normal&image_type=jre&jvm_impl=hotspot&os=windows&page_size=1&project=jdk"
-          if (-not $adoptium -or -not $adoptium[0].binary.package.link) { throw "Temurin JRE metadata not found" }
-          $pkg = $adoptium[0].binary.package
+          $jreTag = [uri]::EscapeDataString("jdk-$jreVersion")
+          $temurinRelease = Invoke-RestMethod -Headers @{ "User-Agent" = "MS002-CI" } -Uri "https://api.github.com/repos/adoptium/temurin25-binaries/releases/tags/$jreTag"
+          $jreAssetName = "OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip"
+          $jreAsset = $temurinRelease.assets | Where-Object { $_.name -eq $jreAssetName } | Select-Object -First 1
+          $jreChecksumAsset = $temurinRelease.assets | Where-Object { $_.name -eq "$jreAssetName.sha256.txt" } | Select-Object -First 1
+          if (-not $jreAsset -or -not $jreChecksumAsset) { throw "Pinned Temurin JRE assets not found" }
           $jreArchive = Join-Path $pwd "temurin-jre.zip"
-          Invoke-WebRequest -UseBasicParsing -Uri $pkg.link -OutFile $jreArchive
+          $jreChecksumFile = Join-Path $pwd "temurin-jre.sha256.txt"
+          Invoke-WebRequest -UseBasicParsing -Uri $jreAsset.browser_download_url -OutFile $jreArchive
+          Invoke-WebRequest -UseBasicParsing -Uri $jreChecksumAsset.browser_download_url -OutFile $jreChecksumFile
           $jreHash = (Get-FileHash $jreArchive -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($pkg.checksum -and $jreHash -ne $pkg.checksum.ToLowerInvariant()) { throw "Temurin JRE SHA256 mismatch" }
+          $expectedJreHash = ((Get-Content -Raw $jreChecksumFile).Trim() -split "\\s+")[0].ToLowerInvariant()
+          if ($jreHash -ne $expectedJreHash) { throw "Temurin JRE SHA256 mismatch" }
           $jreExtract = Join-Path $pwd "jre-extract"
           Expand-Archive -Force $jreArchive $jreExtract
           $jreRoot = Get-ChildItem $jreExtract -Directory | Select-Object -First 1
