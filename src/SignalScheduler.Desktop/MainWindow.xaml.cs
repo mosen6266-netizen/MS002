@@ -310,13 +310,14 @@ public partial class MainWindow : Window
             var current=new HashSet<string>(StringComparer.Ordinal);
             foreach(var job in jobs)
             {
-                var flagged=job.State=="RecoveryRequired" ||
+                var flagged=job.State is "RecoveryRequired" or "Failed" ||
+                   (job.State=="Stopped" &&
+                    !job.Detail.Contains("手动",StringComparison.Ordinal) &&
+                    !job.Detail.Contains("用户",StringComparison.Ordinal)) ||
                    (job.State=="Paused" &&
-                    (job.Detail.Contains("提醒",StringComparison.Ordinal)||
-                     job.Detail.Contains("异常",StringComparison.Ordinal)||
-                     job.Detail.Contains("断开",StringComparison.Ordinal)||
-                     job.Detail.Contains("授权",StringComparison.Ordinal)||
-                     job.Detail.Contains("失败",StringComparison.Ordinal)));
+                    new[]{"提醒","异常","断开","授权","失败","离线",
+                        "不可用","错误","超时","不健康","失联","回执"}
+                       .Any(reason=>job.Detail.Contains(reason,StringComparison.Ordinal)));
                 if(!flagged)continue;
                 var marker=$"{job.JobId}:{job.Cursor}:{job.State}";
                 current.Add(marker);
