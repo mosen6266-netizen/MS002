@@ -97,20 +97,20 @@
     <RowDefinition Height="10"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
-   <DockPanel Grid.Row="0" LastChildFill="False">
-    <StackPanel DockPanel.Dock="Left">
-     <TextBlock Text="剧本工作台" FontSize="24" FontWeight="SemiBold"/>
-     <TextBlock Text="所有消息等高排列，完整文字在下方编辑"
-      FontSize="12" Foreground="#A8C1D8" Margin="0,5,0,0"/>
-    </StackPanel>
-    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+   <StackPanel Grid.Row="0">
+    <TextBlock Text="剧本工作台" FontSize="22" FontWeight="SemiBold"/>
+    <TextBlock Text="选择消息后可在下方查看并编辑全文"
+     FontSize="12" Foreground="#A8C1D8" Margin="0,4,0,7"/>
+    <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
      <Button Content="保存剧本" Style="{StaticResource ActionButton}"
-       Click="Save_Click" Background="#127753"/>
+      Click="Save_Click" Background="#127753" Margin="0,0,7,5"/>
      <Button Content="删除剧本" Style="{StaticResource ActionButton}"
-       Click="DeleteScript_Click" Background="#783C45" BorderBrush="#A75D66"/>
-     <Button Content="返回首页" Style="{StaticResource ActionButton}" Click="Close_Click"/>
-    </StackPanel>
-   </DockPanel>
+      Click="DeleteScript_Click" Background="#783C45" BorderBrush="#A75D66"
+      Margin="0,0,7,5"/>
+     <Button Content="返回首页" Style="{StaticResource ActionButton}"
+      Click="Close_Click" Margin="0,0,7,5"/>
+    </WrapPanel>
+   </StackPanel>
    <Border Grid.Row="2" Visibility="Collapsed" Background="#11273C" BorderBrush="#304D67"
     BorderThickness="1" CornerRadius="8" Padding="12">
     <Grid>
@@ -136,17 +136,22 @@
      <RowDefinition Height="10"/>
      <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
-    <DockPanel Grid.Row="0" LastChildFill="False">
-     <TextBlock Text="消息列表" DockPanel.Dock="Left"
-      VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold"/>
-     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-      <Button Content="＋ 加一句" Click="Append_Click" Style="{StaticResource ActionButton}"/>
-      <Button Content="导入图片" Click="ImportImage_Click" Style="{StaticResource ActionButton}"/>
-      <Button Content="预览图片" Click="PreviewImage_Click" Style="{StaticResource ActionButton}"/>
-      <Button Content="向上移动" Click="MoveUp_Click" Style="{StaticResource ActionButton}"/>
-      <Button Content="向下移动" Click="MoveDown_Click" Style="{StaticResource ActionButton}"/>
-     </StackPanel>
-    </DockPanel>
+    <StackPanel Grid.Row="0">
+     <TextBlock Text="消息列表" FontSize="17" FontWeight="SemiBold"
+      Margin="0,0,0,6"/>
+     <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
+      <Button Content="＋ 加一句" Click="Append_Click" Style="{StaticResource ActionButton}"
+       Margin="0,0,6,5"/>
+      <Button Content="导入图片" Click="ImportImage_Click" Style="{StaticResource ActionButton}"
+       Margin="0,0,6,5"/>
+      <Button Content="预览图片" Click="PreviewImage_Click" Style="{StaticResource ActionButton}"
+       Margin="0,0,6,5"/>
+      <Button Content="向上移动" Click="MoveUp_Click" Style="{StaticResource ActionButton}"
+       Margin="0,0,6,5"/>
+      <Button Content="向下移动" Click="MoveDown_Click" Style="{StaticResource ActionButton}"
+       Margin="0,0,6,5"/>
+     </WrapPanel>
+    </StackPanel>
     <DataGrid x:Name="StepsGrid" Grid.Row="2" MinHeight="120"
      AutoGenerateColumns="False" CanUserAddRows="False"
      IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
