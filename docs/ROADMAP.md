@@ -46,8 +46,9 @@
 - [ ] Group selection
 - [ ] Typing/read logic
 - [ ] Multi-group runner
-- [ ] Pause/resume/stop/recovery
-- [ ] Native critical alerts
+- [x] Read-only recovery center, audit evidence copy, persistent manual pause
+- [ ] Safe resume/stop and adjudication workflow (disabled until runner is complete)
+- [x] Native critical alerts for engine/Signal/recovery status
 - [ ] Existing Cloudflare licensing
 
 ## Stage 5 — production hardening
