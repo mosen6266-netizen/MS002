@@ -15,17 +15,19 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.414
-      - name: Restore and build
-        run: |
-          dotnet restore SignalScheduler.V8.sln
-          dotnet build SignalScheduler.V8.sln -c Release --no-restore
+      - name: Restore
+        run: dotnet restore SignalScheduler.V8.sln
+      - name: Build
+        run: dotnet build SignalScheduler.V8.sln -c Release --no-restore
+      - name: Tests
+        run: dotnet test tests/SignalScheduler.Migration.Tests/SignalScheduler.Migration.Tests.csproj -c Release --no-build
       - name: Publish desktop
         run: dotnet publish src/SignalScheduler.Desktop/SignalScheduler.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Desktop
-      - name: Publish service
-        run: dotnet publish src/SignalScheduler.Service/SignalScheduler.Service.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Service
+      - name: Publish engine
+        run: dotnet publish src/SignalScheduler.Engine/SignalScheduler.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Engine
       - name: Install pinned Inno Setup
         shell: powershell
-        run: choco install innosetup --version=6.2.2 -y --no-progress
+        run: choco install innosetup --version=6.7.1 -y --no-progress
       - name: Build installer
         shell: powershell
         run: |
