@@ -12,11 +12,13 @@ public sealed class NamedPipeControlServer : BackgroundService
     const string PipeName="SignalScheduler.V8.Control";
     readonly StateStore _store;
     readonly SignalGuardian _guardian;
+    readonly SignalLinkManager _link;
 
-    public NamedPipeControlServer(StateStore store,SignalGuardian guardian)
+    public NamedPipeControlServer(StateStore store,SignalGuardian guardian,SignalLinkManager link)
     {
         _store=store;
         _guardian=guardian;
+        _link=link;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -56,6 +58,16 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.Dashboard:
                         response=new ControlResponse(true,Data:await _store.GetDashboardAsync(_guardian.Snapshot,ct));
+                        break;
+                    case ControlCommands.StartLink:
+                        response=new ControlResponse(true,Data:await _link.StartAsync("Signal Scheduler V8",ct));
+                        break;
+                    case ControlCommands.LinkStatus:
+                        response=new ControlResponse(true,Data:_link.Snapshot);
+                        break;
+                    case ControlCommands.CancelLink:
+                        _link.Cancel();
+                        response=new ControlResponse(true,Data:_link.Snapshot);
                         break;
                     default:
                         response=new ControlResponse(false,Error:"unknown_command");
