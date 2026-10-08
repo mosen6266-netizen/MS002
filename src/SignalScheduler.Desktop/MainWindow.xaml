@@ -163,7 +163,7 @@
    </Border>
 
    <Grid Grid.Row="2">
-    <ScrollViewer x:Name="WorkspaceScroll" PreviewMouseWheel="WorkspaceScroll_PreviewMouseWheel"
+    <ScrollViewer x:Name="WorkspaceScroll"
       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
       CanContentScroll="True" Background="#091827" PanningMode="VerticalOnly"
       Focusable="False">
