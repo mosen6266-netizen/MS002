@@ -41,6 +41,23 @@ public sealed class ImageAttachmentTests
     }
 
     [Fact]
+    public async Task ImageHealthDistinguishesValidMissingAndLegacyReferences()
+    {
+        var (store,root)=await NewAsync();
+        var source=Path.Combine(root,"test.png");
+        await File.WriteAllBytesAsync(source,Png,Ct);
+        var imported=await store.ImportImageAsync(new ImageImportRequest(source),Ct);
+        var valid=await store.CheckImagesAsync(
+            new ImageCheckRequest(new[]{imported.Reference,@"C:\\old\\photo.png"}),Ct);
+        Assert.Contains(valid,x=>x.Status=="ok");
+        Assert.Contains(valid,x=>x.Status=="legacy");
+        File.Delete(imported.AbsolutePath);
+        var missing=await store.CheckImagesAsync(
+            new ImageCheckRequest(new[]{imported.Reference}),Ct);
+        Assert.Equal("missing",Assert.Single(missing).Status);
+    }
+
+    [Fact]
     public async Task RejectsForgedReferencesAndFilesDisguisedAsPictures()
     {
         var (store,root)=await NewAsync();
