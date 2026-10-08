@@ -303,6 +303,62 @@ public sealed partial class StateStore
         return rows;
     }
 
+    public async Task<LiveBatchHistoryPage> ListLiveBatchHistoryPageAsync(
+        LiveBatchHistoryPageRequest request,CancellationToken ct)
+    {
+        await InitializeLiveBatchAsync(ct);
+        var page=Math.Max(0,request.Page);
+        var size=Math.Clamp(request.PageSize,1,50);
+        var search=(request.Search??"").Trim();
+        if(search.Length>120)throw new ArgumentException("搜索内容过长。");
+        var state=request.State??"";
+        if(state.Length>40)throw new ArgumentException("状态筛选无效。");
+        await using var c=Open();
+        const string condition="""
+            WHERE j.state IN ('Completed','Stopped','Failed')
+              AND ($search='' OR instr(b.group_name,$search)>0
+                OR instr(b.script_name,$search)>0)
+              AND ($state='' OR j.state=$state)
+            """;
+        async Task AddParameters(Microsoft.Data.Sqlite.SqliteCommand q)
+        {
+            q.Parameters.AddWithValue("$search",search);
+            q.Parameters.AddWithValue("$state",state);
+            await Task.CompletedTask;
+        }
+        long total;
+        await using(var count=c.CreateCommand())
+        {
+            count.CommandText="SELECT COUNT(*) FROM v8_live_batch_jobs b "+
+                "JOIN v8_jobs j ON j.job_id=b.job_id "+condition;
+            await AddParameters(count);
+            total=Convert.ToInt64(await count.ExecuteScalarAsync(ct));
+        }
+        var jobs=new List<LiveBatchItem>();
+        await using(var q=c.CreateCommand())
+        {
+            q.CommandText="""
+                SELECT b.job_id,b.script_name,b.group_id,b.group_name,
+                    j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail
+                FROM v8_live_batch_jobs b JOIN v8_jobs j ON j.job_id=b.job_id
+                """+condition+"""
+                ORDER BY b.created_at DESC,b.job_id DESC
+                LIMIT $limit OFFSET $offset;
+                """;
+            await AddParameters(q);
+            q.Parameters.AddWithValue("$limit",size);
+            q.Parameters.AddWithValue("$offset",(long)page*size);
+            await using var reader=await q.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct))
+                jobs.Add(new LiveBatchItem(
+                    reader.GetString(0),reader.GetString(1),
+                    reader.GetString(2),reader.GetString(3),
+                    reader.GetString(4),reader.GetInt64(5),
+                    reader.GetInt32(6),reader.GetInt64(7),reader.GetString(8)));
+        }
+        return new LiveBatchHistoryPage(jobs,total,page,size);
+    }
+
     public async Task<LiveBatchHistoryDetail> GetLiveBatchHistoryDetailAsync(
         string jobId,CancellationToken ct)
     {
