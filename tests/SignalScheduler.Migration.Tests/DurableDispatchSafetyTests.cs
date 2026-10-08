@@ -128,6 +128,19 @@ public sealed class DurableDispatchSafetyTests
     }
 
     [Fact]
+    public async Task PreparedBeforeCrash_IsProvablyNotSent_AndDoesNotBlockUpgrade()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        await store.ReserveAsync(Identity(),NoCancel);
+
+        await store.InitializeAsync(NoCancel);
+        Assert.Equal("DefinitelyNotSent",await ValueAsync(db,"SELECT state FROM v8_dispatch_journal"));
+        Assert.Equal("Paused",await ValueAsync(db,"SELECT state FROM v8_jobs"));
+        Assert.True((await store.GetUpdateReadinessAsync(NoCancel)).CanUpdate);
+    }
+
+    [Fact]
     public async Task GuardianRestart_BlocksWhileSending_ThenQuarantinesIfDaemonExited()
     {
         var (store,db)=await NewStoreAsync();
