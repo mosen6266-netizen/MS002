@@ -27,6 +27,13 @@ public sealed record SignalGroupCatalogItem(
     bool IsMember,
     IReadOnlyList<string> Members);
 
+public sealed record SignalLinkSnapshot(
+    string State,
+    string DeviceLinkUri,
+    string Account,
+    string Detail,
+    DateTimeOffset StartedAt);
+
 public sealed record SignalGuardianSnapshot(
     string State,
     string Detail,
@@ -71,4 +78,7 @@ public static class ControlCommands
     public const string Ping="ping";
     public const string Dashboard="dashboard";
     public const string SignalStatus="signal-status";
+    public const string StartLink="start-link";
+    public const string LinkStatus="link-status";
+    public const string CancelLink="cancel-link";
 }
