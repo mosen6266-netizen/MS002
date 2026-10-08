@@ -40,7 +40,7 @@
   <DockPanel Grid.Row="0">
    <StackPanel DockPanel.Dock="Left">
     <TextBlock Text="多群剧本调度" FontSize="28" FontWeight="Bold"/>
-    <TextBlock Text="真实运行：多账号按角色发言 · 多群独立任务 · 图片附件 · 间隔与输入状态"
+    <TextBlock Text="真实运行：已授权群通知 · 群组独立进度 · 图片附件 · 间隔与输入状态"
       Margin="0,5,0,0" Foreground="#AFC7E2"/>
    </StackPanel>
    <Button DockPanel.Dock="Right" HorizontalAlignment="Right"
@@ -56,7 +56,7 @@
     </Grid.ColumnDefinitions>
     <StackPanel Grid.Column="0">
      <TextBlock Text="① 选择剧本" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-     <ListBox x:Name="ScriptBox" DisplayMemberPath="Name" Height="164"/>
+     <ListBox x:Name="ScriptBox" DisplayMemberPath="Name" Height="164" SelectionChanged="ScriptBox_SelectionChanged"/>
      <TextBlock Text="使用剧本保存时的消息顺序和账号分配。"
         Margin="0,8,0,0" Foreground="#A8BED5" TextWrapping="Wrap"/>
     </StackPanel>
@@ -66,14 +66,14 @@
       <RowDefinition Height="Auto"/>
      </Grid.RowDefinitions>
      <DockPanel Grid.Row="0" Margin="0,0,0,8">
-      <TextBlock DockPanel.Dock="Left" Text="② 选择目标群组（最多 20 个）"
+      <TextBlock DockPanel.Dock="Left" Text="② 选择目标群组（直接读取全部群，最多 20 个）"
        FontSize="17" FontWeight="SemiBold"/>
       <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
        <Button Content="全选" Click="SelectAll_Click"/>
        <Button Content="取消全选" Click="ClearAll_Click"/>
       </StackPanel>
      </DockPanel>
-     <DataGrid x:Name="GroupsGrid" Grid.Row="1" AlternationCount="2"
+     <DataGrid x:Name="GroupsGrid" Grid.Row="1" AlternationCount="2" SelectionChanged="GroupsGrid_SelectionChanged"
         IsReadOnly="False" CanUserAddRows="False">
       <DataGrid.Columns>
        <DataGridCheckBoxColumn Header="运行" Width="75"
@@ -82,11 +82,10 @@
         Binding="{Binding Name}"/>
        <DataGridTextColumn Header="成员账号数" Width="105" IsReadOnly="True"
         Binding="{Binding MemberAccounts}"/>
-       <DataGridTextColumn Header="群组编号" Width="2*" IsReadOnly="True"
-        Binding="{Binding GroupId}"/>
+
       </DataGrid.Columns>
      </DataGrid>
-     <TextBlock Grid.Row="2" Text="一个群只生成一个任务；已停用或不在群内的账号无法发送。"
+     <TextBlock Grid.Row="2" Text="每个群独立运行；仅使用在线且属于该群的账号。长编号可在群组设置查看。"
        Foreground="#A8BED5" Margin="0,8,0,0"/>
     </Grid>
    </Grid>
