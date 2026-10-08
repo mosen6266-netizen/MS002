@@ -116,7 +116,7 @@ jobs:
           $cp = Join-Path $runtime "signal-cli/lib/*"
           $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
           $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
-          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http","127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ok = $false
             for ($i=0; $i -lt 45; $i++) {
