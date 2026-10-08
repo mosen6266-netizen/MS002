@@ -607,6 +607,40 @@ public partial class ScriptEditorWindow : UserControl
         StatusText.Text="已从当前消息移除图片引用，请保存剧本。原始图片文件未删除。";
     }
 
+    async void CheckImages_Click(object sender,RoutedEventArgs e)
+    {
+        var attachments=_steps.Select(x=>x.Attachment)
+            .Where(x=>!string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.Ordinal).ToArray();
+        if(attachments.Length==0)
+        {
+            StatusText.Text="当前剧本没有添加图片。";
+            return;
+        }
+        try
+        {
+            StatusText.Text="正在校验图片完整性…";
+            var raw=await MainWindow.SendAsync(ControlCommands.ImageCheck,30000,
+                new ImageCheckRequest(attachments));
+            var results=ReadData<List<ImageCheckResult>>(raw);
+            var good=results.Count(x=>x.Status=="ok");
+            var bad=results.Where(x=>x.Status!="ok").ToArray();
+            StatusText.Text=$"图片检查：正常 {good} 个，需处理 {bad.Length} 个。";
+            if(bad.Length>0)
+                MessageBox.Show(Window.GetWindow(this),
+                    "下列附件需要处理：\n"+
+                    string.Join("\n",bad.Take(15).Select(x=>
+                        $"{x.Reference[..Math.Min(32,x.Reference.Length)]}：{x.Detail}"))+
+                    (bad.Length>15?"\n其余请逐条检查。":"")+
+                    "\n可在对应消息右键“替换图片”。",
+                    "图片完整性检查",MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="图片检查失败："+ex.Message;
+        }
+    }
+
     async void ImportImage_Click(object sender,RoutedEventArgs e)
     {
         CommitGrid();
