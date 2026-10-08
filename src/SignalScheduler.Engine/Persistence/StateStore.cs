@@ -227,6 +227,37 @@ public sealed class StateStore
         tx.Commit();
     }
 
+
+    public async Task<UpdateReadiness> GetUpdateReadinessAsync(CancellationToken ct)
+    {
+        await using var c=Open();
+
+        async Task<int> CountAsync(string sql)
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText=sql;
+            return Convert.ToInt32(await cmd.ExecuteScalarAsync(ct) ?? 0);
+        }
+
+        var activeJobs=await CountAsync("""
+            SELECT COUNT(*) FROM v8_jobs
+            WHERE lower(state) IN ('running','stopping','waitingsignal');
+            """);
+
+        var inFlight=await CountAsync("""
+            SELECT COUNT(*) FROM v8_dispatch_journal
+            WHERE lower(state)='sending';
+            """);
+
+        if(activeJobs>0 || inFlight>0)
+        {
+            var reason=$"当前还有 {activeJobs} 个运行中的任务、{inFlight} 条正在发送的消息。为避免重复发送或漏发，暂时不能升级。";
+            return new UpdateReadiness(false,activeJobs,inFlight,reason);
+        }
+
+        return new UpdateReadiness(true,0,0,"可以安全升级。");
+    }
+
     public async Task<DashboardSnapshot> GetDashboardAsync(SignalGuardianSnapshot signal,CancellationToken ct)
     {
         await using var c=Open();
