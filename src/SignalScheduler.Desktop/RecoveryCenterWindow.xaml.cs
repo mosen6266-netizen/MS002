@@ -56,6 +56,21 @@ public partial class RecoveryCenterWindow : Window
     void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>
         UpdateSelection();
 
+    void DispatchGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>
+        UpdateReviewButtons();
+
+    void UpdateReviewButtons()
+    {
+        var job=JobsGrid?.SelectedItem as RecoveryJobItem;
+        var item=DispatchGrid?.SelectedItem as RecoveryDispatchItem;
+        var allowed=job is {IsLegacy:false,State:"RecoveryRequired"} &&
+                    item is {State:"RecoveryRequired"} &&
+                    item.JobId==job.JobId && item.Cursor==job.Cursor;
+        if(MarkSeenButton is not null)MarkSeenButton.IsEnabled=allowed;
+        if(MarkNotSentButton is not null)MarkNotSentButton.IsEnabled=allowed;
+    }
+
+
     void UpdateSelection()
     {
         if(_overview is null)
@@ -70,6 +85,7 @@ public partial class RecoveryCenterWindow : Window
             :_overview.Dispatches.Where(x=>x.JobId==job.JobId).ToArray();
         PauseButton.IsEnabled=job is {IsLegacy:false} &&
             job.State is "Running" or "WaitingSignal" or "Stopping";
+        UpdateReviewButtons();
     }
 
     async void Pause_Click(object sender,RoutedEventArgs e)
@@ -101,6 +117,61 @@ public partial class RecoveryCenterWindow : Window
             StatusText.Text=$"无法确认暂停是否成功：{ex.Message}。请刷新任务状态后核对。";
         }
     }
+
+    async Task ReviewAsync(string decision)
+    {
+        if(JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy ||
+           DispatchGrid.SelectedItem is not RecoveryDispatchItem message ||
+           message.JobId!=job.JobId || job.State!="RecoveryRequired" ||
+           message.State!="RecoveryRequired")return;
+
+        var evidence=EvidenceBox.Text.Trim();
+        if(evidence.Length<8)
+        {
+            StatusText.Text="请填写至少 8 个字符的实际核对依据，例如所查看的群消息和时间。";
+            return;
+        }
+        var seen=decision=="seen";
+        var description=seen
+            ?"我已经在 Signal 群中核实这条消息确实已发出；不再重发，游标前进一步。"
+            :"我已经在 Signal 群中核实这条消息没有发出；留在原位置，稍后可手动继续。";
+        var confirmation=MessageBox.Show(this,
+            $"你正在人工裁定一条真实发送的未知结果。\\n\\n任务：{job.JobId}\\n"+
+            $"发送记录：{message.DispatchKey}\\n\\n结论：{description}\\n\\n"+
+            $"核对依据：{evidence}\\n\\n该操作会写入持久审计记录，不能撤回。确定吗？",
+            "再次确认发送核对结果",MessageBoxButton.YesNo,MessageBoxImage.Warning);
+        if(confirmation!=MessageBoxResult.Yes)return;
+
+        MarkSeenButton.IsEnabled=false;
+        MarkNotSentButton.IsEnabled=false;
+        try
+        {
+            var raw=await MainWindow.SendAsync(
+                ControlCommands.ManualDispatchReview,10000,
+                new ManualDispatchReviewRequest(job.JobId,message.DispatchKey,decision,evidence));
+            if(string.IsNullOrWhiteSpace(raw))
+                throw new IOException("后台没有响应，请刷新核对结果。");
+            using var doc=JsonDocument.Parse(raw);
+            var root=doc.RootElement;
+            if(!root.GetProperty("Ok").GetBoolean())
+                throw new IOException(root.TryGetProperty("Error",out var err)
+                    ?err.GetString():"后台拒绝这次裁定。");
+            var result=JsonSerializer.Deserialize<ManualDispatchReviewResult>(
+                root.GetProperty("Data").GetRawText())
+                ??throw new IOException("后台未返回有效的审计结果。");
+            StatusText.Text=$"人工核对记录已保存：{result.Detail} 当前任务：{result.JobState}。";
+            EvidenceBox.Clear();
+            await RefreshAsync();
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text=$"核对结果未确认成功：{ex.Message}。请先刷新，再检查审计记录；不要重复操作。";
+        }
+        finally {UpdateReviewButtons();}
+    }
+
+    async void MarkSeen_Click(object sender,RoutedEventArgs e)=>await ReviewAsync("seen");
+    async void MarkNotSent_Click(object sender,RoutedEventArgs e)=>await ReviewAsync("not_seen");
 
     void Copy_Click(object sender,RoutedEventArgs e)
     {
