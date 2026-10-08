@@ -69,6 +69,12 @@ public partial class MainWindow : Window
         editor.Show();
     }
 
+    void AccountGroup_Click(object sender,RoutedEventArgs e)
+    {
+        var manager=new AccountGroupWindow{Owner=this};
+        manager.Show();
+    }
+
     async void LinkAccount_Click(object sender,RoutedEventArgs e)
     {
         var dialog=new LinkAccountWindow{Owner=this};
