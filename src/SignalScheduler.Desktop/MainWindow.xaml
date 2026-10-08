@@ -38,7 +38,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="23" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-alpha.3" Margin="0,6,0,0" Foreground="#8FA7C2"/>
+     <TextBlock Text="V8.0.0-alpha.4" Margin="0,6,0,0" Foreground="#8FA7C2"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button Content="⌂  首页" HorizontalContentAlignment="Left" Background="#203A61"/>
