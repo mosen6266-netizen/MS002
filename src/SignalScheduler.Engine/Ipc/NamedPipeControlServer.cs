@@ -359,6 +359,30 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.ScriptList:
                         response=new ControlResponse(true,Data:await _store.ListEditorScriptsAsync(ct));
                         break;
+                    case ControlCommands.ScriptVersions:
+                        try
+                        {
+                            var input=ParsePayload<ScriptReadRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ListScriptVersionsAsync(input.ScriptId,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.ScriptVersionRead:
+                        try
+                        {
+                            var input=ParsePayload<ScriptVersionRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ReadScriptVersionAsync(input,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException or InvalidDataException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.ScriptRead:
                         try
                         {
