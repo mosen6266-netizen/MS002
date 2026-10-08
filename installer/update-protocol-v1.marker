@@ -1,0 +1,2 @@
+SignalScheduler V8 safe update protocol v1
+Do not remove. The installer uses this marker to refuse unsafe force-kill fallback on supported builds.
