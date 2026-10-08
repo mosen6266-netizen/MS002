@@ -128,6 +128,16 @@ public sealed record LicensePublicStatus(
     string State,string Detail,string TypeName,long ActivatedAt,
     long ExpiresAt,long LeaseUntil,bool ServerReachable,bool HasSavedLicense);
 
+/// <summary>
+/// One-off, explicitly confirmed live delivery probe. This is NOT the
+/// multi-group script runner. Only an approved, selected Signal group may be
+/// used; the user must acknowledge that a real message will be sent.
+/// </summary>
+public sealed record LiveProbeRequest(string Account,string GroupId,bool ConfirmRealSend);
+public sealed record LiveProbeResult(
+    string JobId,string GroupName,string Account,string State,
+    string Detail,string? ProviderMessageId);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -164,4 +174,5 @@ public static class ControlCommands
     public const string LicenseStatus="license-status";
     public const string LicenseActivate="license-activate";
     public const string LicenseCheck="license-check";
+    public const string LiveProbeSend="live-probe-send";
 }

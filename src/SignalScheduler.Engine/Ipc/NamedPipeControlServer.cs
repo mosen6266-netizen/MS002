@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using System.Text.Json;
 using SignalScheduler.Engine.Persistence;
 using SignalScheduler.Engine.Licensing;
+using SignalScheduler.Engine.Engine;
 using SignalScheduler.Engine.Signal;
 using SignalScheduler.Shared;
 
@@ -15,6 +16,7 @@ public sealed class NamedPipeControlServer : BackgroundService
     readonly SignalGuardian _guardian;
     readonly SignalLinkManager _link;
     readonly LicenseManager _license;
+    readonly LiveProbeCoordinator _liveProbe;
     readonly IHostApplicationLifetime _lifetime;
 
     public NamedPipeControlServer(
@@ -22,12 +24,14 @@ public sealed class NamedPipeControlServer : BackgroundService
         SignalGuardian guardian,
         SignalLinkManager link,
         LicenseManager license,
+        LiveProbeCoordinator liveProbe,
         IHostApplicationLifetime lifetime)
     {
         _store=store;
         _guardian=guardian;
         _link=link;
         _license=license;
+        _liveProbe=liveProbe;
         _lifetime=lifetime;
     }
 
@@ -69,7 +73,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.11",
+                            version="8.0.0-alpha.12",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -96,6 +100,21 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.LiveProbeSend:
+                        try
+                        {
+                            var confirm=ParsePayload<LiveProbeRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _liveProbe.SendOnceAsync(confirm,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException
+                            or IOException or KeyNotFoundException or HttpRequestException)
+                        {
+                            response=new ControlResponse(false,
+                                Error:"实发诊断未成功完成："+ex.Message+
+                                "。请先在恢复中心核对，不能盲目重试。");
+                        }
                         break;
                     case ControlCommands.LicenseStatus:
                         response=new ControlResponse(true,Data:_license.Status);
