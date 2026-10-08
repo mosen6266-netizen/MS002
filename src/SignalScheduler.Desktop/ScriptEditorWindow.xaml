@@ -256,21 +256,23 @@
         </DataTemplate>
        </DataGridTemplateColumn.CellEditingTemplate>
       </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="附件" Width="94">
+      <DataGridTemplateColumn Header="附件" Width="108">
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
-         <TextBlock Text="{Binding AttachmentLabel}" Foreground="#B7D7EE"
-          ToolTip="右键：预览 / 替换 / 移除图片" TextTrimming="CharacterEllipsis"
-          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="6,0">
-          <TextBlock.ContextMenu>
+         <Button Content="{Binding AttachmentLabel}" Click="AttachmentQuickPreview_Click"
+          Tag="{Binding}" IsEnabled="{Binding HasAttachment}"
+          Style="{StaticResource SmallRowButton}" MinWidth="85"
+          Margin="4,0" Padding="7,2" Background="#20445C" Foreground="#D6EDFF"
+          ToolTip="左键预览；右键可替换或移除图片">
+          <Button.ContextMenu>
            <ContextMenu>
             <MenuItem Header="预览图片" Click="AttachmentPreview_Click" CommandParameter="{Binding}"/>
             <MenuItem Header="替换图片" Click="AttachmentReplace_Click" CommandParameter="{Binding}"/>
             <Separator/>
             <MenuItem Header="移除图片" Click="AttachmentRemove_Click" CommandParameter="{Binding}"/>
            </ContextMenu>
-          </TextBlock.ContextMenu>
-         </TextBlock>
+          </Button.ContextMenu>
+         </Button>
         </DataTemplate>
        </DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
