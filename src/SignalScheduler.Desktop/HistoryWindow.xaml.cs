@@ -8,9 +8,14 @@ namespace SignalScheduler.Desktop;
 
 public partial class HistoryWindow : UserControl
 {
+    int _page;
+    int _pages=1;
+    bool _loading;
+    int _requestId;
     public HistoryWindow()
     {
         InitializeComponent();
+        HistoryStateBox.SelectedIndex=0;
         Loaded+=async(_,_)=>await RefreshAsync();
     }
 
@@ -28,21 +33,47 @@ public partial class HistoryWindow : UserControl
 
     async Task RefreshAsync()
     {
+        if(_loading)return;
+        _loading=true;
+        var requestId=++_requestId;
         try
         {
-            var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchList,10000);
-            var all=Unwrap<List<LiveBatchItem>>(raw);
-            var records=all.Where(x=>x.State is "Completed" or "Stopped" or "Failed")
-                .Select(x=>new BatchJobRow(x)).ToList();
-            HistoryGrid.ItemsSource=records;
-            StatusText.Text=$"共找到 {records.Count} 条已结束任务。选择一条记录查看逐条发送结果。";
-            if(records.Count>0)HistoryGrid.SelectedIndex=0;
-            else MessagesGrid.ItemsSource=null;
+            var state=(HistoryStateBox.SelectedItem as ComboBoxItem)?.Tag as string;
+            var search=HistorySearchBox.Text?.Trim()??"";
+            var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchHistoryPage,
+                10000,new LiveBatchHistoryPageRequest(_page,10,search,state));
+            var result=Unwrap<LiveBatchHistoryPage>(raw);
+            if(requestId!=_requestId)return;
+            _pages=Math.Max(1,(int)Math.Ceiling(result.Total/10.0));
+            if(_page>=_pages)
+            {
+                _page=_pages-1;
+                _loading=false;
+                await RefreshAsync();
+                return;
+            }
+            HistoryGrid.ItemsSource=result.Jobs.Select(x=>new BatchJobRow(x)).ToList();
+            MessagesGrid.ItemsSource=null;
+            HistoryPageLabel.Text=$"第 {_page+1} / {_pages} 页 · 共 {result.Total} 条";
+            HistoryPrevButton.IsEnabled=_page>0;
+            HistoryNextButton.IsEnabled=_page+1<_pages;
+            StatusText.Text=$"历史记录共 {result.Total} 条。选择一条查看发送详情。";
         }
         catch(Exception ex){StatusText.Text="加载历史失败："+ex.Message;}
+        finally{_loading=false;}
     }
 
     async void Refresh_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
+    void FiltersChanged(object sender,RoutedEventArgs e)
+    {
+        if(!IsLoaded)return;
+        _page=0;
+        _=RefreshAsync();
+    }
+    async void PreviousPage_Click(object sender,RoutedEventArgs e)
+    {if(_page>0){_page--;await RefreshAsync();}}
+    async void NextPage_Click(object sender,RoutedEventArgs e)
+    {if(_page+1<_pages){_page++;await RefreshAsync();}}
 
     async void HistoryGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
