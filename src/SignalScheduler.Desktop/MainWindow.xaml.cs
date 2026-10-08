@@ -136,6 +136,7 @@ public partial class MainWindow : Window
                 .ToArray();
             GroupsList.ItemsSource=snapshot.GroupItems
                 .Select(x=>$"{(x.Enabled?"●":"○")} {x.Name}")
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
             ScriptsList.ItemsSource=snapshot.ScriptItems
                 .Select(x=>$"{x.Name}   · {x.StepCount} 条")
