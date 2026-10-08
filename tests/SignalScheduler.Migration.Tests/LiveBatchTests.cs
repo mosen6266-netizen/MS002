@@ -136,7 +136,7 @@ public sealed class LiveBatchTests
         Assert.Single(next.Jobs);
         Assert.NotEqual(result.Jobs[0].JobId,next.Jobs[0].JobId);
         var filtered=await store.ListLiveBatchHistoryPageAsync(
-            new LiveBatchHistoryPageRequest(0,10,"g1","Stopped"),Ct);
+            new LiveBatchHistoryPageRequest(0,10,"群 0","Stopped"),Ct);
         Assert.Single(filtered.Jobs);
         Assert.Equal("g1",filtered.Jobs[0].GroupId);
     }
