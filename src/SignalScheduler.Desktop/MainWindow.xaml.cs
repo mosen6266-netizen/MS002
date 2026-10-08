@@ -81,7 +81,7 @@ public partial class MainWindow : Window
             ?WorkspaceScroll:null;
         if(destination is null)return;
         destination.ScrollToVerticalOffset(Math.Clamp(
-            destination.VerticalOffset-e.Delta,0,destination.ScrollableHeight));
+            destination.VerticalOffset-Math.Sign(e.Delta)*Math.Min(Math.Abs(e.Delta)*0.55,65),0,destination.ScrollableHeight));
         e.Handled=true;
     }
 
