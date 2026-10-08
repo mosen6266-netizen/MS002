@@ -95,6 +95,53 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task ManualControlRejectsInvalidTransitionsAndPreservesStoppedJobs()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"消息一"),Step(1,"消息二")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var id=Assert.Single(started.JobIds);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ControlLiveBatchAsync(new(id,"resume"),Ct));
+        await store.ControlLiveBatchAsync(new(id,"pause"),Ct);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ControlLiveBatchAsync(new(id,"pause"),Ct));
+        await store.ControlLiveBatchAsync(new(id,"stop"),Ct);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ControlLiveBatchAsync(new(id,"resume"),Ct));
+        Assert.Equal("Stopped",Assert.Single(await store.ListLiveBatchAsync(Ct)).State);
+        Assert.Equal("Stopped",await ScalarAsync(db,
+            "SELECT state FROM v8_jobs WHERE job_id='"+id+"'"));
+    }
+
+    [Fact]
+    public async Task HistoryPagingReturnsOnlyFinishedTasksAndFiltersByGroup()
+    {
+        var (store,_)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"消息")});
+        var first=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        foreach(var id in first.JobIds)
+            await store.ControlLiveBatchAsync(new(id,"stop"),Ct);
+        var result=await store.ListLiveBatchHistoryPageAsync(
+            new LiveBatchHistoryPageRequest(0,1),Ct);
+        Assert.Equal(2,result.Total);
+        Assert.Single(result.Jobs);
+        var next=await store.ListLiveBatchHistoryPageAsync(
+            new LiveBatchHistoryPageRequest(1,1),Ct);
+        Assert.Single(next.Jobs);
+        Assert.NotEqual(result.Jobs[0].JobId,next.Jobs[0].JobId);
+        var filtered=await store.ListLiveBatchHistoryPageAsync(
+            new LiveBatchHistoryPageRequest(0,10,"g1","Stopped"),Ct);
+        Assert.Single(filtered.Jobs);
+        Assert.Equal("g1",filtered.Jobs[0].GroupId);
+    }
+
+    [Fact]
     public async Task InvalidGroupOrOfflineRoleCausesAtomicRollback()
     {
         var (store,db)=await NewStoreAsync();
