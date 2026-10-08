@@ -78,6 +78,30 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
                         break;
+                    case ControlCommands.RecoveryOverview:
+                        response=new ControlResponse(true,Data:await _store.GetRecoveryOverviewAsync(ct));
+                        break;
+                    case ControlCommands.PauseJob:
+                        if(request.Payload is not { } pausePayload ||
+                            pausePayload.ValueKind!=JsonValueKind.Object)
+                        {
+                            response=new ControlResponse(false,Error:"缺少任务编号。");
+                            break;
+                        }
+                        try
+                        {
+                            var pauseRequest=JsonSerializer.Deserialize<PauseJobRequest>(
+                                pausePayload.GetRawText());
+                            if(pauseRequest is null)
+                                throw new ArgumentException("任务编号无效。");
+                            response=new ControlResponse(true,
+                                Data:await _store.PauseJobAsync(pauseRequest.JobId,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.PrepareUpdate:
                         var readiness=await _store.GetUpdateReadinessAsync(ct);
                         if(readiness.CanUpdate)
