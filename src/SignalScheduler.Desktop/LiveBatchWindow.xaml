@@ -133,7 +133,7 @@
          <DataTemplate>
           <CheckBox IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
            HorizontalAlignment="Center" VerticalAlignment="Center"
-           MinWidth="54" MinHeight="38" Padding="12,5" Cursor="Hand"
+           Style="{StaticResource LargeRowCheckBox}"
            ToolTip="勾选加入本次运行"/>
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
