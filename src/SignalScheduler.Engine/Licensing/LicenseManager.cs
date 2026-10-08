@@ -191,7 +191,7 @@ public sealed class LicenseManager : BackgroundService
                 return UseCachedLease(saved,"网络响应超时。");
             }
             catch(Exception ex) when(ex is IOException or CryptographicException
-                or JsonException or FormatException)
+                or JsonException or FormatException or InvalidOperationException)
             {
                 var denied=new LicensePublicStatus("invalid",
                     ex.Message,"",0,0,0,true,true);
