@@ -70,3 +70,13 @@
 - [ ] sleep/wake tests
 - [ ] 24/72-hour soak tests
 - [ ] optional code signing
+
+### Beta.1 full group-notice scheduler
+- [x] Multi-group durable queue (20 selected groups), per-group cursor and pause/resume/stop
+- [x] Message and local SHA-256 image attachment transport paths
+- [x] Account-serialized transport, bounded parallel group workers, typing activity
+- [ ] Full Windows installer CI and real Signal group end-to-end validation
+- [ ] Multi-day restart/disconnection/upgrade stability testing
+
+- [x] Manual review of ambiguous real sends with evidence, double confirmation and durable audit
+- [ ] Automated real-device loss-of-network and restart integration validation

@@ -1,41 +1,48 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using SignalScheduler.Engine;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Signal;
 
 public interface ISignalTransport
 {
-    bool IsReady { get; }
+    bool IsReady {get;}
     Task<SignalSendResult> SendAsync(
         DispatchIdentity dispatch,string payload,CancellationToken ct);
 }
 
+public interface ISignalTypingTransport
+{
+    Task SendTypingAsync(string account,string groupId,bool stop,CancellationToken ct);
+}
+
 /// <summary>
-/// HTTP JSON-RPC transport for strictly one-shot user-confirmed diagnostic
-/// sends. Not used by the script preview runner; there is no background
-/// path that invokes SendAsync automatically.
+/// Signal JSON-RPC transport shared by manual probe, short pilot and full
+/// scripts. The caller MUST go through DurableTaskEngine's journal boundary.
 /// </summary>
-public sealed class SignalCliTransport : ISignalTransport
+public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTransport
 {
     readonly HttpClient _http;
     readonly Func<bool> _healthy;
+    readonly string? _imageRoot;
 
-    public SignalCliTransport(SignalGuardian guardian)
-        :this(new HttpClient
-        {
+    public SignalCliTransport(SignalGuardian guardian,RuntimePaths paths)
+        :this(new HttpClient{
             BaseAddress=new Uri("http://127.0.0.1:7583/"),
-            Timeout=TimeSpan.FromSeconds(18)
-        },()=>guardian.Snapshot.State=="healthy")
+            Timeout=TimeSpan.FromSeconds(40)
+        },()=>string.Equals(guardian.Snapshot.State,"healthy",
+            StringComparison.OrdinalIgnoreCase),
+          Path.Combine(paths.DataRoot,"attachments","images"))
     {
     }
 
-    // Separating the HTTP adapter allows deterministic testing of real RPC
-    // semantics without sending to somebody's actual Signal group in CI.
-    public SignalCliTransport(HttpClient http,Func<bool> healthy)
+    public SignalCliTransport(HttpClient http,Func<bool> healthy,
+        string? imageRoot=null)
     {
         _http=http;
         _healthy=healthy;
+        _imageRoot=imageRoot;
     }
 
     public bool IsReady=>_healthy();
@@ -45,14 +52,47 @@ public sealed class SignalCliTransport : ISignalTransport
     {
         if(!IsReady)
             return new SignalSendResult(SignalDeliveryOutcome.DefinitelyNotSent,
-                Detail:"Signal 后台不健康，未执行 RPC 发送。");
+                Detail:"Signal 服务未就绪，未调用发送接口。");
 
-        if(dispatch is null ||
-           string.IsNullOrWhiteSpace(dispatch.AccountId) ||
-           string.IsNullOrWhiteSpace(dispatch.GroupId) ||
-           string.IsNullOrWhiteSpace(payload) || payload.Length>500 ||
-           !payload.StartsWith("[SignalScheduler 实发测试]",StringComparison.Ordinal))
-            throw new ArgumentException("仅允许经过确认、带显式测试标签的单条诊断消息。");
+        if(dispatch is null || string.IsNullOrWhiteSpace(dispatch.AccountId) ||
+           string.IsNullOrWhiteSpace(dispatch.GroupId))
+            throw new ArgumentException("发送账号或群组编号无效。");
+
+        string text;
+        string[] attachments=Array.Empty<string>();
+
+        if(payload.StartsWith("signal-structured:",StringComparison.Ordinal))
+        {
+            var decoded=JsonSerializer.Deserialize<SignalMessagePayload>(
+                payload["signal-structured:".Length..])
+                ??throw new ArgumentException("消息内容格式错误。");
+            text=decoded.Message??"";
+            if(!string.IsNullOrWhiteSpace(decoded.AttachmentPath))
+            {
+                var source=Path.GetFullPath(decoded.AttachmentPath);
+                if(_imageRoot is null)
+                    throw new InvalidOperationException("当前发送端未配置图片存储目录。");
+                var relative=Path.GetRelativePath(
+                    Path.GetFullPath(_imageRoot),source);
+                if(Path.IsPathRooted(relative) || relative==".." ||
+                   relative.StartsWith(".."+Path.DirectorySeparatorChar,
+                       StringComparison.Ordinal) ||
+                   !File.Exists(source) || new FileInfo(source).Length>15*1024*1024)
+                    throw new ArgumentException("图片不是受信任的本地附件，禁止发送。");
+                attachments=new[]{source};
+            }
+        }
+        else
+        {
+            // Keep the old explicitly consented diagnostic path compatible.
+            if(!payload.StartsWith("[SignalScheduler 实发测试]",StringComparison.Ordinal))
+                throw new ArgumentException("未经过剧本调度的原始发送内容已被拒绝。");
+            text=payload;
+        }
+
+        if(text.Length>16000 ||
+           (string.IsNullOrWhiteSpace(text) && attachments.Length==0))
+            throw new ArgumentException("发送内容为空或超过 Signal 文字长度限制。");
 
         var requestId=Guid.NewGuid().ToString("N");
         try
@@ -61,61 +101,72 @@ public sealed class SignalCliTransport : ISignalTransport
             {
                 Content=JsonContent.Create(new
                 {
-                    jsonrpc="2.0",
-                    method="send",
-                    id=requestId,
-                    @params=new
-                    {
+                    jsonrpc="2.0",method="send",id=requestId,
+                    @params=new{
                         account=dispatch.AccountId,
                         groupId=dispatch.GroupId,
-                        message=payload
+                        message=text,
+                        attachments
                     }
                 })
             };
-            // Once this request leaves the process, a timeout or dropped
-            // socket is ALWAYS ambiguous, even if the peer has no response.
             using var response=await _http.SendAsync(request,ct);
             var raw=await response.Content.ReadAsStringAsync(ct);
             if(!response.IsSuccessStatusCode)
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:$"Signal RPC 返回 HTTP {(int)response.StatusCode}；是否已发出未知，禁止自动重试。");
+                    Detail:$"Signal HTTP {(int)response.StatusCode}，是否发送成功未知。");
 
             using var doc=JsonDocument.Parse(raw);
             var root=doc.RootElement;
             if(root.ValueKind!=JsonValueKind.Object ||
-               !root.TryGetProperty("jsonrpc",out var ver) ||
-               ver.GetString()!="2.0" ||
+               !root.TryGetProperty("jsonrpc",out var version) ||
+               version.GetString()!="2.0" ||
                !root.TryGetProperty("id",out var echoId) ||
-               echoId.ValueKind!=JsonValueKind.String ||
                echoId.GetString()!=requestId)
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:"Signal RPC 返回值标识不匹配，无法证明发送状态。");
+                    Detail:"Signal 回执未匹配请求编号，禁止自动重发。");
 
             if(root.TryGetProperty("error",out var error) &&
                error.ValueKind!=JsonValueKind.Null)
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:"Signal 返回 RPC 错误，可能部分发送，需手动核对。");
+                    Detail:"Signal 返回错误，是否已经局部发送未知。");
 
             if(!root.TryGetProperty("result",out var result) ||
-               !result.TryGetProperty("timestamp",out var timestamp) ||
-               !timestamp.TryGetInt64(out var messageTime) || messageTime<=0)
+               result.ValueKind!=JsonValueKind.Object ||
+               !result.TryGetProperty("timestamp",out var ts) ||
+               !ts.TryGetInt64(out var timestamp) || timestamp<=0)
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:"Signal 没有返回有效的发送时间戳，需人工核对。");
+                    Detail:"发送回执无有效时间戳，需在群中人工核对。");
 
             return new SignalSendResult(SignalDeliveryOutcome.Confirmed,
-                messageTime.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                "Signal JSON-RPC 已确认接受该测试消息（不代表每位群成员已读）。");
+                timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "Signal RPC 已接受该消息，不代表所有成员已读。");
         }
         catch(OperationCanceledException) when(ct.IsCancellationRequested)
         {
-            // DurableTaskEngine marks post-Sending cancellation as unknown.
+            // DurableTaskEngine records any cancelled Sending as ambiguous.
             throw;
         }
         catch(Exception ex) when(ex is HttpRequestException or TaskCanceledException
             or IOException or JsonException or InvalidOperationException)
         {
             return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                Detail:$"Signal 请求或响应异常（{ex.GetType().Name}），是否发出未知，必须人工核对。");
+                Detail:$"发送或回执异常：{ex.GetType().Name}；禁止自动重试。");
         }
+    }
+
+    public async Task SendTypingAsync(
+        string account,string groupId,bool stop,CancellationToken ct)
+    {
+        if(!IsReady) return;
+        // Typing is ephemeral and NEVER advances the actual message journal.
+        using var request=new HttpRequestMessage(HttpMethod.Post,"api/v1/rpc"){
+            Content=JsonContent.Create(new{
+                jsonrpc="2.0",method="sendTyping",id=Guid.NewGuid().ToString("N"),
+                @params=new{account,groupIds=new[]{groupId},stop}
+            })
+        };
+        using var response=await _http.SendAsync(request,ct);
+        response.EnsureSuccessStatusCode();
     }
 }
