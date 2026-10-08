@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.12 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-alpha.13 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -75,3 +75,15 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 使用已有 Cloudflare 卡密进行**在线**校验。每次发送创建独立 SQLite 任务和发送日志，调用 `signal-cli JSON-RPC send`，检查响应 JSON-RPC 请求 ID 和 `timestamp`。只有确认收到有效回执才将任务标记 Completed。断网、超时、服务重启、RPC 错误及不完整回复都视为结果不明：暂停并记录在恢复中心，**不自动重试**。一次只允许一条，至少间隔 90 秒，禁止绕过未知发送记录；不允许在非勾选群组发送。
 
 **alpha.12 尚不能自动执行真实多账号/多群剧本。** 预演任务仍严格不调用 Signal。要完成全功能验收，还需用户在自己的专用测试群执行端到端检查和负载验证；CI 的虚拟 RPC 响应不能证明真实群已收到消息。
+
+## V8 alpha.13 · 自动实发验收试点
+
+除了 alpha.12 的手动单条实发，新增左侧「自动实发试点」。
+
+- **仅一位已登录账号 + 一个已勾选的专用测试群 + 1～3 条文字**，剧本的每条消息不超过 300 字、不得包含图片或第二个发送账号；群里人员应知情同意，需操作人员勾选确认并再次确认。
+- 由后台根据剧本顺序进行真实 Signal JSON-RPC 发送，每条都会加上明显测试标签；两条确认的消息之间至少 **15 秒**，并支持剧本延迟配置以及暂停提醒。
+- 每条发送经过 SQLite Reserve、发送前账号/群组检查、Sending、RPC 回执、游标事务提交。超时或无法确认发送结果立即进入 RecoveryRequired，不会重复发送或擅自前进。
+- 运行中可手动暂停、继续和停止。正在发送的瞬间不可强制跳过。异常、重启和 Signal Guardian 中断时任务暂停，不自动恢复。
+- 一次只允许一个测试剧本运行，90 秒内不能重复创建实发测试。每条实发前检查有效在线卡密和健康的 Signal 服务。
+
+**这是小规模真实群发送试点，CI 使用虚拟 HTTP 响应，不能代表已在实际 Signal 群通过收发长测。** 多群、多账号和完整规模自动发送仍未开放。
