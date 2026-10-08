@@ -1,11 +1,8 @@
-<Window x:Class="SignalScheduler.Desktop.LiveBatchWindow"
+<UserControl x:Class="SignalScheduler.Desktop.LiveBatchWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="多群剧本运行 - Signal 调度台"
- Width="1210" Height="850" MinWidth="1030" MinHeight="680"
- WindowStartupLocation="CenterOwner"
  Background="#081523" Foreground="#EAF4FF">
- <Window.Resources>
+ <UserControl.Resources>
   <Style TargetType="Button">
    <Setter Property="Padding" Value="12,8"/>
    <Setter Property="Background" Value="#173651"/>
@@ -27,7 +24,7 @@
    <Setter Property="AutoGenerateColumns" Value="False"/>
    <Setter Property="CanUserAddRows" Value="False"/>
   </Style>
- </Window.Resources>
+ </UserControl.Resources>
  <Grid Margin="20">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
@@ -138,4 +135,4 @@
   <TextBlock x:Name="StatusText" Grid.Row="8"
     Text="正在读取剧本、账号及群组……" Foreground="#BBD1E7" TextWrapping="Wrap"/>
  </Grid>
-</Window>
+</UserControl>
