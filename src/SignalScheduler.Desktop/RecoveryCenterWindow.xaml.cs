@@ -31,7 +31,7 @@ public partial class RecoveryCenterWindow : Window
             using var doc=JsonDocument.Parse(raw);
             var root=doc.RootElement;
             if(!root.GetProperty("Ok").GetBoolean())
-                throw new IOException(root.TryGetProperty("Error",out var e)?e.GetString():"读取失败");
+                throw new IOException(root.TryGetProperty("Error",out var errorValue)?errorValue.GetString():"读取失败");
             var overview=JsonSerializer.Deserialize<RecoveryOverview>(
                 root.GetProperty("Data").GetRawText())
                 ??throw new IOException("任务记录格式错误。");
@@ -89,7 +89,7 @@ public partial class RecoveryCenterWindow : Window
             using var doc=JsonDocument.Parse(raw);
             var root=doc.RootElement;
             if(!root.GetProperty("Ok").GetBoolean())
-                throw new IOException(root.TryGetProperty("Error",out var e)?e.GetString():"暂停失败");
+                throw new IOException(root.TryGetProperty("Error",out var errorValue)?errorValue.GetString():"暂停失败");
             var result=JsonSerializer.Deserialize<PauseJobResult>(
                 root.GetProperty("Data").GetRawText())
                 ??throw new IOException("任务状态格式错误。");
