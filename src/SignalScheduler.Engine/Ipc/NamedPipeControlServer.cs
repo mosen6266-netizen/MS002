@@ -109,7 +109,8 @@ public sealed class NamedPipeControlServer : BackgroundService
                         }
                         catch(Exception ex) when(ex is ArgumentException or HttpRequestException
                             or InvalidOperationException or IOException
-                            or System.Security.Cryptography.CryptographicException)
+                            or System.Security.Cryptography.CryptographicException
+                            or JsonException or FormatException)
                         {
                             response=new ControlResponse(false,Error:ex.Message);
                         }
