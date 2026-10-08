@@ -45,3 +45,7 @@ Alpha.6 adds a native Simplified-Chinese recovery center with V8 and read-only m
 Alpha.7 introduces a native script editor backed by separate revisioned SQLite authoring tables. Original V7 script metadata remains untouched. Users can add/reorder/delete steps, specify optional sending accounts, delays, typing seconds, reminders and attachment references, and import/export a bounded JSON format. This stage does not embed attachment binaries or enable Signal message delivery.
 
 Alpha.8 adds real account remark/enable management and Signal-group-ID-based selection, both persistent in V8 SQLite and surviving updates/restarts. A common Signal group across accounts is shown once and counted by member accounts, with user-friendly group names. Account-disable policy is checked again before the irreversible send boundary. Account settings and selected groups are staging metadata only, not a runner. Message sending remains disabled.
+
+## 中文安装包下载
+
+经过 Windows CI 完整验收并手动发布的测试安装包请访问 [GitHub Releases](https://github.com/mosen6266-netizen/MS002/releases)。详细操作见 [中文安装与发布说明](docs/INSTALL_RELEASE_GUIDE_ZH.md)。此渠道发布的 alpha 安装包仍然不是正式商用版本。
