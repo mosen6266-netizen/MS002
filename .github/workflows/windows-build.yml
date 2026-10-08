@@ -173,8 +173,21 @@ jobs:
           if (-not (Test-Path (Join-Path $desktop "Signal Auto Scheduler.lnk"))) { throw "Desktop shortcut missing" }
           if (-not (Test-Path (Join-Path $programs "Signal Auto Scheduler\Signal Auto Scheduler.lnk"))) { throw "Start Menu shortcut missing" }
 
-          Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue | Stop-Process -Force
-          Get-Process "java" -ErrorAction SilentlyContinue | Stop-Process -Force
+          # Upgrade smoke test: leave Engine + its Java/signal-cli running, then reinstall.
+          # The installer must close them through the safe IPC handshake without an English
+          # Restart Manager prompt or a force-kill on safe-protocol builds.
+          $engineExe = Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"
+          $engineProc = Start-Process -FilePath $engineExe -ArgumentList @("--background") -PassThru -WindowStyle Hidden
+          Start-Sleep -Seconds 5
+          if ($engineProc.HasExited) { throw "Engine exited before upgrade smoke test" }
+
+          $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) { throw "In-place upgrade exited with $($upgrade.ExitCode)" }
+          Start-Sleep -Seconds 2
+
+          if (Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue) { throw "Engine still running after safe upgrade handshake" }
+          if (Get-Process "java" -ErrorAction SilentlyContinue) { throw "Engine-owned Java still running after safe upgrade handshake" }
+
           $uninstall = Join-Path $testRoot "unins000.exe"
           if (Test-Path $uninstall) {
             $u = Start-Process -FilePath $uninstall -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait -PassThru
