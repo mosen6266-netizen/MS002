@@ -196,7 +196,7 @@
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
          <CheckBox IsChecked="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-          HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="42"
+          Style="{StaticResource LargeRowCheckBox}"
           ToolTip="此句发送后暂停并提醒"/>
         </DataTemplate>
        </DataGridTemplateColumn.CellTemplate>
