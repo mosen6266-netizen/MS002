@@ -446,6 +446,75 @@ public sealed class StateStore
     }
 
 
+    /// <summary>
+    /// Phase 1 of the Guardian restart protocol. Freeze all jobs in the same
+    /// SQLite write transaction that checks for an in-flight send. If the
+    /// owned daemon has already exited, those sends are unavoidably ambiguous:
+    /// quarantine them instead of trying them again.
+    /// Phase 2 (process stop/start) is permitted only when this method returns true.
+    /// </summary>
+    public async Task<bool> TryPrepareGuardianRestartAsync(
+        bool daemonAlreadyExited,CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        // Never auto-resume a task merely because signal-cli recovers.
+        await using(var pause=c.CreateCommand())
+        {
+            pause.Transaction=tx;
+            pause.CommandText="""
+                UPDATE v8_jobs SET state='Paused',updated_at=$n
+                WHERE state IN ('Running','Stopping','WaitingSignal');
+                """;
+            pause.Parameters.AddWithValue("$n",now);
+            await pause.ExecuteNonQueryAsync(ct);
+        }
+
+        if(daemonAlreadyExited)
+        {
+            await using(var jobs=c.CreateCommand())
+            {
+                jobs.Transaction=tx;
+                jobs.CommandText="""
+                    UPDATE v8_jobs SET state='RecoveryRequired',updated_at=$n
+                    WHERE job_id IN (
+                        SELECT job_id FROM v8_dispatch_journal
+                        WHERE state IN ('Sending','Unknown','RecoveryRequired')
+                    );
+                    """;
+                jobs.Parameters.AddWithValue("$n",now);
+                await jobs.ExecuteNonQueryAsync(ct);
+            }
+
+            await using(var journal=c.CreateCommand())
+            {
+                journal.Transaction=tx;
+                journal.CommandText="""
+                    UPDATE v8_dispatch_journal SET
+                        state='RecoveryRequired',
+                        detail=COALESCE(detail,'Signal 进程意外退出，发送结果未知，请人工核对。'),
+                        updated_at=$n
+                    WHERE state IN ('Sending','Unknown');
+                    """;
+                journal.Parameters.AddWithValue("$n",now);
+                await journal.ExecuteNonQueryAsync(ct);
+            }
+            tx.Commit();
+            return true;
+        }
+
+        await using var pending=c.CreateCommand();
+        pending.Transaction=tx;
+        pending.CommandText="""
+            SELECT COUNT(*) FROM v8_dispatch_journal WHERE state IN ('Sending','Unknown');
+            """;
+        var inFlight=Convert.ToInt64(await pending.ExecuteScalarAsync(ct)??0);
+        tx.Commit();
+        return inFlight==0;
+    }
+
     public async Task<UpdateReadiness> GetUpdateReadinessAsync(CancellationToken ct)
     {
         await using var c=Open();
