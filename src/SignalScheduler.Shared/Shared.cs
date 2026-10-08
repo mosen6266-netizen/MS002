@@ -211,6 +211,8 @@ public sealed record UpdateReadiness(
 public sealed record ControlRequest(string Command, JsonElement? Payload = null);
 public sealed record ControlResponse(bool Ok, string? Error = null, object? Data = null);
 
+public sealed record ReadHealthSnapshot(string StreamState,long LastConnectedMs,long LastEventMs,int Pending,int Attempted,string LastError);
+
 public static class ControlCommands
 {
     public const string Status="status";
@@ -247,6 +249,7 @@ public static class ControlCommands
     public const string LiveBatchStart="live-batch-start";
     public const string LiveBatchInspect="live-batch-inspect";
     public const string LiveBatchList="live-batch-list";
+    public const string ReadHealth="read-health";
     public const string LiveBatchHistoryDetail="live-batch-history-detail";
     public const string LiveBatchControl="live-batch-control";
 }
