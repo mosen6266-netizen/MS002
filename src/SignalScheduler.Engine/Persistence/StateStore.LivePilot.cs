@@ -96,7 +96,11 @@ public sealed partial class StateStore
             running.CommandText="""
                 SELECT 1 FROM v8_jobs j
                 JOIN v8_live_pilot_plans p ON j.job_id=p.job_id
-                WHERE j.state IN ('Running','Paused','RecoveryRequired') LIMIT 1;
+                WHERE j.state IN ('Running','Paused','RecoveryRequired')
+                UNION ALL
+                SELECT 1 FROM v8_jobs j
+                JOIN v8_live_probe_jobs p ON j.job_id=p.job_id
+                WHERE j.state='Running' LIMIT 1;
                 """;
             if(await running.ExecuteScalarAsync(ct) is not null)
                 throw new InvalidOperationException(
@@ -396,7 +400,13 @@ public sealed partial class StateStore
             p.CommandText="""
                 UPDATE v8_live_pilot_plans
                 SET detail=$detail,
-                    next_due_ms=CASE WHEN $action='resume' THEN $due ELSE next_due_ms END
+                    next_due_ms=CASE WHEN $action='resume'
+                        THEN MAX(next_due_ms,$due,COALESCE((
+                            SELECT MAX(updated_at)*1000+15000
+                            FROM v8_dispatch_journal d
+                            WHERE d.job_id=v8_live_pilot_plans.job_id
+                              AND d.state='Confirmed'
+                        ),0)) ELSE next_due_ms END
                 WHERE job_id=$id;
                 """;
             p.Parameters.AddWithValue("$detail",detail);
