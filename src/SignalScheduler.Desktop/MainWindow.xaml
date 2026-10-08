@@ -161,7 +161,8 @@
    </Border>
 
    <Grid Grid.Row="2">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+    <ScrollViewer x:Name="WorkspaceScroll" PreviewMouseWheel="WorkspaceScroll_PreviewMouseWheel"
+      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
       CanContentScroll="True" Background="#091827" PanningMode="VerticalOnly"
       Focusable="False">
      <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch"
