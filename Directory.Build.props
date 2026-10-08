@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <VersionPrefix>8.0.0-alpha.1</VersionPrefix>
+    <Company>Signal Auto Scheduler</Company>
+    <Product>Signal Auto Scheduler</Product>
+    <Authors>MS002</Authors>
+    <Deterministic>true</Deterministic>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
