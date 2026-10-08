@@ -112,9 +112,7 @@ public partial class MainWindow : Window
                 if(_signalFaultSignature!=signature)
                 {
                     _signalFaultSignature=signature;
-                    ShowCriticalAlert($"Signal 运行异常：{snapshot.SignalDetail}
-
-任务不会因为 Signal 恢复而自动继续，请检查运行状态。");
+                    ShowCriticalAlert($"Signal 运行异常：{snapshot.SignalDetail}\n\n任务不会因为 Signal 恢复而自动继续，请检查运行状态。");
                 }
             }
             else
@@ -160,9 +158,7 @@ public partial class MainWindow : Window
             if(newlyUnresolved>0)
             {
                 ShowCriticalAlert(
-                    $"检测到 {newlyUnresolved} 个新出现的待人工恢复任务（当前共 {snapshot.RecoveryJobs} 个）。
-
-"+
+                    $"检测到 {newlyUnresolved} 个新出现的待人工恢复任务（当前共 {snapshot.RecoveryJobs} 个）。\n\n"+
                     "为避免重复发送或漏发，程序已将对应任务标记为待恢复，不会自动重新发送。请打开“运行任务”确认。");
             }
         }
@@ -179,9 +175,7 @@ public partial class MainWindow : Window
             {
                 _engineFaultNotified=true;
                 ShowCriticalAlert(
-                    $"Signal 调度台后台连接异常：{ex.Message}
-
-请检查后台引擎与本地日志，不要假定任务仍在正常运行。");
+                    $"Signal 调度台后台连接异常：{ex.Message}\n\n请检查后台引擎与本地日志，不要假定任务仍在正常运行。");
             }
         }
         finally{_refreshing=false;}
