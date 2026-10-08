@@ -265,7 +265,7 @@
           Margin="4,0" Padding="7,2" Background="#20445C" Foreground="#D6EDFF"
           ToolTip="左键预览；右键可替换或移除图片">
           <Button.ContextMenu>
-           <ContextMenu>
+           <ContextMenu DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}">
             <MenuItem Header="预览图片" Click="AttachmentPreview_Click" CommandParameter="{Binding}"/>
             <MenuItem Header="替换图片" Click="AttachmentReplace_Click" CommandParameter="{Binding}"/>
             <Separator/>
