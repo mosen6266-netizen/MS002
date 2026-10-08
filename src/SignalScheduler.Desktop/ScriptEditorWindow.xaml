@@ -198,7 +198,7 @@
         </DataTemplate>
        </DataGridTemplateColumn.CellEditingTemplate>
       </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="消息内容（单击下方查看全文）" Width="3*">
+      <DataGridTemplateColumn Header="消息内容（下方可编辑全文）" Width="3*">
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
          <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis"
@@ -248,7 +248,7 @@
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
          <TextBlock Text="{Binding AttachmentLabel}" Foreground="#B7D7EE"
-          ToolTip="右键可预览、替换或移除附件" TextTrimming="CharacterEllipsis"
+          ToolTip="右键：预览 / 替换 / 移除图片" TextTrimming="CharacterEllipsis"
           TextWrapping="NoWrap" VerticalAlignment="Center" Margin="6,0">
           <TextBlock.ContextMenu>
            <ContextMenu>
