@@ -42,12 +42,12 @@
    <Setter Property="Foreground" Value="#EEF5FD"/>
    <Setter Property="SnapsToDevicePixels" Value="True"/>
    <Style.Triggers>
-    <Trigger Property="IsSelected" Value="True">
-     <Setter Property="Background" Value="#244F70"/>
-     <Setter Property="Foreground" Value="White"/>
-    </Trigger>
     <Trigger Property="IsMouseOver" Value="True">
-     <Setter Property="Background" Value="#1C3D59"/>
+     <Setter Property="Background" Value="#24475F"/>
+    </Trigger>
+    <Trigger Property="IsSelected" Value="True">
+     <Setter Property="Background" Value="#24669F"/>
+     <Setter Property="Foreground" Value="#FFFFFF"/>
     </Trigger>
    </Style.Triggers>
   </Style>
@@ -129,7 +129,30 @@
   </Style>
   <Style TargetType="ComboBoxItem">
    <Setter Property="Foreground" Value="#F4F8FD"/>
-   <Setter Property="Padding" Value="10,7"/>
+   <Setter Property="Background" Value="#173249"/>
+   <Setter Property="Padding" Value="10,8"/>
+   <Setter Property="MinHeight" Value="40"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="ComboBoxItem">
+      <Border x:Name="MenuRow" Background="{TemplateBinding Background}"
+       Padding="{TemplateBinding Padding}" CornerRadius="3">
+       <ContentPresenter HorizontalAlignment="Stretch"
+        VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsHighlighted" Value="True">
+        <Setter TargetName="MenuRow" Property="Background" Value="#2C648D"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+       </Trigger>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="MenuRow" Property="Background" Value="#265C84"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
   <Style TargetType="ListBoxItem">
    <Setter Property="Foreground" Value="#F0F6FD"/>
