@@ -18,6 +18,7 @@ builder.Services.AddSingleton<SignalGuardian>();
 builder.Services.AddSingleton<ISignalTransport, SignalCliTransport>();
 builder.Services.AddSingleton<DurableTaskEngine>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<SignalGuardian>());
+builder.Services.AddHostedService<SignalCatalogSyncService>();
 builder.Services.AddHostedService<NamedPipeControlServer>();
 
 var host = builder.Build();
