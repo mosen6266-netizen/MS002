@@ -69,8 +69,12 @@ public partial class MainWindow : Window
         ScrollViewer? destination=null;
         while(node is not null)
         {
-            if(node is TextBox or ComboBox or MenuItem or ContextMenu or
-               System.Windows.Controls.Primitives.ScrollBar)return;
+            if(node is TextBox ||
+               node is ComboBox ||
+               node is System.Windows.Controls.MenuItem ||
+               node is System.Windows.Controls.ContextMenu ||
+               node is System.Windows.Controls.Primitives.ScrollBar)
+                return;
             if(node is ScrollViewer candidate && candidate.ScrollableHeight>0)
             {
                 destination=candidate;
