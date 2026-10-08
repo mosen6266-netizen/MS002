@@ -120,6 +120,8 @@
                 VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold"/>
      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
       <Button Content="添加到末尾" Click="Append_Click"/>
+      <Button Content="为选中句导入图片" Click="ImportImage_Click"/>
+      <Button Content="预览图片" Click="PreviewImage_Click"/>
       <Button Content="选中上移" Click="MoveUp_Click"/>
       <Button Content="选中下移" Click="MoveDown_Click"/>
      </StackPanel>
