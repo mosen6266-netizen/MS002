@@ -150,15 +150,15 @@
     </Grid>
     <StackPanel Orientation="Horizontal" Margin="0,14,0,2">
      <CheckBox x:Name="ReadReceiptToggle" IsChecked="True"
-      Content="发送已读回执" FontSize="14" Foreground="#EFF6FD"
+      Content="新消息自动发送已读回执" FontSize="14" Foreground="#EFF6FD"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
       Margin="0,0,26,0" ToolTip="接收新消息时请求发送已读回执；旧消息未必可以补发"/>
      <CheckBox x:Name="LinkedReadSyncToggle" IsChecked="True"
-      Content="同步其他设备已读" FontSize="14" Foreground="#EFF6FD"
+      Content="同步其他设备已读（实验）" FontSize="14" Foreground="#EFF6FD"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
-      ToolTip="尝试同步其他已连接设备，实际生效受 Signal 客户端支持情况限制"/>
+      ToolTip="目前仅保存此偏好，独立同步逻辑尚未接入；不能保证清零其他设备未读数"/>
     </StackPanel>
-    <TextBlock Text="已读同步设置为尽力执行；失败不会中断剧本发送。"
+    <TextBlock Text="新消息已读回执开关重启后台后生效；设备同步开关暂存偏好，功能仍在开发。已读失败不影响发送。"
      FontSize="12" Foreground="#A9C3D9" Margin="0,8,0,5"/>
     <ItemsControl x:Name="SelectedGroupTags" Margin="0,13,0,14">
      <ItemsControl.ItemsPanel>
