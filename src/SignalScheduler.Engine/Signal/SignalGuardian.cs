@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Hosting;
+using SignalScheduler.Engine.Persistence;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Signal;
@@ -18,6 +19,7 @@ public sealed class SignalGuardian : BackgroundService
     };
 
     readonly RuntimePaths _paths;
+    readonly StateStore _store;
     readonly HttpClient _http=new(){Timeout=TimeSpan.FromSeconds(6)};
     readonly object _gate=new();
     Process? _owned;
@@ -28,7 +30,11 @@ public sealed class SignalGuardian : BackgroundService
     SignalGuardianSnapshot _snapshot=new(
         "starting","等待 Signal Guardian 启动","",false,0,DateTimeOffset.UtcNow,Array.Empty<string>());
 
-    public SignalGuardian(RuntimePaths paths)=>_paths=paths;
+    public SignalGuardian(RuntimePaths paths,StateStore store)
+    {
+        _paths=paths;
+        _store=store;
+    }
 
     public SignalGuardianSnapshot Snapshot
     {
@@ -116,8 +122,10 @@ public sealed class SignalGuardian : BackgroundService
                 }
                 else if(_owned is null)
                 {
-                    // An externally-owned valid daemon disappeared. Start ours only after the port is actually free.
-                    await StartOwnedAsync(version,stoppingToken);
+                    // A reused daemon disappeared. Pause task state before
+                    // replacing it; this must never resume any task implicitly.
+                    if(await _store.TryPrepareGuardianRestartAsync(true,stoppingToken))
+                        await StartOwnedAsync(version,stoppingToken);
                 }
             }
             catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested)
@@ -194,6 +202,18 @@ public sealed class SignalGuardian : BackgroundService
 
     async Task RestartOwnedAsync(string version,CancellationToken ct)
     {
+        // No Java process may be killed while an irreversible send is in flight.
+        // If Java already crashed, quarantine ambiguous messages before starting
+        // another daemon. The SQLite phase pauses tasks and never auto-resumes.
+        var exited=_owned is null || _owned.HasExited;
+        if(!await _store.TryPrepareGuardianRestartAsync(exited,ct))
+        {
+            SetSnapshot("busy",
+                "仍有正在发送或结果未知的消息，已暂停任务，暂不重启 Signal。",
+                version,_owned is {HasExited:false},Snapshot.LiveAccounts);
+            return;
+        }
+
         _restartCount++;
         await StopOwnedAsync();
         await Task.Delay(TimeSpan.FromSeconds(Math.Min(20,5+_restartCount*3)),ct);

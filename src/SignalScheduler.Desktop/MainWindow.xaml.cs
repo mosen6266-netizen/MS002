@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
@@ -13,6 +14,9 @@ public partial class MainWindow : Window
 {
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(5)};
     bool _refreshing;
+    bool _engineFaultNotified;
+    string? _signalFaultSignature;
+    readonly HashSet<string> _notifiedRecoveryJobs=new(StringComparer.Ordinal);
 
     public MainWindow()
     {
@@ -78,6 +82,7 @@ public partial class MainWindow : Window
             var snapshot=JsonSerializer.Deserialize<DashboardSnapshot>(data.GetRawText())
                 ?? throw new IOException("无法解析后台状态");
 
+            _engineFaultNotified=false;
             EngineBadge.Text="● 后台引擎正常";
             EngineBadge.Foreground=Brushes.LightGreen;
 
@@ -100,6 +105,20 @@ public partial class MainWindow : Window
             };
             SignalDetailText.Text=snapshot.SignalDetail;
             RuntimeVersionText.Text=$"signal-cli: {snapshot.SignalCliVersion}";
+
+            if(signalState is "fault" or "external-conflict" or "missing-runtime")
+            {
+                var signature=$"{signalState}|{snapshot.SignalDetail}";
+                if(_signalFaultSignature!=signature)
+                {
+                    _signalFaultSignature=signature;
+                    ShowCriticalAlert($"Signal 运行异常：{snapshot.SignalDetail}\n\n任务不会因为 Signal 恢复而自动继续，请检查运行状态。");
+                }
+            }
+            else
+            {
+                _signalFaultSignature=null;
+            }
             LinkAccountButton.IsEnabled=signalState=="healthy";
 
             AccountsCountText.Text=$"{snapshot.LiveSignalAccounts} 在线 · {snapshot.EnabledAccounts}/{snapshot.Accounts} 已登记";
@@ -117,6 +136,7 @@ public partial class MainWindow : Window
                 .ToArray();
             GroupsList.ItemsSource=snapshot.GroupItems
                 .Select(x=>$"{(x.Enabled?"●":"○")} {x.Name}")
+                .Distinct(StringComparer.Ordinal)
                 .ToArray();
             ScriptsList.ItemsSource=snapshot.ScriptItems
                 .Select(x=>$"{x.Name}   · {x.StepCount} 条")
@@ -125,8 +145,23 @@ public partial class MainWindow : Window
                 .Select(x=>$"{x.Name}   · {x.State}   · 第 {x.Cursor+1} 条")
                 .ToArray();
             JobsSummaryText.Text=snapshot.Jobs==0
-                ?"暂无迁移任务"
-                :$"{snapshot.Jobs} 个历史任务 · {snapshot.RecoveryJobs} 个需要人工确认";
+                ?"暂无任务"
+                :$"{snapshot.Jobs} 个任务 · {snapshot.RecoveryJobs} 个需要人工确认";
+
+            var unresolved=snapshot.JobItems
+                .Where(x=>x.RecoveryRequired ||
+                    string.Equals(x.State,"RecoveryRequired",StringComparison.OrdinalIgnoreCase))
+                .Select(x=>$"{x.LegacyId}:{x.Name}")
+                .ToHashSet(StringComparer.Ordinal);
+            var newlyUnresolved=unresolved.Except(_notifiedRecoveryJobs,StringComparer.Ordinal).Count();
+            _notifiedRecoveryJobs.IntersectWith(unresolved);
+            _notifiedRecoveryJobs.UnionWith(unresolved);
+            if(newlyUnresolved>0)
+            {
+                ShowCriticalAlert(
+                    $"检测到 {newlyUnresolved} 个新出现的待人工恢复任务（当前共 {snapshot.RecoveryJobs} 个）。\n\n"+
+                    "为避免重复发送或漏发，程序已将对应任务标记为待恢复，不会自动重新发送。请打开“运行任务”确认。");
+            }
         }
         catch(Exception ex)
         {
@@ -137,8 +172,38 @@ public partial class MainWindow : Window
             EngineBadge.Text="● 后台引擎未连接";
             EngineBadge.Foreground=Brushes.IndianRed;
             MigrationBadge.Text=ex.Message;
+            if(!_engineFaultNotified)
+            {
+                _engineFaultNotified=true;
+                ShowCriticalAlert(
+                    $"Signal 调度台后台连接异常：{ex.Message}\n\n请检查后台引擎与本地日志，不要假定任务仍在正常运行。");
+            }
         }
         finally{_refreshing=false;}
+    }
+
+    [DllImport("user32.dll",EntryPoint="MessageBoxW",CharSet=CharSet.Unicode)]
+    static extern int NativeMessageBox(IntPtr parent,string message,string caption,uint type);
+
+    /// <summary>
+    /// An unowned native TOPMOST foreground alert stays visible even when the
+    /// WPF window is minimized. Run it off the UI thread so status refreshes
+    /// and the main window remain responsive while the user reads the alert.
+    /// </summary>
+    static void ShowCriticalAlert(string message)
+    {
+        _=Task.Run(()=>
+        {
+            try
+            {
+                const uint MbTopMost=0x00040000;
+                const uint MbSetForeground=0x00010000;
+                const uint MbIconWarning=0x00000030;
+                NativeMessageBox(IntPtr.Zero,message,"Signal 调度台 - 重要提醒",
+                    MbTopMost|MbSetForeground|MbIconWarning);
+            }
+            catch { }
+        });
     }
 
     internal static async Task<string?> SendAsync(string command,int timeoutMs)

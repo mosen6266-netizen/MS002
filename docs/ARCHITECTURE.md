@@ -65,3 +65,12 @@ V8 creates `v8_*` tables beside the V7 schema. It does not drop or rebuild V7 ta
 7. Only after validation may later stages enable V8 execution.
 
 Signal login-store behavior is intentionally kept in the same Windows user context. Alpha.3 first validates that the bundled runtime can see the user's existing default signal-cli account store before adding any relocation/migration step.
+
+## Alpha.5 journal hardening
+
+- Reserve only a Running task at its current cursor; no replay of a Prepared/Sending/Confirmed/RecoveryRequired dispatch.
+- Recheck the synced account's enabled/online state and the membership of the intended Signal group atomically before entering Sending.
+- On restart, Sending/Unknown becomes RecoveryRequired; Prepared is provably DefinitelyNotSent; previously Running jobs are paused.
+- Confirmation advances the cursor in a single transaction even when the initiating caller token has already been cancelled.
+- Guardian restart is two-phase: first pause tasks and check in-flight rows atomically; then, only if safe, stop/restart owned signal-cli. If the owned process already crashed, quarantine the ambiguous rows before recovery.
+- **No irreversible Signal messaging is activated in alpha.5.**
