@@ -79,6 +79,7 @@ public partial class MainWindow : Window
             "accounts"=>new AccountGroupWindow(),
             "scripts"=>new ScriptEditorWindow(),
             "recovery"=>new RecoveryCenterWindow(),
+            "history"=>new HistoryWindow(),
             "license"=>new LicenseWindow(),
             _=>throw new ArgumentException("未知的导航位置。")
         };
@@ -129,6 +130,7 @@ public partial class MainWindow : Window
                 "管理账号备注、可用状态与 Signal 群组，不再打开新窗口。"),
             "scripts"=>("剧本管理",
                 "编辑消息、图片、发送间隔和提醒；修改保存在本地。"),
+            "history"=>("历史记录","查看已结束任务及其每条消息的发送结果。"),
             "recovery"=>("任务与恢复",
                 "核对真实发送回执、暂停异常任务，避免未知结果被重复发送。"),
             "license"=>("卡密与授权",
@@ -137,7 +139,7 @@ public partial class MainWindow : Window
         };
         PageTitle.Text=heading;
         PageSubtitle.Text=subtitle;
-        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,LicenseNav})
+        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,HistoryNav,LicenseNav})
             b.Background=Equals(b.Tag,key)
                 ?new SolidColorBrush(Color.FromRgb(34,73,111))
                 :Brushes.Transparent;
