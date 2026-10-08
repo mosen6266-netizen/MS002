@@ -15,9 +15,40 @@ public sealed partial class StateStore
         var jobs=new List<RecoveryJobItem>();
         var dispatches=new List<RecoveryDispatchItem>();
 
+        // Recovery snapshots must also work on older databases that contain
+        // only the core dispatch journal and have not initialized newer modules.
+        // Never create or alter tables as a side effect of reading recovery.
+        async Task<bool> HasTableAsync(string tableName)
+        {
+            await using var check=c.CreateCommand();
+            check.CommandText="SELECT 1 FROM sqlite_master WHERE type='table' AND name=$name LIMIT 1;";
+            check.Parameters.AddWithValue("$name",tableName);
+            return await check.ExecuteScalarAsync(ct) is not null;
+        }
+        var batchTable=await HasTableAsync("v8_live_batch_jobs");
+        var pilotTable=await HasTableAsync("v8_live_pilot_plans");
+        var previewTable=await HasTableAsync("v8_preview_plans");
+        var probeTable=await HasTableAsync("v8_live_probe_jobs");
+        var groupsTable=await HasTableAsync("v8_signal_groups");
+        var prefsTable=await HasTableAsync("v8_account_settings");
+        var accountsTable=await HasTableAsync("v8_signal_accounts");
+        var batchJoin=batchTable
+            ?"LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id"
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name WHERE 0) b ON b.job_id=j.job_id";
+        var pilotJoin=pilotTable
+            ?"LEFT JOIN v8_live_pilot_plans p ON p.job_id=j.job_id"
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name WHERE 0) p ON p.job_id=j.job_id";
+        var previewJoin=previewTable
+            ?"LEFT JOIN v8_preview_plans v ON v.job_id=j.job_id"
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name WHERE 0) v ON v.job_id=j.job_id";
+        var probeJoin=probeTable
+            ?"LEFT JOIN v8_live_probe_jobs q ON q.job_id=j.job_id"
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name WHERE 0) q ON q.job_id=j.job_id";
+
+
         await using(var query=c.CreateCommand())
         {
-            query.CommandText="""
+            query.CommandText=$"""
                 SELECT j.job_id,j.state,j.cursor,
                        COALESCE(
                            NULLIF(b.group_name,'') || ' · ' || NULLIF(b.script_name,''),
@@ -26,10 +57,10 @@ public sealed partial class StateStore
                            NULLIF(q.group_name,'') || ' · 实发测试',
                            '未命名任务')
                 FROM v8_jobs j
-                LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
-                LEFT JOIN v8_live_pilot_plans p ON p.job_id=j.job_id
-                LEFT JOIN v8_preview_plans v ON v.job_id=j.job_id
-                LEFT JOIN v8_live_probe_jobs q ON q.job_id=j.job_id
+                {batchJoin}
+                {pilotJoin}
+                {previewJoin}
+                {probeJoin}
                 ORDER BY j.updated_at DESC,j.job_id LIMIT 500;
                 """;
             await using var r=await query.ExecuteReaderAsync(ct);
@@ -65,18 +96,30 @@ public sealed partial class StateStore
             }
         }
 
+        var dispatchBatchJoin=batchTable
+            ?"LEFT JOIN v8_live_batch_jobs b ON b.job_id=d.job_id"
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name WHERE 0) b ON b.job_id=d.job_id";
+        var groupJoin=groupsTable
+            ?"LEFT JOIN v8_signal_groups g ON g.group_id=d.group_id AND g.account=d.account_id"
+            :"LEFT JOIN (SELECT NULL AS group_id, NULL AS account, NULL AS name WHERE 0) g ON g.group_id=d.group_id AND g.account=d.account_id";
+        var prefsJoin=prefsTable
+            ?"LEFT JOIN v8_account_settings pref ON pref.account=d.account_id"
+            :"LEFT JOIN (SELECT NULL AS account, NULL AS label WHERE 0) pref ON pref.account=d.account_id";
+        var accountsJoin=accountsTable
+            ?"LEFT JOIN v8_signal_accounts a ON a.account=d.account_id"
+            :"LEFT JOIN (SELECT NULL AS account, NULL AS label WHERE 0) a ON a.account=d.account_id";
         await using(var q=c.CreateCommand())
         {
-            q.CommandText="""
+            q.CommandText=$"""
                 SELECT d.dispatch_key,d.job_id,d.cursor,d.group_id,d.account_id,d.state,
                        d.provider_message_id,d.detail,d.updated_at,
                        COALESCE(NULLIF(g.name,''),NULLIF(b.group_name,'')),
                        COALESCE(NULLIF(pref.label,''),NULLIF(a.label,''))
                 FROM v8_dispatch_journal d
-                LEFT JOIN v8_live_batch_jobs b ON b.job_id=d.job_id
-                LEFT JOIN v8_signal_groups g ON g.group_id=d.group_id AND g.account=d.account_id
-                LEFT JOIN v8_account_settings pref ON pref.account=d.account_id
-                LEFT JOIN v8_signal_accounts a ON a.account=d.account_id
+                {dispatchBatchJoin}
+                {groupJoin}
+                {prefsJoin}
+                {accountsJoin}
                 ORDER BY d.updated_at DESC,d.dispatch_key LIMIT 800;
                 """;
             await using var r=await q.ExecuteReaderAsync(ct);
