@@ -53,6 +53,13 @@ public partial class MainWindow : Window
 
     async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
 
+    async void LinkAccount_Click(object sender,RoutedEventArgs e)
+    {
+        var dialog=new LinkAccountWindow{Owner=this};
+        dialog.ShowDialog();
+        await RefreshAsync();
+    }
+
     async Task RefreshAsync()
     {
         if(_refreshing) return;
@@ -93,6 +100,7 @@ public partial class MainWindow : Window
             };
             SignalDetailText.Text=snapshot.SignalDetail;
             RuntimeVersionText.Text=$"signal-cli: {snapshot.SignalCliVersion}";
+            LinkAccountButton.IsEnabled=signalState=="healthy";
 
             AccountsCountText.Text=$"{snapshot.LiveSignalAccounts} 在线 · {snapshot.EnabledAccounts}/{snapshot.Accounts} 已登记";
             GroupsCountText.Text=snapshot.Groups.ToString();
@@ -125,6 +133,7 @@ public partial class MainWindow : Window
             SignalStatusText.Text="未知";
             SignalStatusText.Foreground=Brushes.IndianRed;
             SignalDetailText.Text="后台未连接";
+            LinkAccountButton.IsEnabled=false;
             EngineBadge.Text="● 后台引擎未连接";
             EngineBadge.Foreground=Brushes.IndianRed;
             MigrationBadge.Text=ex.Message;
@@ -132,7 +141,7 @@ public partial class MainWindow : Window
         finally{_refreshing=false;}
     }
 
-    static async Task<string?> SendAsync(string command,int timeoutMs)
+    internal static async Task<string?> SendAsync(string command,int timeoutMs)
     {
         using var cts=new CancellationTokenSource(timeoutMs);
         await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
