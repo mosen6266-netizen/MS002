@@ -270,8 +270,12 @@
     <Grid DataContext="{Binding SelectedItem,ElementName=StepsGrid}">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
      <DockPanel Grid.Row="0" Margin="0,0,0,7">
-      <TextBlock Text="所选消息 · 完整内容" FontWeight="SemiBold"
-       Foreground="#D1E4F3"/>
+      <StackPanel Orientation="Horizontal">
+       <TextBlock Text="所选消息 · 完整内容" FontWeight="SemiBold"
+        Foreground="#D1E4F3"/>
+       <TextBlock Text="{Binding PositionLabel,StringFormat=（第 {0} 句）}"
+        Foreground="#7DD4FF" Margin="10,0,0,0" FontWeight="SemiBold"/>
+      </StackPanel>
       <TextBlock DockPanel.Dock="Right" Text="可滚动阅读或直接编辑，列表行高保持不变"
        Foreground="#8FA9C2" FontSize="11"/>
      </DockPanel>
