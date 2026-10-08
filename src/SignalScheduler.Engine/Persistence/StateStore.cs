@@ -799,9 +799,9 @@ public sealed partial class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.7",
+            "8.0.0-alpha.8",
             "running",
-            "send-disabled-alpha7",
+            "send-disabled-alpha8",
             signal.State,
             signal.Detail,
             signal.SignalCliVersion,
