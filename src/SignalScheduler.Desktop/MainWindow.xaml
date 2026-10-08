@@ -1,0 +1,21 @@
+<Window x:Class="SignalScheduler.Desktop.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Signal Auto Scheduler V8" Height="620" Width="1020" MinHeight="520" MinWidth="840"
+ WindowStartupLocation="CenterScreen">
+ <Grid Margin="24">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="18"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+  <StackPanel>
+   <TextBlock Text="Signal Auto Scheduler V8" FontSize="30" FontWeight="SemiBold"/>
+   <TextBlock Text="Native Windows foundation • 8.0.0-alpha.1" Margin="0,8,0,0" Opacity="0.65"/>
+  </StackPanel>
+  <Border Grid.Row="2" Padding="24" CornerRadius="10" BorderThickness="1" BorderBrush="#33000000">
+   <StackPanel>
+    <TextBlock Text="Background service" FontSize="18" FontWeight="SemiBold"/>
+    <TextBlock x:Name="StatusText" Text="Connecting…" Margin="0,12,0,0" FontSize="16"/>
+    <TextBlock Margin="0,24,0,0" TextWrapping="Wrap"
+     Text="Stage 1 deliberately disables Signal sends until the V7.6.2 Guardian and migration contracts are ported and tested."/>
+   </StackPanel>
+  </Border>
+ </Grid>
+</Window>
