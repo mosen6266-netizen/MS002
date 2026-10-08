@@ -9,7 +9,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class LiveBatchWindow : Window
+public partial class LiveBatchWindow : UserControl
 {
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
@@ -29,7 +29,7 @@ public partial class LiveBatchWindow : Window
             _timer.Start();
         };
         _timer.Tick+=async(_,_)=>await LoadJobsAsync();
-        Closed+=(_,_)=>_timer.Stop();
+        Unloaded+=(_,_)=>_timer.Stop();
         UpdateButtons();
     }
 
@@ -159,7 +159,7 @@ public partial class LiveBatchWindow : Window
             "所有群会在后台分别运行。发送的文字和图片将真实出现在 Signal 群内。"+
             "关闭此窗口不会停止任务；发生异常会暂停并提醒。\n\n"+
             "只有你管理且允许这样发送的群组可以启动。";
-        if(MessageBox.Show(this,preview,"确认多群真实运行",
+        if(MessageBox.Show(Window.GetWindow(this),preview,"确认多群真实运行",
             MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
             return;
 
@@ -190,7 +190,7 @@ public partial class LiveBatchWindow : Window
             var msg=action=="resume"
                 ?"将从已保存的下一条继续真实发送。请确认没有待核对的消息。"
                 :"停止这个群组任务后，不能直接从相同位置重新开始。确定停止吗？";
-            if(MessageBox.Show(this,msg,"确认任务操作",
+            if(MessageBox.Show(Window.GetWindow(this),msg,"确认任务操作",
                 MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
                 return;
         }
