@@ -12,7 +12,7 @@ public sealed class LegacyV7Migrator
 
     SqliteConnection Open(SqliteOpenMode mode=SqliteOpenMode.ReadWriteCreate)
     {
-        var cs=new SqliteConnectionStringBuilder{DataSource=_paths.DatabasePath,Mode=mode,Cache=SqliteCacheMode.Shared}.ToString();
+        var cs=new SqliteConnectionStringBuilder{DataSource=_paths.DatabasePath,Mode=mode,Cache=SqliteCacheMode.Private}.ToString();
         var c=new SqliteConnection(cs); c.Open();
         return c;
     }
