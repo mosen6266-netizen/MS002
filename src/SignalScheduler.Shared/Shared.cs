@@ -73,31 +73,42 @@ public sealed record DashboardSnapshot(
 /// Read-only recovery audit contract. Legacy V7 jobs are included for context,
 /// but only native V8 jobs can be paused from the recovery center.
 /// </summary>
+/// <summary>Single UI vocabulary for persisted task and delivery states.</summary>
+public static class StatusLabels
+{
+    public static string Task(string? state)=>state switch
+    {
+        "Created"=>"已创建","Running"=>"运行中","Paused"=>"已暂停",
+        "WaitingSignal"=>"等待 Signal","Sending"=>"正在发送",
+        "RecoveryRequired"=>"结果待人工核对","Stopping"=>"停止中",
+        "Stopped"=>"已停止","Completed"=>"已完成","Failed"=>"异常停止",
+        "Pending"=>"等待执行","Cancelled"=>"已取消",
+        null or ""=>"未知状态",_=>"未知状态"
+    };
+    public static string Delivery(string? state)=>state switch
+    {
+        "Queued"=>"等待发送","Prepared"=>"准备发送","Reserved"=>"等待发送",
+        "Sending"=>"正在发送","Confirmed"=>"Signal 已确认提交",
+        "Committed"=>"已记录发送确认","Completed"=>"已完成",
+        "DefinitelyNotSent"=>"确认未发送","Unknown" or "Ambiguous" or
+        "RecoveryRequired"=>"发送结果待核对",
+        "Skipped"=>"已跳过","Failed"=>"发送失败",
+        "Cancelled"=>"已取消","ManuallyConfirmed"=>"人工核实已发送",
+        null or ""=>"未执行",_=>"未知状态"
+    };
+}
+
 public sealed record RecoveryJobItem(
     string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview)
 {
-    public string StateDisplay=>State switch
-    {
-        "Running"=>"运行中","Paused"=>"已暂停","Completed"=>"已完成",
-        "Stopped"=>"已停止","Failed"=>"发送失败","RecoveryRequired"=>"需要核对",
-        "Sending"=>"正在发送","WaitingSignal"=>"等待 Signal","Stopping"=>"停止中",
-        "Pending"=>"等待执行",_=>State
-    };
+    public string StateDisplay=>StatusLabels.Task(State);
 }
 public sealed record RecoveryDispatchItem(
     string DispatchKey,string JobId,long Cursor,string GroupId,string AccountId,
     string State,string? ProviderMessageId,string? Detail,long UpdatedAt,
     string? GroupName=null,string? AccountLabel=null)
 {
-    public string StateDisplay=>State switch
-    {
-        "Reserved"=>"等待发送","Sending"=>"正在发送",
-        "Confirmed"=>"发送成功","Completed"=>"已完成",
-        "DefinitelyNotSent"=>"未发送","RecoveryRequired"=>"需要核对",
-        "ManuallyConfirmed"=>"人工确认已发送",
-        "Failed"=>"发送失败","Ambiguous"=>"结果待核对",
-        _=>State
-    };
+    public string StateDisplay=>StatusLabels.Delivery(State);
     public string GroupDisplay=>string.IsNullOrWhiteSpace(GroupName)?"未找到群名":GroupName;
     public string AccountDisplay=>string.IsNullOrWhiteSpace(AccountLabel)?"未备注账号":AccountLabel;
 }
