@@ -225,6 +225,19 @@ public sealed partial class StateStore
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         await using var c=Open();
         using var tx=c.BeginTransaction();
+        string previousName="",previousGroup="";
+        if(!isNew)
+        {
+            await using var before=c.CreateCommand();
+            before.Transaction=tx;
+            before.CommandText="SELECT name,target_group_id FROM v8_editor_scripts WHERE script_id=$id;";
+            before.Parameters.AddWithValue("$id",id);
+            await using var reader=await before.ExecuteReaderAsync(ct);
+            if(!await reader.ReadAsync(ct))
+                throw new KeyNotFoundException("原剧本不存在。");
+            previousName=reader.GetString(0);
+            previousGroup=reader.GetString(1);
+        }
         await using(var cmd=c.CreateCommand())
         {
             cmd.Transaction=tx;
@@ -260,18 +273,6 @@ public sealed partial class StateStore
         // An optimistic-concurrency failure above rolls back without creating history.
         if(!isNew)
         {
-            string oldName,oldGroup;
-            await using(var previous=c.CreateCommand())
-            {
-                previous.Transaction=tx;
-                previous.CommandText="SELECT name,target_group_id FROM v8_editor_scripts WHERE script_id=$id;";
-                previous.Parameters.AddWithValue("$id",id);
-                await using var reader=await previous.ExecuteReaderAsync(ct);
-                if(!await reader.ReadAsync(ct))
-                    throw new InvalidOperationException("无法读取旧剧本。");
-                oldName=reader.GetString(0);
-                oldGroup=reader.GetString(1);
-            }
             var earlier=new List<ScriptEditorStep>();
             await using(var previousSteps=c.CreateCommand())
             {
@@ -298,8 +299,8 @@ public sealed partial class StateStore
                 """;
             history.Parameters.AddWithValue("$id",id);
             history.Parameters.AddWithValue("$rev",request.Revision);
-            history.Parameters.AddWithValue("$name",oldName);
-            history.Parameters.AddWithValue("$group",oldGroup);
+            history.Parameters.AddWithValue("$name",previousName);
+            history.Parameters.AddWithValue("$group",previousGroup);
             history.Parameters.AddWithValue("$steps",
                 System.Text.Json.JsonSerializer.Serialize(earlier));
             history.Parameters.AddWithValue("$now",now);
