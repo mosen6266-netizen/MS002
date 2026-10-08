@@ -114,7 +114,7 @@ public sealed partial class StateStore
             }
             if(eligible.Count==0)
                 throw new InvalidOperationException(
-                    "群组「${groupId}」没有可用的在线发送账号，或账号未加入该群。请刷新账号与群组。");
+                     $"群组「{groupId}」没有可用的在线发送账号，或账号未加入该群。请刷新账号与群组。");
 
             // Parallel scripts may use disjoint groups; we never silently run
             // two independent scripts in one group at the same time.
