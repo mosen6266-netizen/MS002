@@ -118,18 +118,24 @@ public sealed partial class StateStore
                         $"群「{groupName}」已有尚未结束的剧本任务，请先处理旧任务。");
             }
 
-            var steps=new ScriptEditorStep[script.Steps.Count];
-            for(var i=0;i<steps.Length;i++)
-            {
-                var current=script.Steps[i];
-                var chosen=string.IsNullOrWhiteSpace(current.Account)
-                    ?eligible[i%eligible.Count]
-                    :current.Account;
-                if(!eligible.Contains(chosen,StringComparer.Ordinal))
-                    throw new ArgumentException(
-                        $"群「{groupName}」第 {i+1} 条指定账号不在线、已停用或不是群成员。");
-                steps[i]=current with {Account=chosen,Position=i};
-            }
+            // Ordinary group notices use one clearly designated sender
+            // within each group. Do not orchestrate synthetic dialogues by
+            // rotating unrelated identities between script entries.
+            var specified=script.Steps
+                .Select(x=>x.Account)
+                .Where(x=>!string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if(specified.Length>1)
+                throw new ArgumentException(
+                    "一个群组的通知任务必须使用同一个发送账号。请为剧本统一账号，或留空由系统选择。");
+            var sender=specified.Length==1?specified[0]:eligible[0];
+            if(!eligible.Contains(sender,StringComparer.Ordinal))
+                throw new ArgumentException(
+                    $"群「{groupName}」指定的发送账号不可用或不是已启用的成员。");
+            var steps=script.Steps
+                .Select((step,index)=>step with {Account=sender,Position=index})
+                .ToArray();
 
             var id=Guid.NewGuid().ToString("N");
             var token=Guid.NewGuid().ToString("N");
