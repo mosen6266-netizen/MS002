@@ -18,6 +18,21 @@ public sealed class SignalGuardian : BackgroundService
         "INFO","WARN","ERROR","FATAL","Exception","Connection","Socket","SSL","HTTP","failed","unable","timeout","Timeout"
     };
 
+    // Read receipt preference is applied when this daemon is launched.
+    // An already-running daemon needs a normal restart to pick up changes.
+    bool ReadReceiptsEnabled()
+    {
+        try
+        {
+            var path=Path.Combine(_paths.DataRoot,"read-options.json");
+            if(!File.Exists(path))return true;
+            using var doc=JsonDocument.Parse(File.ReadAllText(path));
+            return !doc.RootElement.TryGetProperty("ReadReceipts",out var flag) ||
+                flag.ValueKind!=JsonValueKind.False;
+        }
+        catch{return true;}
+    }
+
     readonly RuntimePaths _paths;
     readonly StateStore _store;
     readonly HttpClient _http=new(){Timeout=TimeSpan.FromSeconds(6)};
@@ -160,7 +175,7 @@ public sealed class SignalGuardian : BackgroundService
         {
             FileName=_paths.JavaExe,
             WorkingDirectory=_paths.SignalCliHome,
-            Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583 --send-read-receipts",
+            Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583{(ReadReceiptsEnabled()?" --send-read-receipts":"")}",
             UseShellExecute=false,
             CreateNoWindow=true,
             RedirectStandardOutput=true,
