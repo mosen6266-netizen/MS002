@@ -87,6 +87,7 @@ public partial class LiveBatchWindow : UserControl
     readonly ObservableCollection<BatchJobRow> _jobs=new();
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
+    readonly DispatcherTimer _countdownTimer=new(){Interval=TimeSpan.FromSeconds(1)};
     readonly HashSet<string> _alerted=new(StringComparer.Ordinal);
     bool _busy;
     bool _refreshing;
@@ -105,9 +106,11 @@ public partial class LiveBatchWindow : UserControl
             await LoadCatalogAsync();
             await LoadJobsAsync();
             _timer.Start();
+            _countdownTimer.Start();
         };
         _timer.Tick+=async(_,_)=>{await LoadJobsAsync();foreach(var job in _jobs)job.RefreshCountdown();};
-        Unloaded+=(_,_)=>_timer.Stop();
+        Unloaded+=(_,_)=>{_timer.Stop();_countdownTimer.Stop();};
+        _countdownTimer.Tick+=(_,_)=>{foreach(var job in _jobs)job.RefreshCountdown();};
         UpdateButtons();
     }
 
