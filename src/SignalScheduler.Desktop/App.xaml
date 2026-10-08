@@ -87,6 +87,14 @@
         IsChecked="{Binding IsDropDownOpen,RelativeSource={RelativeSource TemplatedParent},Mode=TwoWay}"
         Background="Transparent" BorderThickness="0"
         HorizontalContentAlignment="Stretch">
+        <ToggleButton.Template>
+         <ControlTemplate TargetType="ToggleButton">
+          <Border Background="Transparent">
+           <ContentPresenter HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"/>
+          </Border>
+         </ControlTemplate>
+        </ToggleButton.Template>
         <Grid Background="Transparent">
          <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*"/><ColumnDefinition Width="37"/>
@@ -172,13 +180,13 @@
         HorizontalAlignment="Center" VerticalAlignment="Center"/>
       </Border>
       <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="TabSurface" Property="Background" Value="#2A4C65"/>
+       </Trigger>
        <Trigger Property="IsSelected" Value="True">
         <Setter TargetName="TabSurface" Property="Background" Value="#285B83"/>
         <Setter TargetName="TabSurface" Property="BorderBrush" Value="#6DA9D6"/>
         <Setter Property="Foreground" Value="#FFFFFF"/>
-       </Trigger>
-       <Trigger Property="IsMouseOver" Value="True">
-        <Setter TargetName="TabSurface" Property="Background" Value="#2A4C65"/>
        </Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
