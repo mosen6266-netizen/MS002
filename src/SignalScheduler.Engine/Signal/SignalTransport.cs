@@ -12,11 +12,6 @@ public interface ISignalTransport
         DispatchIdentity dispatch,string payload,CancellationToken ct);
 }
 
-public interface ISignalReadBeforeSendTransport
-{
-    Task TryReadPendingAsync(string account,string groupId,CancellationToken ct);
-}
-
 public interface ISignalTypingTransport
 {
     Task SendTypingAsync(string account,string groupId,bool stop,CancellationToken ct);
@@ -26,7 +21,7 @@ public interface ISignalTypingTransport
 /// Signal JSON-RPC transport shared by manual probe, short pilot and full
 /// scripts. The caller MUST go through DurableTaskEngine's journal boundary.
 /// </summary>
-public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTransport, ISignalReadBeforeSendTransport
+public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTransport
 {
     readonly HttpClient _http;
     readonly Func<bool> _healthy;
@@ -158,29 +153,6 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
             return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
                 Detail:$"发送或回执异常：{ex.GetType().Name}；禁止自动重试。");
         }
-    }
-
-    // Best-effort receive with read receipts requested. The daemon can already
-    // have consumed older messages; signal-cli does not expose a durable
-    // per-group unread inventory here, so this must never be represented as
-    // proof that every historical group message was marked read.
-    public async Task TryReadPendingAsync(string account,string groupId,CancellationToken ct)
-    {
-        if(!IsReady || string.IsNullOrWhiteSpace(account) ||
-           string.IsNullOrWhiteSpace(groupId))return;
-        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
-        timeout.CancelAfter(TimeSpan.FromSeconds(4));
-        using var request=new HttpRequestMessage(HttpMethod.Post,"api/v1/rpc"){
-            Content=JsonContent.Create(new{
-                jsonrpc="2.0",method="receive",id=Guid.NewGuid().ToString("N"),
-                @params=new{account,timeout=1,maxMessages=100,
-                    ignoreAttachments=true,sendReadReceipts=true}
-            })
-        };
-        using var response=await _http.SendAsync(request,timeout.Token);
-        response.EnsureSuccessStatusCode();
-        // Receipt attempts concern newly fetched messages only; unrelated
-        // groups may also have pending messages for this account.
     }
 
     public async Task SendTypingAsync(
