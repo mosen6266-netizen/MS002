@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        PreviewMouseWheel+=GlobalWheel_PreviewMouseWheel;
         WorkspaceScroll.SizeChanged+=(_,_)=>
         {
             if(_currentPage=="scripts")
@@ -56,22 +57,31 @@ public partial class MainWindow : Window
         Closed+=(_,_)=>_timer.Stop();
     }
 
-    void WorkspaceScroll_PreviewMouseWheel(object sender,
+    void GlobalWheel_PreviewMouseWheel(object sender,
         System.Windows.Input.MouseWheelEventArgs e)
     {
-        if(sender is not ScrollViewer scroller || e.Delta==0)return;
-        // Let grids and the scripts list consume their own wheel events.
-        if(_currentPage is "accounts" or "scripts" or "recovery")return;
-        // Do not move the underlying page while a script popup is open.
+        if(e.Delta==0 || e.OriginalSource is not DependencyObject source)return;
+        // A ComboBox popup is its own scrollable visual tree.
         if(_pages.TryGetValue("home",out var home) &&
-           home is LiveBatchWindow batch &&
-           batch.IsScriptDropDownOpen)
+            home is LiveBatchWindow batch && batch.IsScriptDropDownOpen)return;
+        DependencyObject? node=source;
+        ScrollViewer? destination=null;
+        while(node is not null)
         {
-            // Let the popup's own scroll viewer handle wheel messages.
-            return;
+            if(node is ScrollViewer candidate && candidate.ScrollableHeight>0)
+            {
+                destination=candidate;
+                break;
+            }
+            node=node is Visual
+                ?VisualTreeHelper.GetParent(node)
+                :LogicalTreeHelper.GetParent(node);
         }
-        scroller.ScrollToVerticalOffset(Math.Clamp(
-            scroller.VerticalOffset-e.Delta,0,scroller.ScrollableHeight));
+        destination??=WorkspaceScroll.ScrollableHeight>0
+            ?WorkspaceScroll:null;
+        if(destination is null)return;
+        destination.ScrollToVerticalOffset(Math.Clamp(
+            destination.VerticalOffset-e.Delta,0,destination.ScrollableHeight));
         e.Handled=true;
     }
 
