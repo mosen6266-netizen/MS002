@@ -241,7 +241,8 @@ public sealed class BatchJobRow
 
 public sealed class BatchGroupRow : INotifyPropertyChanged
 {
-    bool _selected=true;
+    // Require the operator to explicitly pick target groups for each real run.
+    bool _selected=false;
     public BatchGroupRow(ManagedGroup group)
     {
         GroupId=group.GroupId;
