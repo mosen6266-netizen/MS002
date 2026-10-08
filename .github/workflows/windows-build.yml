@@ -1,0 +1,41 @@
+name: Windows V8 Build
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.414
+      - name: Restore and build
+        run: |
+          dotnet restore SignalScheduler.V8.sln
+          dotnet build SignalScheduler.V8.sln -c Release --no-restore
+      - name: Publish desktop
+        run: dotnet publish src/SignalScheduler.Desktop/SignalScheduler.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Desktop
+      - name: Publish service
+        run: dotnet publish src/SignalScheduler.Service/SignalScheduler.Service.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Service
+      - name: Install pinned Inno Setup
+        shell: powershell
+        run: choco install innosetup --version=6.2.2 -y --no-progress
+      - name: Build installer
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DPublishRoot=$pwd\artifacts\publish" "/DOutputRoot=$pwd\artifacts\installer" "installer\SignalScheduler.iss"
+      - name: Hash installer
+        shell: powershell
+        run: Get-FileHash artifacts/installer/*.exe -Algorithm SHA256 | Format-List | Out-File artifacts/installer/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SignalScheduler-V8-Windows
+          path: artifacts/installer/*
+          if-no-files-found: error
