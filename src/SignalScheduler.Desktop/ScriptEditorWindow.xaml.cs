@@ -489,29 +489,42 @@ public partial class ScriptEditorWindow : UserControl
         if(!_loading) _dirty=true;
     }
 
-    void StepsGrid_PreviewMouseLeftButtonDown(object sender,
+    // Wait for the native DataGrid selection to finish before opening an editor.
+    // Beginning edit on PreviewMouseDown interfered with text selection and
+    // caused the first click to be swallowed by a focus change.
+    void StepsGrid_PreviewMouseLeftButtonUp(object sender,
         System.Windows.Input.MouseButtonEventArgs e)
     {
-        if(e.OriginalSource is not System.Windows.DependencyObject node)return;
+        if(e.ChangedButton!=System.Windows.Input.MouseButton.Left ||
+           e.ClickCount!=1 || e.OriginalSource is not DependencyObject node)return;
         DataGridCell? cell=null;
-        var insideButton=false;
         while(node is not null)
         {
-            if(node is Button || node is CheckBox)insideButton=true;
+            // Let existing text editors, dropdowns and row buttons handle input.
+            if(node is TextBox || node is ComboBox ||
+               node is System.Windows.Controls.Primitives.ButtonBase)return;
             if(node is DataGridCell found){cell=found;break;}
-            node=System.Windows.Media.VisualTreeHelper.GetParent(node);
+            node=node is Visual
+                ?VisualTreeHelper.GetParent(node)
+                :System.Windows.LogicalTreeHelper.GetParent(node);
         }
-        if(cell is null || insideButton || cell.IsEditing)return;
-        var index=StepsGrid.Columns.IndexOf(cell.Column);
-        // Account, body, numeric intervals and reminder text are editable.
+        if(cell is null || cell.IsEditing)return;
+        var column=cell.Column;
+        var index=StepsGrid.Columns.IndexOf(column);
         if(index is not (2 or 3 or 4 or 5 or 7))return;
         if(cell.DataContext is not ScriptStepRow row)return;
-        StepsGrid.SelectedItem=row;
-        StepsGrid.CurrentCell=new DataGridCellInfo(row,cell.Column);
-        if(StepsGrid.BeginEdit(e))
+
+        Dispatcher.BeginInvoke(new Action(()=>
         {
-            if(index==2)
-                Dispatcher.BeginInvoke(new Action(()=>
+            if(!IsLoaded || !ReferenceEquals(StepsGrid.SelectedItem,row) ||
+               cell.IsEditing)return;
+            StepsGrid.CurrentCell=new DataGridCellInfo(row,column);
+            if(!StepsGrid.BeginEdit())return;
+            Dispatcher.BeginInvoke(new Action(()=>
+            {
+                if(!cell.IsEditing || !ReferenceEquals(StepsGrid.SelectedItem,row))
+                    return;
+                if(index==2)
                 {
                     var combo=FindVisualChild<ComboBox>(cell);
                     if(combo is not null)
@@ -519,13 +532,11 @@ public partial class ScriptEditorWindow : UserControl
                         combo.Focus();
                         combo.IsDropDownOpen=true;
                     }
-                }),System.Windows.Threading.DispatcherPriority.Input);
-            else
-                Dispatcher.BeginInvoke(new Action(()=>
-                {
+                }
+                else
                     FindVisualChild<TextBox>(cell)?.Focus();
-                }),System.Windows.Threading.DispatcherPriority.Input);
-        }
+            }),DispatcherPriority.Input);
+        }),DispatcherPriority.Input);
     }
 
     static T? FindVisualChild<T>(System.Windows.DependencyObject parent)
