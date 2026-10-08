@@ -69,6 +69,12 @@ public sealed record DashboardSnapshot(
     IReadOnlyList<DashboardScript> ScriptItems,
     IReadOnlyList<DashboardJob> JobItems);
 
+public sealed record UpdateReadiness(
+    bool CanUpdate,
+    int ActiveJobs,
+    int InFlightDispatches,
+    string Reason);
+
 public sealed record ControlRequest(string Command, JsonElement? Payload = null);
 public sealed record ControlResponse(bool Ok, string? Error = null, object? Data = null);
 
@@ -81,4 +87,6 @@ public static class ControlCommands
     public const string StartLink="start-link";
     public const string LinkStatus="link-status";
     public const string CancelLink="cancel-link";
+    public const string PrepareUpdate="prepare-update";
+    public const string UpdateStatus="update-status";
 }
