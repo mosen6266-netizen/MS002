@@ -38,14 +38,17 @@ jobs:
 
       - name: Bundle pinned Java 25 and signal-cli
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = "Stop"
+          $ghHeaders = @{ "User-Agent" = "MS002-CI"; "Authorization" = "Bearer $env:GITHUB_TOKEN"; "Accept" = "application/vnd.github+json" }
           $runtime = Join-Path $pwd "artifacts/publish/Runtime"
           New-Item -ItemType Directory -Force $runtime | Out-Null
 
           # signal-cli: pin a specific signed GitHub release and verify GitHub's asset digest when present.
           $signalVersion = "0.14.9"
-          $release = Invoke-RestMethod -Headers @{ "User-Agent" = "MS002-CI" } -Uri "https://api.github.com/repos/AsamK/signal-cli/releases/tags/v$signalVersion"
+          $release = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/AsamK/signal-cli/releases/tags/v$signalVersion"
           $assetName = "signal-cli-$signalVersion.tar.gz"
           $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
           if (-not $asset) { throw "signal-cli asset not found: $assetName" }
@@ -67,7 +70,7 @@ jobs:
           # Eclipse Temurin JRE 25: pin 25.0.4.1+1 and verify the checksum asset from the official GitHub release.
           $jreVersion = "25.0.4.1+1"
           $jreTag = [uri]::EscapeDataString("jdk-$jreVersion")
-          $temurinRelease = Invoke-RestMethod -Headers @{ "User-Agent" = "MS002-CI" } -Uri "https://api.github.com/repos/adoptium/temurin25-binaries/releases/tags/$jreTag"
+          $temurinRelease = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/adoptium/temurin25-binaries/releases/tags/$jreTag"
           $jreAssetName = "OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip"
           $jreAsset = $temurinRelease.assets | Where-Object { $_.name -eq $jreAssetName } | Select-Object -First 1
           $jreChecksumAsset = $temurinRelease.assets | Where-Object { $_.name -eq "$jreAssetName.sha256.txt" } | Select-Object -First 1
