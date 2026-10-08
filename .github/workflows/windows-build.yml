@@ -102,10 +102,10 @@ jobs:
           # Runtime smoke test before installer packaging.
           & (Join-Path $runtime "jre/bin/java.exe") -version
           if ($LASTEXITCODE -ne 0) { throw "Bundled Java failed" }
-          $env:JAVA_HOME = (Join-Path $runtime "jre")
-          $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
-          & cmd.exe /d /c ('"' + (Join-Path $runtime "signal-cli/bin/signal-cli.bat") + '" --version')
-          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli failed" }
+          $bundledJava = Join-Path $runtime "jre\bin\java.exe"
+          $bundledCp = Join-Path $runtime "signal-cli\lib\*"
+          & $bundledJava -classpath $bundledCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli direct-Java runtime failed" }
 
       - name: Signal JSON-RPC daemon smoke test
         shell: powershell
