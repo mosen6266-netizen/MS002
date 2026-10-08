@@ -46,6 +46,10 @@
     <Button Content="刷新记录" Click="Refresh_Click"/>
     <Button x:Name="PauseButton" Content="暂停选中任务" Click="Pause_Click"
             Background="#855527" IsEnabled="False"/>
+    <Button x:Name="MarkSeenButton" Content="核实已发送" Click="MarkSeen_Click"
+            IsEnabled="False" Background="#146C4C"/>
+    <Button x:Name="MarkNotSentButton" Content="核实未发送" Click="MarkNotSent_Click"
+            IsEnabled="False" Background="#895729"/>
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
@@ -80,7 +84,8 @@
     <Button Content="复制选中记录" DockPanel.Dock="Right"
             Click="Copy_Click" HorizontalAlignment="Right"/>
    </DockPanel>
-   <DataGrid x:Name="DispatchGrid" Grid.Row="1" AlternationCount="2">
+<DataGrid x:Name="DispatchGrid" Grid.Row="1" AlternationCount="2"
+             SelectionChanged="DispatchGrid_SelectionChanged">
     <DataGrid.Columns>
      <DataGridTextColumn Header="消息序号" Binding="{Binding Cursor}" Width="75"/>
      <DataGridTextColumn Header="发送状态" Binding="{Binding State}" Width="150"/>
@@ -93,8 +98,12 @@
   </Grid>
 
   <StackPanel Grid.Row="5" Margin="0,14,0,0">
-   <TextBlock Text="注意：暂停会保存到本地数据库，但不能撤回正在发送的消息。对于 RecoveryRequired，请先核对实际发送结果。V8 测试版暂不支持继续发送。"
+   <TextBlock Text="只有在 Signal 真实核对消息后，才可裁定 RecoveryRequired。核实已发送会跳过该条；核实未发送允许稍后手动继续。所有裁定都会永久写入审计日志，不能撤回。"
               TextWrapping="Wrap" Foreground="#F1BD75"/>
+   <TextBox x:Name="EvidenceBox" MaxLength="500"
+     Margin="0,9,0,0" Padding="8" Foreground="White"
+     Background="#142D46" BorderBrush="#3A5E7A"
+     ToolTip="写明 Signal 中核对的结果，例如群名、消息内容或时间；至少 8 个字符。"/>
    <TextBlock x:Name="StatusText" Text="正在读取任务记录…" Margin="0,7,0,0"
               Foreground="#9CB6D2" TextWrapping="Wrap"/>
   </StackPanel>
