@@ -85,6 +85,25 @@ public partial class LiveBatchWindow : UserControl
 
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
+    const int JobsPerPage=10;
+    int _jobsPage;
+    ICollectionView? _jobsView;
+    void RefreshJobsPage()
+    {
+        if(JobsGrid is null)return;
+        var pages=Math.Max(1,(_jobs.Count+JobsPerPage-1)/JobsPerPage);
+        _jobsPage=Math.Clamp(_jobsPage,0,pages-1);
+        _jobsView?.Refresh();
+        if(JobsPageLabel is not null)
+            JobsPageLabel.Text=$"第 {_jobsPage+1} / {pages} 页 · 共 {_jobs.Count} 条";
+        if(PreviousJobsPage is not null)PreviousJobsPage.IsEnabled=_jobsPage>0;
+        if(NextJobsPage is not null)NextJobsPage.IsEnabled=_jobsPage<pages-1;
+    }
+    void PreviousJobsPage_Click(object sender,RoutedEventArgs e)
+    {_jobsPage--;RefreshJobsPage();}
+    void NextJobsPage_Click(object sender,RoutedEventArgs e)
+    {_jobsPage++;RefreshJobsPage();}
+
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
     readonly DispatcherTimer _countdownTimer=new(){Interval=TimeSpan.FromSeconds(1)};
@@ -100,7 +119,10 @@ public partial class LiveBatchWindow : UserControl
         _groupsView.Filter=o=>o is BatchGroupRow row &&
             _groups.IndexOf(row)/GroupsPerPage==_groupPage;
         GroupsGrid.ItemsSource=_groupsView;
-        JobsGrid.ItemsSource=_jobs;
+        _jobsView=CollectionViewSource.GetDefaultView(_jobs);
+        _jobsView.Filter=o=>o is BatchJobRow row &&
+            _jobs.IndexOf(row)/JobsPerPage==_jobsPage;
+        JobsGrid.ItemsSource=_jobsView;
         SelectedGroupTags.ItemsSource=_selectedTags;
         Loaded+=async(_,_)=>{
             await LoadCatalogAsync();
@@ -217,6 +239,7 @@ public partial class LiveBatchWindow : UserControl
             }
             for(var i=_jobs.Count-1;i>=0;i--)
                 if(!keys.Contains(_jobs[i].JobId))_jobs.RemoveAt(i);
+            RefreshJobsPage();
             UpdateButtons();
         }
         catch(Exception ex){StatusText.Text=$"刷新运行任务失败：{ex.Message}";}
