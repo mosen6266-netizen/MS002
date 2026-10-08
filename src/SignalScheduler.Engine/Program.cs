@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using SignalScheduler.Engine.Engine;
 using SignalScheduler.Engine.Ipc;
 using SignalScheduler.Engine.Migration;
