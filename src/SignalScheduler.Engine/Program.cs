@@ -1,3 +1,5 @@
+using System.IO.Pipes;
+using System.Text.Json;
 using SignalScheduler.Engine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -6,6 +8,13 @@ using SignalScheduler.Engine.Ipc;
 using SignalScheduler.Engine.Migration;
 using SignalScheduler.Engine.Persistence;
 using SignalScheduler.Engine.Signal;
+using SignalScheduler.Shared;
+
+if(args.Any(x=>string.Equals(x,"--prepare-update",StringComparison.OrdinalIgnoreCase)))
+{
+    Environment.ExitCode=await RequestPrepareUpdateAsync();
+    return;
+}
 
 using var mutex = new Mutex(true, @"Local\SignalScheduler.V8.Engine", out var createdNew);
 if (!createdNew) return;
@@ -32,3 +41,50 @@ if (inventory.LegacyDetected && !inventory.MetadataMigrated)
     await migrator.MigrateMetadataAsync(CancellationToken.None);
 
 await host.RunAsync();
+
+static async Task<int> RequestPrepareUpdateAsync()
+{
+    try
+    {
+        using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(4));
+        await using var pipe=new NamedPipeClientStream(
+            ".",
+            "SignalScheduler.V8.Control",
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous);
+
+        try
+        {
+            await pipe.ConnectAsync(1200,cts.Token);
+        }
+        catch
+        {
+            // No Engine is listening, so there is nothing to stop.
+            return 0;
+        }
+
+        using var reader=new StreamReader(pipe,leaveOpen:true);
+        using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
+
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(ControlCommands.PrepareUpdate)));
+        var line=await reader.ReadLineAsync(cts.Token);
+        if(string.IsNullOrWhiteSpace(line)) return 31;
+
+        using var doc=JsonDocument.Parse(line);
+        var root=doc.RootElement;
+        if(!root.TryGetProperty("Ok",out var ok) || !ok.GetBoolean())
+            return 31;
+
+        if(!root.TryGetProperty("Data",out var data))
+            return 31;
+
+        var readiness=JsonSerializer.Deserialize<UpdateReadiness>(data.GetRawText());
+        if(readiness is null) return 31;
+
+        return readiness.CanUpdate?0:20;
+    }
+    catch
+    {
+        return 31;
+    }
+}

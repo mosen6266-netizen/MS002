@@ -13,12 +13,18 @@ public sealed class NamedPipeControlServer : BackgroundService
     readonly StateStore _store;
     readonly SignalGuardian _guardian;
     readonly SignalLinkManager _link;
+    readonly IHostApplicationLifetime _lifetime;
 
-    public NamedPipeControlServer(StateStore store,SignalGuardian guardian,SignalLinkManager link)
+    public NamedPipeControlServer(
+        StateStore store,
+        SignalGuardian guardian,
+        SignalLinkManager link,
+        IHostApplicationLifetime lifetime)
     {
         _store=store;
         _guardian=guardian;
         _link=link;
+        _lifetime=lifetime;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
@@ -44,7 +50,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.3",
+                            version="8.0.0-alpha.4",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -68,6 +74,29 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.CancelLink:
                         _link.Cancel();
                         response=new ControlResponse(true,Data:_link.Snapshot);
+                        break;
+                    case ControlCommands.UpdateStatus:
+                        response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.PrepareUpdate:
+                        var readiness=await _store.GetUpdateReadinessAsync(ct);
+                        if(readiness.CanUpdate)
+                        {
+                            _link.Cancel();
+                            response=new ControlResponse(true,Data:readiness);
+                            _=Task.Run(async()=>{
+                                try
+                                {
+                                    await Task.Delay(350);
+                                    _lifetime.StopApplication();
+                                }
+                                catch { }
+                            });
+                        }
+                        else
+                        {
+                            response=new ControlResponse(true,Data:readiness);
+                        }
                         break;
                     default:
                         response=new ControlResponse(false,Error:"unknown_command");

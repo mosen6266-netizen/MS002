@@ -65,6 +65,33 @@ public sealed class LegacyV7MigratorTests
         Assert.Equal(1,dashboard.LiveSignalAccounts);
     }
 
+
+    [Fact]
+    public async Task SafeUpdate_IsBlockedByRunningJob_AndAllowedWhenIdle()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"SignalSchedulerV8Tests",Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var db=Path.Combine(root,"data.db");
+        var paths=RuntimePaths.ForTesting(root,db);
+        var store=new StateStore(paths);
+        await store.InitializeAsync(CancellationToken.None);
+
+        var idle=await store.GetUpdateReadinessAsync(CancellationToken.None);
+        Assert.True(idle.CanUpdate);
+
+        await using(var c=new SqliteConnection($"Data Source={db}"))
+        {
+            await c.OpenAsync();
+            var cmd=c.CreateCommand();
+            cmd.CommandText="INSERT INTO v8_jobs(job_id,state,cursor,updated_at) VALUES('job-1','Running',0,1)";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        var blocked=await store.GetUpdateReadinessAsync(CancellationToken.None);
+        Assert.False(blocked.CanUpdate);
+        Assert.Equal(1,blocked.ActiveJobs);
+    }
+
     static async Task<object?> Scalar(SqliteConnection c,string sql)
     {
         await using var cmd=c.CreateCommand(); cmd.CommandText=sql; return await cmd.ExecuteScalarAsync();
