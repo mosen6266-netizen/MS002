@@ -359,14 +359,9 @@ public sealed partial class StateStore
         {
             var step=steps[i];
             entries.TryGetValue(i,out var info);
-            var status=info.State switch
-            {
-                "Confirmed" or "Completed" or "ManuallyConfirmed"=>"发送成功",
-                "RecoveryRequired" or "Ambiguous"=>"结果待核对",
-                "Sending"=>"正在发送","Reserved"=>"等待发送",
-                "Failed"=>"发送失败",null=>"未执行",
-                _=>info.State
-            };
+            // Journal evidence is about confirmed dispatch, not recipient delivery.
+            // A message with no journal row must never be shown as sent.
+            var status=StatusLabels.Delivery(info.State);
             messages.Add(new LiveBatchHistoryMessage(i+1,
                 labels.GetValueOrDefault(step.Account,"未备注账号"),
                 string.IsNullOrWhiteSpace(step.Message)
