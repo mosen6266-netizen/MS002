@@ -80,8 +80,18 @@ jobs:
           Invoke-WebRequest -UseBasicParsing -Uri $jreAsset.browser_download_url -OutFile $jreArchive
           Invoke-WebRequest -UseBasicParsing -Uri $jreChecksumAsset.browser_download_url -OutFile $jreChecksumFile
           $jreHash = (Get-FileHash $jreArchive -Algorithm SHA256).Hash.ToLowerInvariant()
-          $expectedJreHash = ((Get-Content -Raw $jreChecksumFile).Trim() -split "\\s+")[0].ToLowerInvariant()
-          if ($jreHash -ne $expectedJreHash) { throw "Temurin JRE SHA256 mismatch" }
+          $expectedJreHash = $null
+          if ($jreAsset.digest -and $jreAsset.digest -match "^sha256:(?<hash>[0-9a-fA-F]{64})$") {
+            $expectedJreHash = $Matches["hash"].ToLowerInvariant()
+          } else {
+            $checksumText = (Get-Content -Raw $jreChecksumFile)
+            $match = [regex]::Match($checksumText, "(?i)(?<hash>[0-9a-f]{64})")
+            if (-not $match.Success) { throw "Unable to parse Temurin SHA256" }
+            $expectedJreHash = $match.Groups["hash"].Value.ToLowerInvariant()
+          }
+          if ($jreHash -ne $expectedJreHash) {
+            throw "Temurin JRE SHA256 mismatch actual=$jreHash expected=$expectedJreHash"
+          }
           $jreExtract = Join-Path $pwd "jre-extract"
           Expand-Archive -Force $jreArchive $jreExtract
           $jreRoot = Get-ChildItem $jreExtract -Directory | Select-Object -First 1
