@@ -412,6 +412,30 @@ public partial class ScriptEditorWindow : UserControl
 
     void Append_Click(object sender,RoutedEventArgs e)=>InsertAt(_steps.Count);
 
+    bool SelectAttachmentRow(object sender)
+    {
+        if(sender is not MenuItem {CommandParameter:ScriptStepRow row})return false;
+        StepsGrid.SelectedItem=row;
+        StepsGrid.ScrollIntoView(row);
+        return true;
+    }
+    void AttachmentPreview_Click(object sender,RoutedEventArgs e)
+    {
+        if(SelectAttachmentRow(sender))PreviewImage_Click(sender,e);
+    }
+    void AttachmentReplace_Click(object sender,RoutedEventArgs e)
+    {
+        if(SelectAttachmentRow(sender))ImportImage_Click(sender,e);
+    }
+    void AttachmentRemove_Click(object sender,RoutedEventArgs e)
+    {
+        if(!SelectAttachmentRow(sender) || StepsGrid.SelectedItem is not ScriptStepRow row)return;
+        if(string.IsNullOrWhiteSpace(row.Attachment))return;
+        row.Attachment="";
+        _dirty=true;
+        StatusText.Text="已从当前消息移除图片引用，请保存剧本。原始图片文件未删除。";
+    }
+
     async void ImportImage_Click(object sender,RoutedEventArgs e)
     {
         CommitGrid();
