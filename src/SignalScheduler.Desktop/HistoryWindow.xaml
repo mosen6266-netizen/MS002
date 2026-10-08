@@ -1,0 +1,52 @@
+<UserControl x:Class="SignalScheduler.Desktop.HistoryWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Background="#091827" Foreground="#F0F6FD">
+ <Grid Margin="20">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
+   <RowDefinition Height="255"/><RowDefinition Height="14"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
+   <RowDefinition Height="440"/><RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <DockPanel>
+   <StackPanel DockPanel.Dock="Left">
+    <TextBlock Text="历史运行记录" FontSize="22" FontWeight="Bold"/>
+    <TextBlock Text="查看已完成、已停止和失败的剧本任务；点击记录核对每条发送结果。"
+     Foreground="#9FC0DB" Margin="0,6,0,0"/>
+   </StackPanel>
+   <Button Content="刷新历史" DockPanel.Dock="Right" Click="Refresh_Click"
+    Background="#225277" Foreground="#F0F6FD" Padding="16,8"/>
+  </DockPanel>
+  <DataGrid x:Name="HistoryGrid" Grid.Row="2"
+   SelectionChanged="HistoryGrid_SelectionChanged"
+   AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+   RowHeight="43" ColumnHeaderHeight="40"
+   Background="#132B41" Foreground="#F0F6FD"
+   RowBackground="#132B41" AlternatingRowBackground="#1B344A">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="群名" Binding="{Binding GroupName}" Width="2*"/>
+    <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="2*"/>
+    <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="*"/>
+    <DataGridTextColumn Header="已执行进度" Binding="{Binding Progress}" Width="*"/>
+   </DataGrid.Columns>
+  </DataGrid>
+  <TextBlock Grid.Row="4" Text="发送明细 · 消息全文及结果" FontSize="18" FontWeight="SemiBold"/>
+  <DataGrid x:Name="MessagesGrid" Grid.Row="6"
+   AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
+   RowHeight="48" ColumnHeaderHeight="40" Background="#10263A"
+   Foreground="#EDF5FD" RowBackground="#132B41" AlternatingRowBackground="#1B344A">
+   <DataGrid.Columns>
+    <DataGridTextColumn Header="序号" Binding="{Binding Position}" Width="60"/>
+    <DataGridTextColumn Header="账号备注" Binding="{Binding AccountLabel}" Width="155"/>
+    <DataGridTextColumn Header="发表内容" Binding="{Binding Content}" Width="3*"/>
+    <DataGridTextColumn Header="发送结果" Binding="{Binding State}" Width="110"/>
+    <DataGridTextColumn Header="详情" Binding="{Binding Detail}" Width="2*"/>
+    <DataGridTextColumn Header="发送时间" Binding="{Binding SentAt}" Width="160"/>
+   </DataGrid.Columns>
+  </DataGrid>
+  <TextBlock x:Name="StatusText" Grid.Row="7" Margin="0,12,0,0"
+   Foreground="#A9C8E0" TextWrapping="Wrap"
+   Text="正在读取历史记录…"/>
+ </Grid>
+</UserControl>
