@@ -11,6 +11,51 @@ namespace SignalScheduler.Desktop;
 
 public partial class LiveBatchWindow : UserControl
 {
+    sealed record ReadOptionPreferences(bool ReadReceipts=true,bool LinkedDeviceSync=true);
+    static readonly string ReadOptionsPath=Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SignalSchedulerData","read-options.json");
+    bool _loadingReadOptions;
+
+    void RestoreReadOptions()
+    {
+        _loadingReadOptions=true;
+        try
+        {
+            ReadOptionPreferences? options=null;
+            if(File.Exists(ReadOptionsPath))
+                options=JsonSerializer.Deserialize<ReadOptionPreferences>(
+                    File.ReadAllText(ReadOptionsPath));
+            ReadReceiptToggle.IsChecked=options?.ReadReceipts??true;
+            LinkedReadSyncToggle.IsChecked=options?.LinkedDeviceSync??true;
+        }
+        catch
+        {
+            ReadReceiptToggle.IsChecked=true;
+            LinkedReadSyncToggle.IsChecked=true;
+        }
+        finally{_loadingReadOptions=false;}
+    }
+
+    void ReadOptionsChanged(object sender,RoutedEventArgs e)
+    {
+        if(_loadingReadOptions || ReadReceiptToggle is null ||
+           LinkedReadSyncToggle is null)return;
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(ReadOptionsPath)!);
+            File.WriteAllText(ReadOptionsPath,JsonSerializer.Serialize(
+                new ReadOptionPreferences(
+                    ReadReceiptToggle.IsChecked==true,
+                    LinkedReadSyncToggle.IsChecked==true)));
+        }
+        catch(Exception ex)
+        {
+            if(StatusText is not null)
+                StatusText.Text="无法保存已读选项："+ex.Message;
+        }
+    }
+
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
@@ -22,6 +67,7 @@ public partial class LiveBatchWindow : UserControl
     public LiveBatchWindow()
     {
         InitializeComponent();
+        RestoreReadOptions();
         GroupsGrid.ItemsSource=_groups;
         JobsGrid.ItemsSource=_jobs;
         SelectedGroupTags.ItemsSource=_selectedTags;
