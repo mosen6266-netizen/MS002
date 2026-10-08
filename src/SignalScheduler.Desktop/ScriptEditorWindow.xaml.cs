@@ -213,6 +213,42 @@ public partial class ScriptEditorWindow : UserControl
         StatusText.Text="新剧本尚未保存，完成编辑后点击右上角“保存剧本”。";
     }
 
+    void ScriptsList_PreviewMouseRightButtonDown(object sender,
+        System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if(e.OriginalSource is not System.Windows.DependencyObject node)return;
+        while(node is not null)
+        {
+            if(node is ListBoxItem item)
+            {
+                item.IsSelected=true;
+                break;
+            }
+            node=System.Windows.Media.VisualTreeHelper.GetParent(node);
+        }
+    }
+
+    void RenameScript_Click(object sender,RoutedEventArgs e)
+    {
+        if(ScriptsList.SelectedItem is not ScriptEditorSummary target ||
+           _scriptId!=target.ScriptId)
+        {
+            StatusText.Text="请先在左侧选中已加载的剧本。";
+            return;
+        }
+        var name=Microsoft.VisualBasic.Interaction.InputBox(
+            "输入新的剧本名称：","重命名剧本",target.Name);
+        name=name.Trim();
+        if(string.IsNullOrWhiteSpace(name) || name==target.Name)return;
+        if(name.Length>120)
+        {
+            StatusText.Text="剧本名称不能超过 120 个字符。";
+            return;
+        }
+        NameBox.Text=name;
+        Save_Click(sender,e);
+    }
+
     void NewScript_Click(object sender,RoutedEventArgs e)
     {
         if(!ConfirmDiscard()) return;
