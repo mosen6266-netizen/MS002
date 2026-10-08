@@ -111,6 +111,18 @@ public sealed class NamedPipeControlServer : BackgroundService
                         response=new ControlResponse(true,
                             Data:await _store.ListLiveBatchAsync(ct));
                         break;
+                    case ControlCommands.LiveBatchHistoryPage:
+                        try
+                        {
+                            var input=ParsePayload<LiveBatchHistoryPageRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ListLiveBatchHistoryPageAsync(input,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.LiveBatchHistoryDetail:
                         try
                         {
