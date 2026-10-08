@@ -187,8 +187,8 @@ public sealed class SignalReadCoordinator : BackgroundService
         finally{_databaseGate.Release();}
         foreach(var item in pending)
         {
-            var state="failed";
-            var detail="发送已读回执未确认";
+            var state="pending";
+            var detail="已读回执尚未获得成功响应，稍后重试";
             try
             {
                 var id=Guid.NewGuid().ToString("N");
@@ -196,7 +196,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                 timeout.CancelAfter(TimeSpan.FromSeconds(4));
                 using var response=await _http.PostAsJsonAsync("api/v1/rpc",new{
                     jsonrpc="2.0",method="sendReceipt",id,
-                    @params=new{account,recipient=item.Author,timestamp=item.Timestamp,type="read"}
+                    @params=new{account,recipient=item.Author,targetTimestamp=item.Timestamp,type="read"}
                 },timeout.Token);
                 var raw=await response.Content.ReadAsStringAsync(timeout.Token);
                 using var doc=JsonDocument.Parse(raw);
@@ -211,7 +211,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                 }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-            catch(Exception ex){detail=ex.GetType().Name;}
+            catch(Exception ex){detail="已读回执失败："+ex.GetType().Name;}
             await _databaseGate.WaitAsync(ct);
             try
             {
