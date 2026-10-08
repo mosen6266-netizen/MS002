@@ -24,7 +24,7 @@ public sealed class RuntimePaths
         LogRoot=Path.Combine(DataRoot,"logs");
 
         var installRoot=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
-        RuntimeRoot=Path.Combine(installRoot,"Runtime");
+        RuntimeRoot=Path.Combine(installRoot,"Runtime","signal-stack-v1");
         JavaExe=Path.Combine(RuntimeRoot,"jre","bin","java.exe");
         SignalCliHome=Path.Combine(RuntimeRoot,"signal-cli");
         SignalCliLibWildcard=Path.Combine(SignalCliHome,"lib","*");
@@ -41,7 +41,7 @@ public sealed class RuntimePaths
         DatabasePath=db;
         BackupRoot=Path.Combine(root,"backups");
         LogRoot=Path.Combine(root,"logs");
-        RuntimeRoot=Path.Combine(root,"_runtime_test");
+        RuntimeRoot=Path.Combine(root,"_runtime_test","signal-stack-v1");
         JavaExe=Path.Combine(RuntimeRoot,"jre","bin","java.exe");
         SignalCliHome=Path.Combine(RuntimeRoot,"signal-cli");
         SignalCliLibWildcard=Path.Combine(SignalCliHome,"lib","*");
