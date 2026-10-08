@@ -276,18 +276,135 @@ public sealed class StateStore
         tx.Commit();
     }
 
-    public Task MarkSendingAsync(DispatchIdentity d,CancellationToken ct)=>SetStateAsync(d.DispatchKey,"Sending",null,ct);
-    public Task MarkDefinitelyNotSentAsync(DispatchIdentity d,string? detail,CancellationToken ct)=>SetStateAsync(d.DispatchKey,"DefinitelyNotSent",detail,ct);
-    public Task MarkRecoveryAsync(DispatchIdentity d,string? detail,CancellationToken ct)=>SetStateAsync(d.DispatchKey,"RecoveryRequired",detail,ct);
-
-    async Task SetStateAsync(string key,string state,string? detail,CancellationToken ct)
+    /// <summary>
+    /// Last DB gate before the irreversible operation: the job must still be
+    /// running at the reserved cursor, and the live account and target group
+    /// must still be enabled. All checks and the transition are atomic.
+    /// </summary>
+    public async Task MarkSendingAsync(DispatchIdentity d,CancellationToken ct)
     {
         await using var c=Open();
-        await using var cmd=c.CreateCommand();
-        cmd.CommandText="UPDATE v8_dispatch_journal SET state=$s,detail=$d,updated_at=$n WHERE dispatch_key=$k";
-        cmd.Parameters.AddWithValue("$s",state); cmd.Parameters.AddWithValue("$d",(object?)detail??DBNull.Value);
-        cmd.Parameters.AddWithValue("$n",DateTimeOffset.UtcNow.ToUnixTimeSeconds()); cmd.Parameters.AddWithValue("$k",key);
-        if(await cmd.ExecuteNonQueryAsync(ct)!=1) throw new InvalidOperationException("Dispatch transition failed.");
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await using var sending=c.CreateCommand();
+        sending.Transaction=tx;
+        sending.CommandText="""
+            UPDATE v8_dispatch_journal SET state='Sending',updated_at=$n
+            WHERE dispatch_key=$k AND state='Prepared'
+              AND EXISTS (
+                SELECT 1 FROM v8_jobs j
+                WHERE j.job_id=v8_dispatch_journal.job_id
+                  AND j.state='Running' AND j.cursor=v8_dispatch_journal.cursor
+              )
+              AND EXISTS (
+                SELECT 1 FROM v8_signal_accounts a
+                WHERE a.account=v8_dispatch_journal.account_id AND a.enabled=1 AND a.online=1
+              )
+              AND EXISTS (
+                SELECT 1 FROM v8_signal_groups g
+                WHERE g.account=v8_dispatch_journal.account_id
+                  AND g.group_id=v8_dispatch_journal.group_id AND g.is_member=1
+              );
+            """;
+        sending.Parameters.AddWithValue("$k",d.DispatchKey);
+        sending.Parameters.AddWithValue("$n",now);
+        if(await sending.ExecuteNonQueryAsync(ct)==1)
+        {
+            tx.Commit();
+            return;
+        }
+
+        // If permission/online state changed before Sending, no irreversible
+        // call took place. Record the non-send and pause for explicit review.
+        await using(var notSent=c.CreateCommand())
+        {
+            notSent.Transaction=tx;
+            notSent.CommandText="""
+                UPDATE v8_dispatch_journal
+                SET state='DefinitelyNotSent',
+                    detail='发送前校验失败：任务已暂停，或账号、群组不可用。',
+                    updated_at=$n
+                WHERE dispatch_key=$k AND state='Prepared';
+                """;
+            notSent.Parameters.AddWithValue("$k",d.DispatchKey);
+            notSent.Parameters.AddWithValue("$n",now);
+            if(await notSent.ExecuteNonQueryAsync(ct)==1)
+            {
+                await using var pause=c.CreateCommand();
+                pause.Transaction=tx;
+                pause.CommandText="""
+                    UPDATE v8_jobs SET state='Paused',updated_at=$n
+                    WHERE job_id=$j AND state='Running';
+                    """;
+                pause.Parameters.AddWithValue("$j",d.JobId);
+                pause.Parameters.AddWithValue("$n",now);
+                await pause.ExecuteNonQueryAsync(ct);
+            }
+        }
+        tx.Commit();
+        throw new InvalidOperationException("Pre-send validation rejected; no Signal send was attempted.");
+    }
+
+    public Task MarkDefinitelyNotSentAsync(DispatchIdentity d,string? detail,CancellationToken ct)=>
+        CompleteUncertainAsync(d,"DefinitelyNotSent","Paused",detail,ct);
+
+    public Task MarkRecoveryAsync(DispatchIdentity d,string? detail,CancellationToken ct)=>
+        CompleteUncertainAsync(d,"RecoveryRequired","RecoveryRequired",detail,ct);
+
+    /// <summary>
+    /// A failed or ambiguous send must also change the durable JOB state so
+    /// that the runner cannot silently progress to the next message.
+    /// </summary>
+    async Task CompleteUncertainAsync(
+        DispatchIdentity d,string journalState,string jobState,string? detail,CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await using(var journal=c.CreateCommand())
+        {
+            journal.Transaction=tx;
+            journal.CommandText="""
+                UPDATE v8_dispatch_journal
+                SET state=$s,detail=$d,updated_at=$n
+                WHERE dispatch_key=$k AND state='Sending';
+                """;
+            journal.Parameters.AddWithValue("$s",journalState);
+            journal.Parameters.AddWithValue("$d",(object?)detail??DBNull.Value);
+            journal.Parameters.AddWithValue("$n",now);
+            journal.Parameters.AddWithValue("$k",d.DispatchKey);
+            if(await journal.ExecuteNonQueryAsync(ct)!=1)
+                throw new InvalidOperationException("Cannot overwrite a non-Sending dispatch result.");
+        }
+
+        await using(var job=c.CreateCommand())
+        {
+            job.Transaction=tx;
+            job.CommandText="UPDATE v8_jobs SET state=$s,updated_at=$n WHERE job_id=$j";
+            job.Parameters.AddWithValue("$s",jobState);
+            job.Parameters.AddWithValue("$n",now);
+            job.Parameters.AddWithValue("$j",d.JobId);
+            if(await job.ExecuteNonQueryAsync(ct)!=1)
+                throw new InvalidOperationException("Owning job missing for dispatch.");
+        }
+
+        await using(var log=c.CreateCommand())
+        {
+            log.Transaction=tx;
+            log.CommandText="""
+                INSERT INTO v8_event_log(job_id,dispatch_key,event_type,detail,created_at)
+                VALUES($j,$k,$ev,$d,$n);
+                """;
+            log.Parameters.AddWithValue("$j",d.JobId);
+            log.Parameters.AddWithValue("$k",d.DispatchKey);
+            log.Parameters.AddWithValue("$ev",journalState=="RecoveryRequired"?"dispatch_ambiguous":"dispatch_not_sent");
+            log.Parameters.AddWithValue("$d",(object?)detail??DBNull.Value);
+            log.Parameters.AddWithValue("$n",now);
+            await log.ExecuteNonQueryAsync(ct);
+        }
+        tx.Commit();
     }
 
     public async Task CommitConfirmedAsync(DispatchIdentity d,SignalSendResult result,CancellationToken ct)
@@ -306,15 +423,19 @@ public sealed class StateStore
         journal.Parameters.AddWithValue("$n",now); journal.Parameters.AddWithValue("$k",d.DispatchKey);
         if(await journal.ExecuteNonQueryAsync(ct)!=1) throw new InvalidOperationException("Confirmed transition rejected.");
 
-        await using var job=c.CreateCommand(); job.Transaction=tx;
+        await using var job=c.CreateCommand();
+        job.Transaction=tx;
         job.CommandText="""
-        INSERT INTO v8_jobs(job_id,state,cursor,updated_at) VALUES($j,'Running',$next,$n)
-        ON CONFLICT(job_id) DO UPDATE SET state='Running',
-          cursor=CASE WHEN v8_jobs.cursor<excluded.cursor THEN excluded.cursor ELSE v8_jobs.cursor END,
-          updated_at=excluded.updated_at;
-        """;
-        job.Parameters.AddWithValue("$j",d.JobId); job.Parameters.AddWithValue("$next",d.Cursor+1); job.Parameters.AddWithValue("$n",now);
-        await job.ExecuteNonQueryAsync(ct);
+            UPDATE v8_jobs SET cursor=$next,updated_at=$n
+            WHERE job_id=$j AND cursor=$current
+              AND state IN ('Running','Paused','Stopping');
+            """;
+        job.Parameters.AddWithValue("$j",d.JobId);
+        job.Parameters.AddWithValue("$current",d.Cursor);
+        job.Parameters.AddWithValue("$next",d.Cursor+1);
+        job.Parameters.AddWithValue("$n",now);
+        if(await job.ExecuteNonQueryAsync(ct)!=1)
+            throw new InvalidOperationException("Owning job moved or stopped before confirmed commit.");
 
         await using var log=c.CreateCommand(); log.Transaction=tx;
         log.CommandText="INSERT INTO v8_event_log(job_id,dispatch_key,event_type,detail,created_at) VALUES($j,$k,'dispatch_confirmed',$d,$n)";
@@ -343,7 +464,7 @@ public sealed class StateStore
 
         var inFlight=await CountAsync("""
             SELECT COUNT(*) FROM v8_dispatch_journal
-            WHERE lower(state)='sending';
+            WHERE lower(state) IN ('sending','prepared','unknown');
             """);
 
         if(activeJobs>0 || inFlight>0)
