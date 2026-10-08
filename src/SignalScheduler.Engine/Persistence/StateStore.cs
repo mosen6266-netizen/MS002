@@ -57,6 +57,13 @@ public sealed partial class StateStore
           PRIMARY KEY(account,group_id)
         );
         CREATE INDEX IF NOT EXISTS idx_v8_signal_groups_name ON v8_signal_groups(name);
+        CREATE TABLE IF NOT EXISTS v8_account_settings(
+          account TEXT PRIMARY KEY,label TEXT NOT NULL,enabled INTEGER NOT NULL,
+          revision INTEGER NOT NULL DEFAULT 1,updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS v8_selected_groups(
+          group_id TEXT PRIMARY KEY,selected_at INTEGER NOT NULL
+        );
         INSERT INTO v8_schema(key,value) VALUES('schema_version','2')
           ON CONFLICT(key) DO UPDATE SET value=excluded.value;
         """;
@@ -183,6 +190,21 @@ public sealed partial class StateStore
                 }
             }
 
+            // Settings are durable across a missing/relinked Signal account.
+            // Never overwrite the user's remark/disabled preference on sync.
+            await using(var settings=c.CreateCommand())
+            {
+                settings.Transaction=tx;
+                settings.CommandText="SELECT label,enabled FROM v8_account_settings WHERE account=$a";
+                settings.Parameters.AddWithValue("$a",account);
+                await using var r=await settings.ExecuteReaderAsync(ct);
+                if(await r.ReadAsync(ct))
+                {
+                    label=r.GetString(0);
+                    enabled=r.GetInt64(1);
+                }
+            }
+
             await using var cmd=c.CreateCommand();
             cmd.Transaction=tx;
             cmd.CommandText="""
@@ -190,6 +212,8 @@ public sealed partial class StateStore
                 VALUES($a,$label,$enabled,1,$now)
                 ON CONFLICT(account) DO UPDATE SET
                   online=1,
+                  label=excluded.label,
+                  enabled=excluded.enabled,
                   last_seen=excluded.last_seen;
                 """;
             cmd.Parameters.AddWithValue("$a",account);
@@ -337,6 +361,10 @@ public sealed partial class StateStore
               AND EXISTS (
                 SELECT 1 FROM v8_signal_accounts a
                 WHERE a.account=v8_dispatch_journal.account_id AND a.enabled=1 AND a.online=1
+                  AND NOT EXISTS (
+                    SELECT 1 FROM v8_account_settings p
+                    WHERE p.account=a.account AND p.enabled=0
+                  )
               )
               AND EXISTS (
                 SELECT 1 FROM v8_signal_groups g
@@ -717,6 +745,26 @@ public sealed partial class StateStore
                 if(existing.Add((account,groupId)))
                     groups.Add(new DashboardGroup(
                         syntheticId--,account,groupId,r.GetString(2),r.GetInt64(3)!=0));
+            }
+        }
+
+        // Editing an account remark does not mutate the original V7 metadata.
+        // Overlay the locally saved preference in the native dashboard.
+        if(await TableExists("v8_account_settings"))
+        {
+            var settings=new Dictionary<string,(string Label,bool Enabled)>(StringComparer.Ordinal);
+            await using(var q=c.CreateCommand())
+            {
+                q.CommandText="SELECT account,label,enabled FROM v8_account_settings";
+                await using var r=await q.ExecuteReaderAsync(ct);
+                while(await r.ReadAsync(ct))
+                    settings[r.GetString(0)]=(r.GetString(1),r.GetInt64(2)!=0);
+            }
+            for(var i=0;i<accounts.Count;i++)
+            {
+                var account=accounts[i];
+                if(settings.TryGetValue(account.Account,out var preference))
+                    accounts[i]=account with {Label=preference.Label,Enabled=preference.Enabled};
             }
         }
 
