@@ -65,7 +65,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.9",
+                            version="8.0.0-alpha.10",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -92,6 +92,32 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.ImageImport:
+                        try
+                        {
+                            var image=ParsePayload<ImageImportRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ImportImageAsync(image,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or IOException
+                            or UnauthorizedAccessException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.ImageLookup:
+                        try
+                        {
+                            var image=ParsePayload<ImageLookupRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.LookupImageAsync(image,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or IOException
+                            or UnauthorizedAccessException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
                         break;
                     case ControlCommands.PreviewList:
                         response=new ControlResponse(true,Data:await _store.ListPreviewTasksAsync(ct));

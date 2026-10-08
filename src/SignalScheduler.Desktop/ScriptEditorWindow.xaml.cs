@@ -5,6 +5,8 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using SignalScheduler.Shared;
 
@@ -199,6 +201,87 @@ public partial class ScriptEditorWindow : Window
     }
 
     void Append_Click(object sender,RoutedEventArgs e)=>InsertAt(_steps.Count);
+
+    async void ImportImage_Click(object sender,RoutedEventArgs e)
+    {
+        CommitGrid();
+        if(StepsGrid.SelectedItem is not ScriptStepRow row)
+        {
+            StatusText.Text="请先选中要添加图片的那条消息。";
+            return;
+        }
+        var picker=new OpenFileDialog
+        {
+            Title="为这条消息导入图片",
+            Filter="图片文件 (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
+            CheckFileExists=true
+        };
+        if(picker.ShowDialog(this)!=true) return;
+        try
+        {
+            var data=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
+                ControlCommands.ImageImport,25000,
+                new ImageImportRequest(picker.FileName)));
+            row.Attachment=data.Reference;
+            _dirty=true;
+            StatusText.Text=$"图片「{data.OriginalName}」已安全导入。请保存剧本。"+
+                "图片保存在本地用户数据目录，软件升级不会删除。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text=$"图片导入失败：{ex.Message}";
+            MessageBox.Show(this,ex.Message,"图片导入失败",
+                MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+    }
+
+    async void PreviewImage_Click(object sender,RoutedEventArgs e)
+    {
+        CommitGrid();
+        if(StepsGrid.SelectedItem is not ScriptStepRow row ||
+            string.IsNullOrWhiteSpace(row.Attachment))
+        {
+            StatusText.Text="请先选中包含图片附件的那条消息。";
+            return;
+        }
+        try
+        {
+            var info=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
+                ControlCommands.ImageLookup,15000,
+                new ImageLookupRequest(row.Attachment)));
+            var bitmap=new BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption=BitmapCacheOption.OnLoad;
+            bitmap.DecodePixelWidth=1400;
+            bitmap.UriSource=new Uri(info.AbsolutePath,UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            var window=new Window
+            {
+                Owner=this,
+                Title=$"预览图片 - {info.OriginalName}",
+                Width=850,Height=670,
+                MinWidth=500,MinHeight=380,
+                WindowStartupLocation=WindowStartupLocation.CenterOwner,
+                Background=Brushes.Black,
+                Content=new Border
+                {
+                    Padding=new Thickness(15),
+                    Child=new Image{Source=bitmap,Stretch=Stretch.Uniform}
+                }
+            };
+            window.Show();
+            StatusText.Text="本地附件图片校验通过，已打开预览窗口。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text=$"无法预览图片：{ex.Message}";
+            MessageBox.Show(this,ex.Message,"图片预览失败",
+                MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+    }
+
+
 
     void InsertAbove_Click(object sender,RoutedEventArgs e)
     {

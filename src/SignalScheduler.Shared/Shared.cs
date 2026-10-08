@@ -118,6 +118,11 @@ public sealed record PreviewTaskItem(
     string JobId,string Name,string ScriptId,string GroupId,string GroupName,
     string State,long Cursor,int TotalSteps,long NextDueAt,string Detail);
 
+public sealed record ImageImportRequest(string SourcePath);
+public sealed record ImageLookupRequest(string Reference);
+public sealed record ImageAttachmentInfo(
+    string Reference,string AbsolutePath,string OriginalName,long Bytes,string Sha256);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -149,4 +154,6 @@ public static class ControlCommands
     public const string PreviewPlan="preview-plan";
     public const string PreviewList="preview-list";
     public const string PreviewControl="preview-control";
+    public const string ImageImport="image-import";
+    public const string ImageLookup="image-lookup";
 }

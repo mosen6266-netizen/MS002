@@ -43,7 +43,8 @@
 ## Stage 4 — feature parity
 - [x] Native account manager: custom remarks, enabled/disabled, persisted across relinks
 - [x] Native editable script authoring with per-step insert/reorder, JSON import/export
-- [ ] Binary attachment import/export and preview
+- [x] Content-addressed local picture import and preview with SHA-256 checks
+- [ ] Cross-device attachment bundle export/import and legacy V7 binary migration
 - [x] Group selection by name and unique ID, saved across restart
 - [ ] Typing/read logic
 - [x] Multi-group rehearsal scheduler (SQLite-backed preview only, no actual Signal sends)
