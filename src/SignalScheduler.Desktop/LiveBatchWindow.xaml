@@ -107,7 +107,36 @@
       <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"/>
      </StackPanel>
     </Grid>
-
+    <DataGrid x:Name="GroupsGrid"
+      SelectionChanged="GroupsGrid_SelectionChanged"
+       AlternationCount="2" RowHeight="45"
+      ColumnHeaderHeight="43" ColumnHeaderStyle="{StaticResource DarkGridHeader}"
+      AutoGenerateColumns="False" Background="#12273B" Foreground="#F0F7FD"
+      RowBackground="#12273B" AlternatingRowBackground="#1B344A"
+      CanUserAddRows="False" IsReadOnly="False" BorderBrush="#3C5B73"
+      ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      <DataGrid.Columns>
+       <DataGridTemplateColumn Header="选择" Width="68">
+        <DataGridTemplateColumn.CellTemplate>
+         <DataTemplate>
+          <CheckBox IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+           Style="{StaticResource LargeRowCheckBox}" ToolTip="点击选择或取消该群"/>
+         </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+       </DataGridTemplateColumn>
+       <DataGridTemplateColumn Header="群名称" Width="*">
+        <DataGridTemplateColumn.CellTemplate>
+         <DataTemplate>
+          <TextBlock Text="{Binding Name}" Foreground="#EDF6FD"
+           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+           Margin="10,0" VerticalAlignment="Center" ToolTip="{Binding Name}"/>
+         </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+       </DataGridTemplateColumn>
+       <DataGridTextColumn Header="账号" Width="67" IsReadOnly="True"
+        Binding="{Binding MemberAccounts}" ElementStyle="{StaticResource TruncatedGridText}"/>
+      </DataGrid.Columns>
+     </DataGrid>
    </StackPanel>
   </Border>
   <Border Background="#10273D" BorderBrush="#31516A" BorderThickness="1"
