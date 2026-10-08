@@ -62,6 +62,12 @@ public partial class MainWindow : Window
         var window=new RecoveryCenterWindow{Owner=this};
         window.Show();
     }
+    void PreviewTasks_Click(object sender,RoutedEventArgs e)
+    {
+        var window=new PreviewTasksWindow{Owner=this};
+        window.Show();
+    }
+
 
     void ScriptEditor_Click(object sender,RoutedEventArgs e)
     {
@@ -208,7 +214,7 @@ public partial class MainWindow : Window
     /// WPF window is minimized. Run it off the UI thread so status refreshes
     /// and the main window remain responsive while the user reads the alert.
     /// </summary>
-    static void ShowCriticalAlert(string message)
+    internal static void ShowCriticalAlert(string message)
     {
         _=Task.Run(()=>
         {

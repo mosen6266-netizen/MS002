@@ -29,6 +29,7 @@ builder.Services.AddSingleton<ISignalTransport, SignalCliTransport>();
 builder.Services.AddSingleton<DurableTaskEngine>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<SignalGuardian>());
 builder.Services.AddHostedService<SignalCatalogSyncService>();
+builder.Services.AddHostedService<PreviewTaskRunner>();
 builder.Services.AddHostedService<NamedPipeControlServer>();
 
 var host = builder.Build();
@@ -43,6 +44,7 @@ if (inventory.LegacyDetected && !inventory.MetadataMigrated)
 // Copy legacy script metadata into a separate editable V8 authoring store.
 // Safe to run repeatedly: existing edited scripts are never overwritten.
 await store.InitializeScriptEditorAsync(CancellationToken.None);
+await store.InitializePreviewTasksAsync(CancellationToken.None);
 
 await host.RunAsync();
 
