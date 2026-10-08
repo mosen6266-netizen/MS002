@@ -268,6 +268,20 @@ public sealed class NamedPipeControlServer : BackgroundService
                             response=new ControlResponse(false,Error:ex.Message);
                         }
                         break;
+                    case ControlCommands.ManualDispatchReview:
+                        try
+                        {
+                            var requestReview=ParsePayload<ManualDispatchReviewRequest>(
+                                request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ReviewAmbiguousDispatchAsync(requestReview,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException
+                            or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.RecoveryOverview:
                         response=new ControlResponse(true,Data:await _store.GetRecoveryOverviewAsync(ct));
                         break;
