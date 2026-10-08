@@ -36,6 +36,7 @@ public sealed class SignalCatalogSyncService : BackgroundService
 
                 var accounts=guardian.LiveAccounts;
                 var groups=new List<SignalGroupCatalogItem>();
+                var completeGroupAccounts=new List<string>();
 
                 foreach(var account in accounts)
                 {
@@ -43,6 +44,7 @@ public sealed class SignalCatalogSyncService : BackgroundService
                     {
                         var result=await RpcAsync("listGroups",new{account},stoppingToken);
                         if(result.ValueKind!=JsonValueKind.Array) continue;
+                        completeGroupAccounts.Add(account);
 
                         foreach(var g in result.EnumerateArray())
                         {
@@ -73,7 +75,7 @@ public sealed class SignalCatalogSyncService : BackgroundService
                     }
                 }
 
-                await _store.SyncSignalCatalogAsync(accounts,groups,stoppingToken);
+                await _store.SyncSignalCatalogAsync(accounts,groups,completeGroupAccounts,stoppingToken);
                 await Task.Delay(TimeSpan.FromSeconds(45),stoppingToken);
             }
             catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested)
