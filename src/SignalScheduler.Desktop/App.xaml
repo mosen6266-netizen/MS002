@@ -95,6 +95,41 @@
    <Setter Property="CaretBrush" Value="#FFFFFF"/>
    <Setter Property="Padding" Value="7,6"/>
   </Style>
+  <Style x:Key="LargeRowCheckBox" TargetType="CheckBox">
+   <Setter Property="Width" Value="56"/>
+   <Setter Property="Height" Value="46"/>
+   <Setter Property="HorizontalAlignment" Value="Center"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="CheckBox">
+      <Grid Width="56" Height="46" Background="Transparent">
+       <Border x:Name="CheckFrame" Width="29" Height="29" CornerRadius="5"
+        Background="#14283D" BorderBrush="#88A9C4" BorderThickness="2"
+        HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock x:Name="CheckMark" Text="✓" FontSize="23"
+         FontWeight="Bold" TextAlignment="Center" VerticalAlignment="Center"
+         Foreground="White" Visibility="Collapsed"/>
+       </Border>
+      </Grid>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsChecked" Value="True">
+        <Setter TargetName="CheckFrame" Property="Background" Value="#128464"/>
+        <Setter TargetName="CheckFrame" Property="BorderBrush" Value="#35C79A"/>
+        <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+       </Trigger>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="CheckFrame" Property="BorderBrush" Value="#80D6EF"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="CheckFrame" Property="Opacity" Value="0.4"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <Style TargetType="CheckBox">
    <Setter Property="MinHeight" Value="35"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
