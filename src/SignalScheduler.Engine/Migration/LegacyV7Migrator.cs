@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using SignalScheduler.Engine;
 
 namespace SignalScheduler.Engine.Migration;
 
@@ -74,7 +75,7 @@ public sealed class LegacyV7Migrator
         await CreateBackupAsync(ct);
 
         await using var c=Open();
-        await using var tx=await c.BeginTransactionAsync(ct);
+        using var tx=c.BeginTransaction();
         try
         {
             await using(var schema=c.CreateCommand())
@@ -162,11 +163,11 @@ public sealed class LegacyV7Migrator
               ON CONFLICT(key) DO UPDATE SET value=excluded.value;
               """;
             await marker.ExecuteNonQueryAsync(ct);
-            await tx.CommitAsync(ct);
+            tx.Commit();
         }
         catch
         {
-            await tx.RollbackAsync(CancellationToken.None);
+            tx.Rollback();
             throw;
         }
     }
