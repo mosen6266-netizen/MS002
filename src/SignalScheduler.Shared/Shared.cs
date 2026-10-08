@@ -96,6 +96,16 @@ public sealed record ScriptSaveRequest(
     IReadOnlyList<ScriptEditorStep> Steps);
 public sealed record ScriptReadRequest(string ScriptId);
 
+public sealed record ManagedAccount(
+    string Account,string Label,bool Enabled,bool Online,long Revision);
+public sealed record ManagedGroup(
+    string GroupId,string Name,int MemberAccounts,bool Selected);
+public sealed record AccountGroupOverview(
+    IReadOnlyList<ManagedAccount> Accounts,IReadOnlyList<ManagedGroup> Groups);
+public sealed record UpdateManagedAccount(
+    string Account,string Label,bool Enabled,long ExpectedRevision);
+public sealed record UpdateGroupSelection(IReadOnlyList<string> GroupIds);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -121,4 +131,7 @@ public static class ControlCommands
     public const string ScriptList="script-list";
     public const string ScriptRead="script-read";
     public const string ScriptSave="script-save";
+    public const string AccountGroupCatalog="account-group-catalog";
+    public const string UpdateAccount="update-account";
+    public const string SetSelectedGroups="set-selected-groups";
 }

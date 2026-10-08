@@ -41,10 +41,10 @@
 - [ ] Durable send transport (Signal sending remains disabled)
 
 ## Stage 4 — feature parity
-- [ ] Multi-account management UI
+- [x] Native account manager: custom remarks, enabled/disabled, persisted across relinks
 - [x] Native editable script authoring with per-step insert/reorder, JSON import/export
 - [ ] Binary attachment import/export and preview
-- [ ] Group selection
+- [x] Group selection by name and unique ID, saved across restart
 - [ ] Typing/read logic
 - [ ] Multi-group runner
 - [x] Read-only recovery center, audit evidence copy, persistent manual pause

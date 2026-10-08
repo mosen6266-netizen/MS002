@@ -65,7 +65,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.7",
+                            version="8.0.0-alpha.8",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -95,6 +95,34 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.RecoveryOverview:
                         response=new ControlResponse(true,Data:await _store.GetRecoveryOverviewAsync(ct));
+                        break;
+                    case ControlCommands.AccountGroupCatalog:
+                        response=new ControlResponse(true,
+                            Data:await _store.GetAccountGroupOverviewAsync(ct));
+                        break;
+                    case ControlCommands.UpdateAccount:
+                        try
+                        {
+                            var account=ParsePayload<UpdateManagedAccount>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.UpdateManagedAccountAsync(account,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.SetSelectedGroups:
+                        try
+                        {
+                            var selection=ParsePayload<UpdateGroupSelection>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.SetSelectedGroupsAsync(selection,ct));
+                        }
+                        catch(ArgumentException ex)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
                         break;
                     case ControlCommands.ScriptList:
                         response=new ControlResponse(true,Data:await _store.ListEditorScriptsAsync(ct));
