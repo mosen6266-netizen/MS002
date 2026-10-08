@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -22,6 +23,20 @@ public partial class ScriptEditorWindow : UserControl
     bool _loading;
     bool _dirty;
     string? _savedSignature;
+    ICollectionView? _scriptView;
+    void ScriptSearchBox_TextChanged(object sender,TextChangedEventArgs e)
+    {
+        if(_scriptView is null)return;
+        _scriptView.Refresh();
+        UpdateSearchSummary();
+    }
+    void UpdateSearchSummary()
+    {
+        if(ScriptSearchSummary is null || _scriptView is null)return;
+        var count=_scriptView.Cast<object>().Count();
+        ScriptSearchSummary.Text=$"找到 {count} 个剧本 · 仅筛选列表，不修改草稿";
+    }
+
 
     public ScriptEditorWindow()
     {
@@ -101,7 +116,14 @@ public partial class ScriptEditorWindow : UserControl
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptList,8000);
             var scripts=ReadData<List<ScriptEditorSummary>>(raw);
             _loading=true;
-            ScriptsList.ItemsSource=scripts;
+            _scriptView=CollectionViewSource.GetDefaultView(scripts);
+            _scriptView.Filter=item=>item is ScriptEditorSummary script &&
+                (string.IsNullOrWhiteSpace(ScriptSearchBox.Text) ||
+                 script.Name.Contains(ScriptSearchBox.Text.Trim(),
+                     StringComparison.CurrentCultureIgnoreCase) ||
+                 script.ScriptId==_scriptId);
+            ScriptsList.ItemsSource=_scriptView;
+            UpdateSearchSummary();
             ScriptsList.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==oldId)
                 ??(loadFirst?scripts.FirstOrDefault():null);
             _loading=false;
