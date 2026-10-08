@@ -77,6 +77,11 @@ public partial class MainWindow : Window
         var window=new LivePilotWindow{Owner=this};
         window.Show();
     }
+    void LiveBatch_Click(object sender,RoutedEventArgs e)
+    {
+        var manager=new LiveBatchWindow{Owner=this};
+        manager.Show();
+    }
 
 
 
