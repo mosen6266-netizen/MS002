@@ -34,8 +34,12 @@ public sealed class ManualDispatchReviewTests
             store.ReviewAmbiguousDispatchAsync(
                 new(d.Dispatch.JobId,d.Dispatch.DispatchKey,"seen",
                     "重复核对记录绝对不应成功"),Ct));
+        // The resolved dispatch identity can never be replayed; starting an
+        // entirely new job is a separate explicitly confirmed operation.
+        var oldEngine=new DurableTaskEngine(store,new FakeTransport(
+            new SignalSendResult(SignalDeliveryOutcome.Confirmed,"22","ACK")));
         await Assert.ThrowsAsync<InvalidOperationException>(()=>
-            store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1"},true),Ct));
+            oldEngine.DispatchAsync(d.Dispatch,"signal-structured:{\"Message\":\"repeat\"}",Ct));
     }
 
     [Fact]
