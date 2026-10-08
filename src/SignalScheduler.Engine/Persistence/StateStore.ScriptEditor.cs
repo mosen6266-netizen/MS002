@@ -42,7 +42,16 @@ public sealed partial class StateStore
                 );
                 CREATE INDEX IF NOT EXISTS idx_v8_editor_steps_order
                   ON v8_editor_steps(script_id,position);
-                CREATE TABLE IF NOT EXISTS v8_editor_deleted_scripts(
+                CREATE TABLE IF NOT EXISTS v8_editor_versions(
+                    script_id TEXT NOT NULL,
+                    revision INTEGER NOT NULL,
+                    name TEXT NOT NULL,
+                    target_group_id TEXT NOT NULL,
+                    steps_json TEXT NOT NULL,
+                    saved_at INTEGER NOT NULL,
+                    PRIMARY KEY(script_id,revision)
+                );
+                                CREATE TABLE IF NOT EXISTS v8_editor_deleted_scripts(
                     script_id TEXT PRIMARY KEY,
                     deleted_at INTEGER NOT NULL
                 );
@@ -245,6 +254,56 @@ public sealed partial class StateStore
             if(await cmd.ExecuteNonQueryAsync(ct)!=1)
                 throw new InvalidOperationException(
                     "剧本已在其他窗口被修改，当前保存已取消。请重新读取后再编辑。");
+        }
+
+        // Snapshot the previous complete revision in the same write transaction.
+        // An optimistic-concurrency failure above rolls back without creating history.
+        if(!isNew)
+        {
+            string oldName,oldGroup;
+            await using(var previous=c.CreateCommand())
+            {
+                previous.Transaction=tx;
+                previous.CommandText="SELECT name,target_group_id FROM v8_editor_scripts WHERE script_id=$id;";
+                previous.Parameters.AddWithValue("$id",id);
+                await using var reader=await previous.ExecuteReaderAsync(ct);
+                if(!await reader.ReadAsync(ct))
+                    throw new InvalidOperationException("无法读取旧剧本。");
+                oldName=reader.GetString(0);
+                oldGroup=reader.GetString(1);
+            }
+            var earlier=new List<ScriptEditorStep>();
+            await using(var previousSteps=c.CreateCommand())
+            {
+                previousSteps.Transaction=tx;
+                previousSteps.CommandText="""
+                    SELECT position,account,message,attachment,pause_after,
+                           reminder_text,delay_after,typing_seconds
+                    FROM v8_editor_steps WHERE script_id=$id ORDER BY position,step_id;
+                    """;
+                previousSteps.Parameters.AddWithValue("$id",id);
+                await using var reader=await previousSteps.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))
+                    earlier.Add(new ScriptEditorStep(reader.GetInt32(0),
+                        reader.GetString(1),reader.GetString(2),reader.GetString(3),
+                        reader.GetInt64(4)!=0,reader.GetString(5),
+                        reader.GetInt32(6),reader.GetInt32(7)));
+            }
+            await using var history=c.CreateCommand();
+            history.Transaction=tx;
+            history.CommandText="""
+                INSERT OR IGNORE INTO v8_editor_versions(
+                    script_id,revision,name,target_group_id,steps_json,saved_at)
+                VALUES($id,$rev,$name,$group,$steps,$now);
+                """;
+            history.Parameters.AddWithValue("$id",id);
+            history.Parameters.AddWithValue("$rev",request.Revision);
+            history.Parameters.AddWithValue("$name",oldName);
+            history.Parameters.AddWithValue("$group",oldGroup);
+            history.Parameters.AddWithValue("$steps",
+                System.Text.Json.JsonSerializer.Serialize(earlier));
+            history.Parameters.AddWithValue("$now",now);
+            await history.ExecuteNonQueryAsync(ct);
         }
 
         await using(var clear=c.CreateCommand())
