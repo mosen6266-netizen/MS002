@@ -341,7 +341,7 @@ public sealed partial class StateStore
                 SELECT b.job_id,b.script_name,b.group_id,b.group_name,
                     j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail
                 FROM v8_live_batch_jobs b JOIN v8_jobs j ON j.job_id=b.job_id
-                """+condition+"""
+                """+"\n"+condition+"\n"+"""
                 ORDER BY b.created_at DESC,b.job_id DESC
                 LIMIT $limit OFFSET $offset;
                 """;
