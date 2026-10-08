@@ -103,6 +103,11 @@ public partial class MainWindow : Window
            old is ScriptEditorWindow editor &&
            !editor.CanLeave())return;
 
+        // The editor is a single-height workspace; other pages can use full-page scroll.
+        WorkspaceScroll.VerticalScrollBarVisibility=key=="scripts"
+            ?ScrollBarVisibility.Disabled:ScrollBarVisibility.Auto;
+        PageHost.Height=key=="scripts"
+            ?Math.Max(650,WorkspaceScroll.ActualHeight):double.NaN;
         PageHost.Content=GetPage(key);
         _currentPage=key;
         var (heading,subtitle)=key switch
