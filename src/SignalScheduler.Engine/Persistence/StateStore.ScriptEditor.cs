@@ -42,6 +42,10 @@ public sealed partial class StateStore
                 );
                 CREATE INDEX IF NOT EXISTS idx_v8_editor_steps_order
                   ON v8_editor_steps(script_id,position);
+                CREATE TABLE IF NOT EXISTS v8_editor_deleted_scripts(
+                    script_id TEXT PRIMARY KEY,
+                    deleted_at INTEGER NOT NULL
+                );
                 """;
             await schema.ExecuteNonQueryAsync(ct);
         }
@@ -83,7 +87,11 @@ public sealed partial class StateStore
                     INSERT OR IGNORE INTO v8_editor_scripts(
                         script_id,legacy_id,name,target_group_id,revision,
                         created_at,updated_at)
-                    VALUES($id,$legacy,$name,$group,1,$created,$updated);
+                    SELECT $id,$legacy,$name,$group,1,$created,$updated
+                    WHERE NOT EXISTS(
+                        SELECT 1 FROM v8_editor_deleted_scripts
+                        WHERE script_id=$id
+                    );
                     """;
                 insert.Parameters.AddWithValue("$id",id);
                 insert.Parameters.AddWithValue("$legacy",script.Id);
