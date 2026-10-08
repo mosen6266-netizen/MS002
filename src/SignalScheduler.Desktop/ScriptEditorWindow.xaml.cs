@@ -267,6 +267,58 @@ public partial class ScriptEditorWindow : UserControl
         if(!_loading) _dirty=true;
     }
 
+    void StepsGrid_PreviewMouseLeftButtonDown(object sender,
+        System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if(e.OriginalSource is not System.Windows.DependencyObject node)return;
+        DataGridCell? cell=null;
+        var insideButton=false;
+        while(node is not null)
+        {
+            if(node is Button || node is CheckBox)insideButton=true;
+            if(node is DataGridCell found){cell=found;break;}
+            node=System.Windows.Media.VisualTreeHelper.GetParent(node);
+        }
+        if(cell is null || insideButton || cell.IsEditing)return;
+        var index=StepsGrid.Columns.IndexOf(cell.Column);
+        // Account, body, numeric intervals and reminder text are editable.
+        if(index is not (2 or 3 or 4 or 5 or 7))return;
+        if(cell.DataContext is not ScriptStepRow row)return;
+        StepsGrid.SelectedItem=row;
+        StepsGrid.CurrentCell=new DataGridCellInfo(row,cell.Column);
+        if(StepsGrid.BeginEdit(e))
+        {
+            if(index==2)
+                Dispatcher.BeginInvoke(new Action(()=>
+                {
+                    var combo=FindVisualChild<ComboBox>(cell);
+                    if(combo is not null)
+                    {
+                        combo.Focus();
+                        combo.IsDropDownOpen=true;
+                    }
+                }),System.Windows.Threading.DispatcherPriority.Input);
+            else
+                Dispatcher.BeginInvoke(new Action(()=>
+                {
+                    FindVisualChild<TextBox>(cell)?.Focus();
+                }),System.Windows.Threading.DispatcherPriority.Input);
+        }
+    }
+
+    static T? FindVisualChild<T>(System.Windows.DependencyObject parent)
+        where T:System.Windows.DependencyObject
+    {
+        for(var i=0;i<System.Windows.Media.VisualTreeHelper.GetChildrenCount(parent);i++)
+        {
+            var child=System.Windows.Media.VisualTreeHelper.GetChild(parent,i);
+            if(child is T match)return match;
+            var deeper=FindVisualChild<T>(child);
+            if(deeper is not null)return deeper;
+        }
+        return null;
+    }
+
     void StepsGrid_CellEditEnding(object sender,DataGridCellEditEndingEventArgs e)
     {
         if(!_loading) _dirty=true;
