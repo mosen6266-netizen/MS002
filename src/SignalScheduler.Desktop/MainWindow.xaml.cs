@@ -61,13 +61,16 @@ public partial class MainWindow : Window
         System.Windows.Input.MouseWheelEventArgs e)
     {
         if(e.Delta==0 || e.OriginalSource is not DependencyObject source)return;
-        // A ComboBox popup is its own scrollable visual tree.
-        if(_pages.TryGetValue("home",out var home) &&
-            home is LiveBatchWindow batch && batch.IsScriptDropDownOpen)return;
+        // Do not override native text editing, dropdown, popup, scrollbar
+        // or Shift/Ctrl wheel interactions.
+        if(System.Windows.Input.Keyboard.Modifiers!=
+           System.Windows.Input.ModifierKeys.None)return;
         DependencyObject? node=source;
         ScrollViewer? destination=null;
         while(node is not null)
         {
+            if(node is TextBox or ComboBox or MenuItem or ContextMenu or
+               System.Windows.Controls.Primitives.ScrollBar)return;
             if(node is ScrollViewer candidate && candidate.ScrollableHeight>0)
             {
                 destination=candidate;
@@ -77,11 +80,19 @@ public partial class MainWindow : Window
                 ?VisualTreeHelper.GetParent(node)
                 :LogicalTreeHelper.GetParent(node);
         }
+        // The script ComboBox popup is owned by a different visual root,
+        // but older WPF templates may still forward its wheel to the window.
+        if(_pages.TryGetValue("home",out var home) &&
+           home is LiveBatchWindow batch && batch.IsScriptDropDownOpen)return;
         destination??=WorkspaceScroll.ScrollableHeight>0
             ?WorkspaceScroll:null;
         if(destination is null)return;
+        var step=destination==WorkspaceScroll
+            ?Math.Min(Math.Abs(e.Delta)*0.55,70)
+            :Math.Min(Math.Abs(e.Delta)*0.40,48);
         destination.ScrollToVerticalOffset(Math.Clamp(
-            destination.VerticalOffset-Math.Sign(e.Delta)*Math.Min(Math.Abs(e.Delta)*0.55,65),0,destination.ScrollableHeight));
+            destination.VerticalOffset-Math.Sign(e.Delta)*step,
+            0,destination.ScrollableHeight));
         e.Handled=true;
     }
 
