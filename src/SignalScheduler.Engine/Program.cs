@@ -26,7 +26,9 @@ builder.Services.AddSingleton<StateStore>();
 builder.Services.AddSingleton<LegacyV7Migrator>();
 builder.Services.AddSingleton<SignalGuardian>();
 builder.Services.AddSingleton<SignalLinkManager>();
-builder.Services.AddSingleton<ISignalTransport, SignalCliTransport>();
+builder.Services.AddSingleton<SignalCliTransport>();
+builder.Services.AddSingleton<ISignalTransport>(sp=>sp.GetRequiredService<SignalCliTransport>());
+builder.Services.AddSingleton<ISignalTypingTransport>(sp=>sp.GetRequiredService<SignalCliTransport>());
 builder.Services.AddSingleton<DurableTaskEngine>();
 builder.Services.AddSingleton<LiveProbeCoordinator>();
 builder.Services.AddSingleton<LicenseManager>();
@@ -34,6 +36,7 @@ builder.Services.AddHostedService(sp=>sp.GetRequiredService<SignalGuardian>());
 builder.Services.AddHostedService<SignalCatalogSyncService>();
 builder.Services.AddHostedService<PreviewTaskRunner>();
 builder.Services.AddHostedService<LivePilotRunner>();
+builder.Services.AddHostedService<LiveBatchRunner>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<LicenseManager>());
 builder.Services.AddHostedService<NamedPipeControlServer>();
 
@@ -52,6 +55,7 @@ await store.InitializeScriptEditorAsync(CancellationToken.None);
 await store.InitializePreviewTasksAsync(CancellationToken.None);
 await store.InitializeLiveProbeAsync(CancellationToken.None);
 await store.InitializeLivePilotAsync(CancellationToken.None);
+await store.InitializeLiveBatchAsync(CancellationToken.None);
 
 await host.RunAsync();
 
