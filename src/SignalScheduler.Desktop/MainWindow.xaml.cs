@@ -67,6 +67,11 @@ public partial class MainWindow : Window
         var window=new PreviewTasksWindow{Owner=this};
         window.Show();
     }
+    void LiveProbe_Click(object sender,RoutedEventArgs e)
+    {
+        var window=new LiveProbeWindow{Owner=this};
+        window.Show();
+    }
 
 
     void ScriptEditor_Click(object sender,RoutedEventArgs e)
