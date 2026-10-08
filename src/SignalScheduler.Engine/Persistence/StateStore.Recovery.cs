@@ -18,15 +18,17 @@ public sealed partial class StateStore
         await using(var query=c.CreateCommand())
         {
             query.CommandText="""
-                SELECT job_id,state,cursor
-                FROM v8_jobs ORDER BY updated_at DESC,job_id LIMIT 500;
+                SELECT j.job_id,j.state,j.cursor,
+                       COALESCE(NULLIF(b.group_name,'') || ' · ' || NULLIF(b.script_name,''),j.job_id)
+                FROM v8_jobs j LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                ORDER BY j.updated_at DESC,j.job_id LIMIT 500;
                 """;
             await using var r=await query.ExecuteReaderAsync(ct);
             while(await r.ReadAsync(ct))
             {
                 var state=r.GetString(1);
                 jobs.Add(new RecoveryJobItem(
-                    r.GetString(0),r.GetString(0),state,r.GetInt64(2),false,
+                    r.GetString(0),r.GetString(3),state,r.GetInt64(2),false,
                     state=="RecoveryRequired"));
             }
         }
@@ -57,10 +59,16 @@ public sealed partial class StateStore
         await using(var q=c.CreateCommand())
         {
             q.CommandText="""
-                SELECT dispatch_key,job_id,cursor,group_id,account_id,state,
-                       provider_message_id,detail,updated_at
-                FROM v8_dispatch_journal
-                ORDER BY updated_at DESC,dispatch_key LIMIT 800;
+                SELECT d.dispatch_key,d.job_id,d.cursor,d.group_id,d.account_id,d.state,
+                       d.provider_message_id,d.detail,d.updated_at,
+                       COALESCE(NULLIF(g.name,''),NULLIF(b.group_name,'')),
+                       COALESCE(NULLIF(pref.label,''),NULLIF(a.label,''))
+                FROM v8_dispatch_journal d
+                LEFT JOIN v8_live_batch_jobs b ON b.job_id=d.job_id
+                LEFT JOIN v8_signal_groups g ON g.group_id=d.group_id AND g.account=d.account_id
+                LEFT JOIN v8_account_settings pref ON pref.account=d.account_id
+                LEFT JOIN v8_signal_accounts a ON a.account=d.account_id
+                ORDER BY d.updated_at DESC,d.dispatch_key LIMIT 800;
                 """;
             await using var r=await q.ExecuteReaderAsync(ct);
             while(await r.ReadAsync(ct))
@@ -69,7 +77,9 @@ public sealed partial class StateStore
                     r.GetString(4),r.GetString(5),
                     r.IsDBNull(6)?null:r.GetString(6),
                     r.IsDBNull(7)?null:r.GetString(7),
-                    r.GetInt64(8)));
+                    r.GetInt64(8),
+                    r.IsDBNull(9)?null:r.GetString(9),
+                    r.IsDBNull(10)?null:r.GetString(10)));
         }
         return new RecoveryOverview(jobs,dispatches);
     }
