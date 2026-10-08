@@ -110,7 +110,7 @@ public partial class LivePilotWindow : Window
             GroupBox.SelectedItem is ManagedGroup;
         PauseButton.IsEnabled=!_busy&&row?.State=="Running";
         ResumeButton.IsEnabled=!_busy&&row?.State=="Paused"&&row.Cursor<row.TotalSteps;
-        StopButton.IsEnabled=!_busy&&row?.State is "Running" or "Paused";
+        StopButton.IsEnabled=!_busy&&(row?.State is "Running" or "Paused");
     }
 
     void Consent_Changed(object sender,RoutedEventArgs e)=>Buttons();
