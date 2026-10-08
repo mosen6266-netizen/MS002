@@ -71,7 +71,7 @@
     <RowDefinition Height="12"/>
     <RowDefinition Height="*"/>
     <RowDefinition Height="12"/>
-    <RowDefinition Height="200"/>
+    <RowDefinition Height="140"/>
     <RowDefinition Height="10"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
@@ -125,16 +125,27 @@
       <Button Content="向下移动" Click="MoveDown_Click" Style="{StaticResource ActionButton}"/>
      </StackPanel>
     </DockPanel>
-    <DataGrid x:Name="StepsGrid" Grid.Row="2" Height="493"
+    <DataGrid x:Name="StepsGrid" Grid.Row="2"
      AutoGenerateColumns="False" CanUserAddRows="False"
      IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
      ColumnHeaderStyle="{StaticResource DarkGridHeader}"
      AlternationCount="2" RowHeaderWidth="0" SelectionMode="Single"
-     SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding"
+     SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding" PreviewMouseLeftButtonDown="StepsGrid_PreviewMouseLeftButtonDown"
      BorderBrush="#3B5871" Background="#112438" Foreground="#EFF6FD"
      RowBackground="#132D44" AlternatingRowBackground="#1A354C"
      ScrollViewer.HorizontalScrollBarVisibility="Auto"
      EnableRowVirtualization="True">
+     <DataGrid.RowStyle>
+      <Style TargetType="DataGridRow">
+       <Setter Property="Background" Value="#132D44"/>
+       <Style.Triggers>
+        <Trigger Property="IsSelected" Value="True">
+         <Setter Property="Background" Value="#256AA1"/>
+         <Setter Property="Foreground" Value="#FFFFFF"/>
+        </Trigger>
+       </Style.Triggers>
+      </Style>
+     </DataGrid.RowStyle>
      <DataGrid.Columns>
       <DataGridTextColumn Header="序号" Width="49"
        Binding="{Binding PositionLabel}" IsReadOnly="True"
