@@ -35,19 +35,19 @@ foreach ($size in @(16,24,32,48,64,128,256)) {
 $stream = [System.IO.File]::Create((Join-Path $pwd "assets/signal-brand.ico"))
 try {
   $writer = [System.IO.BinaryWriter]::new($stream)
-  $writer.Write([ushort]0)
-  $writer.Write([ushort]1)
-  $writer.Write([ushort]$files.Count)
+  $writer.Write([System.UInt16]0)
+  $writer.Write([System.UInt16]1)
+  $writer.Write([System.UInt16]$files.Count)
   $offset = 6 + 16 * $files.Count
   foreach ($icon in $files) {
     $writer.Write([byte]($icon.Size % 256))
     $writer.Write([byte]($icon.Size % 256))
     $writer.Write([byte]0)
     $writer.Write([byte]0)
-    $writer.Write([ushort]1)
-    $writer.Write([ushort]32)
-    $writer.Write([uint32]$icon.Bytes.Length)
-    $writer.Write([uint32]$offset)
+    $writer.Write([System.UInt16]1)
+    $writer.Write([System.UInt16]32)
+    $writer.Write([System.UInt32]$icon.Bytes.Length)
+    $writer.Write([System.UInt32]$offset)
     $offset += $icon.Bytes.Length
   }
   foreach ($icon in $files) { $writer.Write([byte[]]$icon.Bytes) }
