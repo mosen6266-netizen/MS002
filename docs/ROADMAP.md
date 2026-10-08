@@ -2,13 +2,15 @@
 
 ## Stage 1 — foundation
 - [x] Native WPF shell
+- [x] Native dashboard with migrated account/group/script/job summary
+- [x] Explicit desktop + Start Menu shortcut installer flow
 - [x] Independent Windows Service
 - [x] Named Pipe IPC
 - [x] SQLite V8 schema
 - [x] Durable dispatch-state skeleton
 - [x] Standard Windows installer source
 - [x] GitHub Actions Windows build
-- [ ] CI build proof / installer artifact proof
+- [x] CI build proof / installer artifact proof
 
 ## Stage 2 — V7 data compatibility
 - [ ] Read V7 schema without mutation

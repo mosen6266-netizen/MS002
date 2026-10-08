@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using System.IO.Pipes;
 using System.Text.Json;
+using SignalScheduler.Engine.Persistence;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Ipc;
@@ -8,6 +9,10 @@ namespace SignalScheduler.Engine.Ipc;
 public sealed class NamedPipeControlServer : BackgroundService
 {
     const string PipeName="SignalScheduler.V8.Control";
+    readonly StateStore _store;
+
+    public NamedPipeControlServer(StateStore store)=>_store=store;
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         while(!ct.IsCancellationRequested)
@@ -20,18 +25,30 @@ public sealed class NamedPipeControlServer : BackgroundService
                 using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
                 var line=await reader.ReadLineAsync(ct);
                 if(string.IsNullOrWhiteSpace(line)) continue;
+
                 var request=JsonSerializer.Deserialize<ControlRequest>(line);
-                var response=request?.Command switch
+                ControlResponse response;
+                switch(request?.Command)
                 {
-                    ControlCommands.Ping=>new ControlResponse(true,Data:new{pong=true}),
-                    ControlCommands.Status=>new ControlResponse(true,Data:new{
-                        version="8.0.0-alpha.1",
-                        engine="running",
-                        transport="disabled-foundation-stage",
-                        process=Environment.ProcessId
-                    }),
-                    _=>new ControlResponse(false,Error:"unknown_command")
-                };
+                    case ControlCommands.Ping:
+                        response=new ControlResponse(true,Data:new{pong=true});
+                        break;
+                    case ControlCommands.Status:
+                        response=new ControlResponse(true,Data:new{
+                            version="8.0.0-alpha.2",
+                            engine="running",
+                            transport="disabled-foundation-stage",
+                            process=Environment.ProcessId
+                        });
+                        break;
+                    case ControlCommands.Dashboard:
+                        response=new ControlResponse(true,Data:await _store.GetDashboardAsync(ct));
+                        break;
+                    default:
+                        response=new ControlResponse(false,Error:"unknown_command");
+                        break;
+                }
+
                 await writer.WriteLineAsync(JsonSerializer.Serialize(response));
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}

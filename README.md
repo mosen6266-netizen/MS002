@@ -22,4 +22,4 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.1 foundation + V7 metadata migration**. Signal sending remains intentionally disabled until the V7.6.2 Signal/Guardian contract is ported and tested.
+Current stage: **8.0.0-alpha.2 native dashboard + V7 metadata migration**. The installer now creates explicit desktop/start-menu shortcuts and the native dashboard reads migrated accounts, groups, scripts and recovery jobs. Signal sending remains intentionally disabled until Guardian/login/send transport migration is completed.

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
@@ -9,27 +10,116 @@ namespace SignalScheduler.Desktop;
 
 public partial class MainWindow : Window
 {
-    readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
+    readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(5)};
+    bool _refreshing;
+
     public MainWindow()
     {
         InitializeComponent();
-        Loaded+=async(_,_)=>await RefreshAsync();
+        Loaded+=async(_,_)=>{
+            await EnsureEngineAsync();
+            await RefreshAsync();
+            _timer.Start();
+        };
         _timer.Tick+=async(_,_)=>await RefreshAsync();
-        _timer.Start();
         Closed+=(_,_)=>_timer.Stop();
     }
 
-    async Task RefreshAsync()
+    async Task EnsureEngineAsync()
     {
         try
         {
-            await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
-            await pipe.ConnectAsync(1500);
-            using var reader=new StreamReader(pipe,leaveOpen:true);
-            using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
-            await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(ControlCommands.Status)));
-            StatusText.Text=await reader.ReadLineAsync() ?? "No response";
+            var ping=await SendAsync(ControlCommands.Ping,400);
+            if(ping is not null) return;
         }
-        catch(Exception ex){StatusText.Text=$"Service unavailable: {ex.Message}";}
+        catch { }
+
+        try
+        {
+            var engine=Path.Combine(AppContext.BaseDirectory,"Engine","SignalScheduler.Engine.exe");
+            if(!File.Exists(engine)) return;
+            Process.Start(new ProcessStartInfo{
+                FileName=engine,
+                Arguments="--background",
+                UseShellExecute=false,
+                CreateNoWindow=true,
+                WindowStyle=ProcessWindowStyle.Hidden
+            });
+            await Task.Delay(900);
+        }
+        catch { }
+    }
+
+    async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
+
+    async Task RefreshAsync()
+    {
+        if(_refreshing) return;
+        _refreshing=true;
+        try
+        {
+            var raw=await SendAsync(ControlCommands.Dashboard,1800);
+            if(string.IsNullOrWhiteSpace(raw)) throw new IOException("后台无响应");
+
+            using var doc=JsonDocument.Parse(raw);
+            var root=doc.RootElement;
+            if(!root.TryGetProperty("Ok",out var ok) || !ok.GetBoolean())
+                throw new IOException(root.TryGetProperty("Error",out var err)?err.GetString():"后台返回错误");
+
+            var data=root.GetProperty("Data");
+            var snapshot=JsonSerializer.Deserialize<DashboardSnapshot>(data.GetRawText())
+                ?? throw new IOException("无法解析后台状态");
+
+            EngineStatusText.Text="正常";
+            EngineStatusText.Foreground=System.Windows.Media.Brushes.LightGreen;
+            EngineBadge.Text="● 后台引擎正常";
+            EngineBadge.Foreground=System.Windows.Media.Brushes.LightGreen;
+
+            AccountsCountText.Text=$"{snapshot.EnabledAccounts} / {snapshot.Accounts}";
+            GroupsCountText.Text=snapshot.Groups.ToString();
+            ScriptsCountText.Text=snapshot.Scripts.ToString();
+
+            MigrationBadge.Text=snapshot.MetadataMigrated
+                ?"✓ 已读取 V7.6.2 本地资料"
+                : snapshot.LegacyDetected
+                    ?"检测到旧版资料，等待迁移完成"
+                    :"当前为全新 V8 数据";
+
+            AccountsList.ItemsSource=snapshot.AccountItems
+                .Select(x=>$"{(x.Enabled?"●":"○")} {x.Label}   {x.Account}")
+                .ToArray();
+            GroupsList.ItemsSource=snapshot.GroupItems
+                .Select(x=>$"{(x.Enabled?"●":"○")} {x.Name}")
+                .ToArray();
+            ScriptsList.ItemsSource=snapshot.ScriptItems
+                .Select(x=>$"{x.Name}   · {x.StepCount} 条")
+                .ToArray();
+            JobsList.ItemsSource=snapshot.JobItems
+                .Select(x=>$"{x.Name}   · {x.State}   · 第 {x.Cursor+1} 条")
+                .ToArray();
+            JobsSummaryText.Text=snapshot.Jobs==0
+                ?"暂无迁移任务"
+                :$"{snapshot.Jobs} 个历史任务 · {snapshot.RecoveryJobs} 个需要人工确认";
+        }
+        catch(Exception ex)
+        {
+            EngineStatusText.Text="异常";
+            EngineStatusText.Foreground=System.Windows.Media.Brushes.IndianRed;
+            EngineBadge.Text="● 后台引擎未连接";
+            EngineBadge.Foreground=System.Windows.Media.Brushes.IndianRed;
+            MigrationBadge.Text=ex.Message;
+        }
+        finally{_refreshing=false;}
+    }
+
+    static async Task<string?> SendAsync(string command,int timeoutMs)
+    {
+        using var cts=new CancellationTokenSource(timeoutMs);
+        await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
+        await pipe.ConnectAsync(timeoutMs,cts.Token);
+        using var reader=new StreamReader(pipe,leaveOpen:true);
+        using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(command)));
+        return await reader.ReadLineAsync(cts.Token);
     }
 }

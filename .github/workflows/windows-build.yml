@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: v8-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
@@ -33,6 +37,24 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force artifacts/installer | Out-Null
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DPublishRoot=$pwd\artifacts\publish" "/DOutputRoot=$pwd\artifacts\installer" "installer\SignalScheduler.iss"
+      - name: Installer smoke test
+        shell: powershell
+        run: |
+          $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V8*.exe | Select-Object -First 1
+          if (-not $setup) { throw "Installer not found" }
+          $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV8-CI-Smoke"
+          $install = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
+          Start-Sleep -Seconds 2
+          if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
+          $desktop = [Environment]::GetFolderPath("Desktop")
+          $programs = [Environment]::GetFolderPath("Programs")
+          if (-not (Test-Path (Join-Path $desktop "Signal Auto Scheduler.lnk"))) { throw "Desktop shortcut missing" }
+          if (-not (Test-Path (Join-Path $programs "Signal Auto Scheduler\Signal Auto Scheduler.lnk"))) { throw "Start Menu shortcut missing" }
+          Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue | Stop-Process -Force
+          $uninstall = Join-Path $testRoot "unins000.exe"
+          if (Test-Path $uninstall) { & $uninstall /VERYSILENT /SUPPRESSMSGBOXES /NORESTART }
       - name: Hash installer
         shell: powershell
         run: Get-FileHash artifacts/installer/*.exe -Algorithm SHA256 | Format-List | Out-File artifacts/installer/SHA256.txt
