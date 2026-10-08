@@ -36,6 +36,11 @@
     <StackPanel>
      <TextBlock Text="剧本库" FontSize="20" FontWeight="SemiBold"/>
      <TextBlock Text="选择或新建剧本" Foreground="#AAC3D9" Margin="0,5,0,14"/>
+     <TextBox x:Name="ScriptSearchBox" Margin="0,0,0,10" Height="36"
+      ToolTip="输入剧本名称关键词；筛选不会清除正在编辑的内容"
+      TextChanged="ScriptSearchBox_TextChanged"/>
+     <TextBlock x:Name="ScriptSearchSummary" Text="输入名称可搜索剧本"
+      Margin="0,0,0,10" Foreground="#A5BED6" FontSize="11"/>
      <Button Content="＋ 新建剧本" Click="NewScript_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,8"/>
      <Button Content="刷新列表" Click="ReloadScripts_Click"
