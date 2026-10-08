@@ -1,9 +1,21 @@
 <Window x:Class="SignalScheduler.Desktop.LinkAccountWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="连接 Signal 账号" Height="685" Width="530" MinHeight="650"
+ Title="连接 Signal 账号" Height="765" Width="560" MinHeight="740"
  WindowStartupLocation="CenterOwner" ResizeMode="CanMinimize"
  Background="#0A192A" Foreground="#F0F5FC">
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Background" Value="#203F5A"/>
+   <Setter Property="Foreground" Value="#FFFFFF"/>
+   <Style.Triggers>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Background" Value="#26415A"/>
+     <Setter Property="Foreground" Value="#B8C9D9"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+ </Window.Resources>
  <Grid Margin="28,24">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="17"/>
