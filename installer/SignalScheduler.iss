@@ -1,6 +1,6 @@
 #define MyAppName "Signal Auto Scheduler"
 #ifndef MyAppVersion
- #define MyAppVersion "8.0.0-alpha.4"
+ #define MyAppVersion "8.0.0-alpha.4.1"
 #endif
 #ifndef PublishRoot
  #define PublishRoot "..\artifacts\publish"
@@ -19,7 +19,7 @@ DefaultGroupName=Signal Auto Scheduler
 DisableDirPage=no
 DisableProgramGroupPage=no
 OutputDir={#OutputRoot}
-OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.4
+OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.4.1
 Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -64,12 +64,15 @@ Filename: "{app}\SignalScheduler.exe"; Description: "立即启动 Signal Auto Sc
 [CustomMessages]
 chinesesimplified.SafeClosingOldVersion=正在安全关闭旧版本…
 chinesesimplified.WaitingForBackground=正在等待后台任务安全结束…
-chinesesimplified.LegacyFallback=正在清理旧测试版本的后台进程…
+chinesesimplified.LegacyFallback=检测到旧测试版本，请先正常关闭旧版程序后重试…
 chinesesimplified.SafeUpdateBlocked=当前仍有任务正在运行或消息正在发送。为避免重复发送或漏发，本次升级已停止。请先在软件中停止所有运行任务，确认没有正在发送的消息后，再重新运行安装包。
 chinesesimplified.EngineDidNotExit=旧版本后台没有安全退出。为保护任务和数据，本次升级已停止。请重新打开软件，停止所有任务后再试；不要选择强制覆盖安装。
 chinesesimplified.LegacyEngineDidNotExit=旧测试版本后台仍未退出，无法安全覆盖文件。请重启电脑后，在不打开旧版本的情况下重新运行安装包。
 chinesesimplified.InstallingFiles=正在安装程序文件…
-chinesesimplified.StartingApp=正在启动 Signal Auto Scheduler…
+chinesesimplified.StartingApp=正在启动 Signal 调度台…
+chinesesimplified.CloseDesktopFirst=检测到 Signal 调度台窗口仍在运行。请先关闭该窗口，再重新运行安装程序。
+chinesesimplified.HandshakeFailed=无法确认旧版后台是否已安全停止。为了保护账号与任务数据，安装已取消。请先关闭旧版软件，必要时重新启动电脑后重试。
+chinesesimplified.LegacyManualStop=检测到 V8 早期测试版后台仍在运行。请先正常退出旧版程序，或重新启动电脑后在不打开旧程序的情况下安装；本安装器不会强行结束未知 Java 进程。
 
 [Code]
 function IsEngineRunning(): Boolean;
@@ -90,18 +93,9 @@ begin
   Result := not IsEngineRunning();
 end;
 
-procedure CloseDesktopWindow();
-var
-  ResultCode: Integer;
+function IsDesktopRunning(): Boolean;
 begin
-  Exec(
-    ExpandConstant('{sys}\taskkill.exe'),
-    '/IM SignalScheduler.exe /T /F',
-    '',
-    SW_HIDE,
-    ewWaitUntilTerminated,
-    ResultCode
-  );
+  Result := CheckForMutexes('Local\SignalScheduler.V8.Desktop');
 end;
 
 function StopEngineForMaintenance(ShowInstallStatus: Boolean): String;
@@ -109,7 +103,6 @@ var
   EnginePath: String;
   MarkerPath: String;
   ResultCode: Integer;
-  KillResult: Integer;
 begin
   Result := '';
 
@@ -141,7 +134,22 @@ begin
         Result := CustomMessage('SafeUpdateBlocked');
         Exit;
       end;
+      if ResultCode <> 0 then
+      begin
+        Result := CustomMessage('HandshakeFailed');
+        Exit;
+      end;
+    end
+    else
+    begin
+      Result := CustomMessage('HandshakeFailed');
+      Exit;
     end;
+  end
+  else
+  begin
+    Result := CustomMessage('HandshakeFailed');
+    Exit;
   end;
 
   if ShowInstallStatus then
@@ -158,27 +166,9 @@ begin
     Exit;
   end;
 
-  { Legacy alpha.1-alpha.3 never enabled irreversible Signal sends.
-    This one-time fallback safely removes that test-era Engine and its own Java child. }
-  if ShowInstallStatus then
-    WizardForm.StatusLabel.Caption := CustomMessage('LegacyFallback');
-
-  Exec(
-    ExpandConstant('{sys}\taskkill.exe'),
-    '/IM SignalScheduler.Engine.exe /T /F',
-    '',
-    SW_HIDE,
-    ewWaitUntilTerminated,
-    KillResult
-  );
-
-  if not WaitForEngineStop(10000) then
-  begin
-    Result := CustomMessage('LegacyEngineDidNotExit');
-    Exit;
-  end;
-
-  Sleep(800);
+  { Earlier builds do not implement the safe handshake. Do not terminate
+    processes by image name: an unrelated instance or Java app may exist. }
+  Result := CustomMessage('LegacyManualStop');
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -186,7 +176,11 @@ begin
   Result := '';
   NeedsRestart := False;
 
-  CloseDesktopWindow();
+  if IsDesktopRunning() then
+  begin
+    Result := CustomMessage('CloseDesktopFirst');
+    Exit;
+  end;
   Result := StopEngineForMaintenance(True);
 end;
 
@@ -194,7 +188,12 @@ function InitializeUninstall(): Boolean;
 var
   StopError: String;
 begin
-  CloseDesktopWindow();
+  if IsDesktopRunning() then
+  begin
+    MsgBox(CustomMessage('CloseDesktopFirst'), mbError, MB_OK);
+    Result := False;
+    Exit;
+  end;
   StopError := StopEngineForMaintenance(False);
 
   if StopError <> '' then
