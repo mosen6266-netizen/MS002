@@ -170,6 +170,12 @@
     </StackPanel>
     <TextBlock Text="新消息已读回执开关重启后台后生效；设备同步开关暂存偏好，功能仍在开发。已读失败不影响发送。"
      FontSize="12" Foreground="#A9C3D9" Margin="0,8,0,5"/>
+    <StackPanel Orientation="Horizontal" Margin="0,6,0,11">
+     <Button Content="检查已读运行状态" Click="CheckReadHealth_Click"
+      Style="{StaticResource QuietAction}" Margin="0,0,10,0"/>
+     <TextBlock x:Name="ReadHealthLabel" Text="尚未检查消息监听状态"
+      Foreground="#A9C3D9" VerticalAlignment="Center" TextWrapping="Wrap"/>
+    </StackPanel>
     <ItemsControl x:Name="SelectedGroupTags" Margin="0,13,0,14">
      <ItemsControl.ItemsPanel>
       <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
