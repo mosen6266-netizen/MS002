@@ -76,7 +76,7 @@
      </StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
       <Button Content="刷新状态" Click="RefreshButton_Click"/>
-      <Button Content="+ 扫码登录" IsEnabled="False" Background="#138A4B"/>
+      <Button x:Name="LinkAccountButton" Content="+ 扫码登录" IsEnabled="False" Background="#138A4B" Click="LinkAccount_Click"/>
      </StackPanel>
     </Grid>
 
