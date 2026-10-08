@@ -93,6 +93,35 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
                         break;
+                    case ControlCommands.PreviewList:
+                        response=new ControlResponse(true,Data:await _store.ListPreviewTasksAsync(ct));
+                        break;
+                    case ControlCommands.PreviewPlan:
+                        try
+                        {
+                            var plan=ParsePayload<PreviewTaskPlanRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.PlanPreviewTasksAsync(plan,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException
+                            or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.PreviewControl:
+                        try
+                        {
+                            var action=ParsePayload<PreviewTaskControlRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ControlPreviewTaskAsync(action,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException
+                            or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.RecoveryOverview:
                         response=new ControlResponse(true,Data:await _store.GetRecoveryOverviewAsync(ct));
                         break;
