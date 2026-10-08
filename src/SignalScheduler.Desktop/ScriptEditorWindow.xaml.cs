@@ -228,25 +228,40 @@ public partial class ScriptEditorWindow : UserControl
         }
     }
 
-    void RenameScript_Click(object sender,RoutedEventArgs e)
+    async void RenameScript_Click(object sender,RoutedEventArgs e)
     {
-        if(ScriptsList.SelectedItem is not ScriptEditorSummary target ||
-           _scriptId!=target.ScriptId)
+        if(ScriptsList.SelectedItem is not ScriptEditorSummary target)
         {
-            StatusText.Text="请先在左侧选中已加载的剧本。";
+            StatusText.Text="请先在左侧选择要重命名的剧本。";
             return;
         }
+        if(!ConfirmDiscard())return;
         var name=Microsoft.VisualBasic.Interaction.InputBox(
-            "输入新的剧本名称：","重命名剧本",target.Name);
-        name=name.Trim();
+            "输入新的剧本名称：","重命名剧本",target.Name).Trim();
         if(string.IsNullOrWhiteSpace(name) || name==target.Name)return;
         if(name.Length>120)
         {
             StatusText.Text="剧本名称不能超过 120 个字符。";
             return;
         }
-        NameBox.Text=name;
-        Save_Click(sender,e);
+        try
+        {
+            // Always read the selected script's current revision so a context
+            // menu action cannot accidentally rename the previously opened one.
+            var raw=await MainWindow.SendAsync(ControlCommands.ScriptRead,8000,
+                new ScriptReadRequest(target.ScriptId));
+            var original=ReadData<ScriptEditorDocument>(raw);
+            var request=new ScriptSaveRequest(
+                original.ScriptId,name,original.TargetGroupId,
+                original.Revision,original.Steps);
+            var savedRaw=await MainWindow.SendAsync(
+                ControlCommands.ScriptSave,16000,request);
+            var saved=ReadData<ScriptEditorDocument>(savedRaw);
+            _dirty=false;
+            await ReloadScriptsAsync(selectId:saved.ScriptId);
+            StatusText.Text="已重命名剧本："+saved.Name;
+        }
+        catch(Exception ex){StatusText.Text="剧本重命名失败："+ex.Message;}
     }
 
     void NewScript_Click(object sender,RoutedEventArgs e)
