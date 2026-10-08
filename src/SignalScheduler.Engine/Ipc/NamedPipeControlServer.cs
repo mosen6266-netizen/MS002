@@ -269,6 +269,18 @@ public sealed class NamedPipeControlServer : BackgroundService
                             response=new ControlResponse(false,Error:ex.Message);
                         }
                         break;
+                    case ControlCommands.ImageCheck:
+                        try
+                        {
+                            var input=ParsePayload<ImageCheckRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.CheckImagesAsync(input,ct));
+                        }
+                        catch(ArgumentException ex)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.ImageLookup:
                         try
                         {
