@@ -26,7 +26,8 @@ public partial class MainWindow : Window
     readonly HashSet<string> _batchAlerts=new(StringComparer.Ordinal);
     bool _refreshing;
     bool _engineNotified;
-    bool _hasShownOneCriticalDialog;
+    readonly Queue<string> _criticalQueue=new();
+    bool _criticalDialogOpen;
     bool _hasLiveJobs;
     string? _signalIssue;
     string _currentPage="home";
@@ -359,22 +360,39 @@ public partial class MainWindow : Window
         if(_notifications.Count>100)_notifications.RemoveAt(_notifications.Count-1);
         AlertStrip.Visibility=Visibility.Visible;
         AlertSummaryText.Text=$"当前有 {_notifications.Count} 条提示 · 点击查看";
-        if(!critical || _hasShownOneCriticalDialog)return;
-        _hasShownOneCriticalDialog=true;
-        // Deferring this dialog prevents re-entrant startup/navigation while
-        // the background status snapshot is being processed.
+        if(critical)
+        {
+            _criticalQueue.Enqueue(message);
+            ShowNextCritical();
+        }
+    }
+
+    void ShowNextCritical()
+    {
+        if(_criticalDialogOpen || _criticalQueue.Count==0)return;
+        _criticalDialogOpen=true;
+        var message=_criticalQueue.Dequeue();
         Dispatcher.BeginInvoke(new Action(()=>
         {
-            if(!IsVisible)return;
-            if(WindowState==WindowState.Minimized)
-                WindowState=WindowState.Normal;
-            Activate();
-            MessageBox.Show(this,
-                "出现需要注意的任务或 Signal 异常。\n\n"+
-                "已集中记录在主界面顶部的「通知与异常」，后续提醒不会重复弹出窗口。\n\n"+
-                message,
-                "Signal 调度台 - 重要提醒",
-                MessageBoxButton.OK,MessageBoxImage.Warning);
+            var originalTopmost=Topmost;
+            try
+            {
+                if(WindowState==WindowState.Minimized)
+                    WindowState=WindowState.Normal;
+                Show();
+                Topmost=true;
+                Activate();
+                MessageBox.Show(this,
+                    "发现任务或 Signal 异常，请及时处理。\\n\\n"+message,
+                    "Signal 调度台 - 重要提醒",
+                    MessageBoxButton.OK,MessageBoxImage.Warning);
+            }
+            finally
+            {
+                Topmost=originalTopmost;
+                _criticalDialogOpen=false;
+                ShowNextCritical();
+            }
         }),DispatcherPriority.Background);
     }
 
