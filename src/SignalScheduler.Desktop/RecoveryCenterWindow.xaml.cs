@@ -6,7 +6,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class RecoveryCenterWindow : Window
+public partial class RecoveryCenterWindow : UserControl
 {
     RecoveryOverview? _overview;
     bool _refreshing;
@@ -91,7 +91,7 @@ public partial class RecoveryCenterWindow : Window
     async void Pause_Click(object sender,RoutedEventArgs e)
     {
         if(JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy) return;
-        var answer=MessageBox.Show(this,
+        var answer=MessageBox.Show(Window.GetWindow(this),
             $"确认暂停任务「{job.Name}」？\n\n如果已有消息进入发送阶段，暂停不会撤回这条消息，必须核对发送记录。",
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(answer!=MessageBoxResult.Yes) return;
@@ -135,7 +135,7 @@ public partial class RecoveryCenterWindow : Window
         var description=seen
             ?"我已经在 Signal 群中核实这条消息确实已发出；不再重发，游标前进一步。"
             :"我已经在 Signal 群中核实这条消息没有发出；留在原位置，稍后可手动继续。";
-        var confirmation=MessageBox.Show(this,
+        var confirmation=MessageBox.Show(Window.GetWindow(this),
             $"你正在人工裁定一条真实发送的未知结果。\n\n任务：{job.JobId}\n"+
             $"发送记录：{message.DispatchKey}\n\n结论：{description}\n\n"+
             $"核对依据：{evidence}\n\n该操作会写入持久审计记录，不能撤回。确定吗？",
@@ -200,5 +200,6 @@ public partial class RecoveryCenterWindow : Window
         catch(Exception ex){StatusText.Text=$"复制失败：{ex.Message}";}
     }
 
-    void Close_Click(object sender,RoutedEventArgs e)=>Close();
+    void Close_Click(object sender,RoutedEventArgs e)=>
+        (Window.GetWindow(this) as MainWindow)?.NavigateHome();
 }
