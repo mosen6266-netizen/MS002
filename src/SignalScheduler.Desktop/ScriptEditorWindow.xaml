@@ -1,47 +1,32 @@
 <UserControl x:Class="SignalScheduler.Desktop.ScriptEditorWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#071522" Foreground="#EAF1FA">
+ Background="#0B1828" Foreground="#F0F6FD">
  <UserControl.Resources>
-  <Style TargetType="Button">
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="Background" Value="#17324E"/>
-   <Setter Property="BorderBrush" Value="#345675"/>
-   <Setter Property="Padding" Value="10,7"/>
+  <Style x:Key="ActionButton" TargetType="Button">
+   <Setter Property="Background" Value="#1B3A52"/>
+   <Setter Property="Foreground" Value="#F5F8FC"/>
+   <Setter Property="BorderBrush" Value="#42647C"/>
+   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="MinHeight" Value="37"/>
    <Setter Property="Margin" Value="0,0,7,0"/>
-   <Setter Property="MinHeight" Value="28"/>
   </Style>
-  <Style TargetType="TextBox">
-   <Setter Property="Background" Value="#10263B"/>
-   <Setter Property="Foreground" Value="White"/>
-   <Setter Property="BorderBrush" Value="#46617D"/>
-   <Setter Property="Padding" Value="6"/>
-  </Style>
-  <Style TargetType="DataGrid">
-   <Setter Property="AutoGenerateColumns" Value="False"/>
-   <Setter Property="CanUserAddRows" Value="False"/>
-   <Setter Property="IsReadOnly" Value="False"/>
-   <Setter Property="HeadersVisibility" Value="Column"/>
-   <Setter Property="Background" Value="#0D1B2B"/>
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="RowBackground" Value="#0D1B2B"/>
-   <Setter Property="AlternatingRowBackground" Value="#14263A"/>
-   <Setter Property="BorderBrush" Value="#385573"/>
-   <Setter Property="RowHeaderWidth" Value="0"/>
-   <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-   <Setter Property="SelectionMode" Value="Single"/>
-   <Setter Property="SelectionUnit" Value="FullRow"/>
+  <Style x:Key="SmallRowButton" TargetType="Button"
+   BasedOn="{StaticResource ActionButton}">
+   <Setter Property="MinWidth" Value="31"/>
+   <Setter Property="MinHeight" Value="35"/>
+   <Setter Property="Padding" Value="2,2"/>
+   <Setter Property="Margin" Value="0,0,3,0"/>
   </Style>
  </UserControl.Resources>
  <Grid Margin="18">
   <Grid.ColumnDefinitions>
-   <ColumnDefinition Width="235"/>
+   <ColumnDefinition Width="218"/>
    <ColumnDefinition Width="14"/>
    <ColumnDefinition Width="*"/>
   </Grid.ColumnDefinitions>
-
-  <Border Background="#0B1D30" BorderBrush="#294560"
-          BorderThickness="1" Padding="12" CornerRadius="10">
+  <Border Background="#102438" BorderBrush="#31506B"
+   BorderThickness="1" CornerRadius="10" Padding="12">
    <Grid>
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
@@ -49,132 +34,219 @@
      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <StackPanel>
-     <TextBlock Text="我的剧本" FontSize="21" FontWeight="SemiBold"/>
-     <TextBlock Text="每个剧本单独保存" Foreground="#9BAFC5" Margin="0,4,0,12"/>
-     <Button Content="＋ 新建剧本" Click="NewScript_Click" Margin="0,0,0,9"/>
-     <Button Content="刷新剧本列表" Click="ReloadScripts_Click" Margin="0,0,0,9"/>
+     <TextBlock Text="剧本库" FontSize="20" FontWeight="SemiBold"/>
+     <TextBlock Text="选择或新建剧本" Foreground="#AAC3D9" Margin="0,5,0,14"/>
+     <Button Content="＋ 新建剧本" Click="NewScript_Click"
+      Style="{StaticResource ActionButton}" Margin="0,0,0,8"/>
+     <Button Content="刷新列表" Click="ReloadScripts_Click"
+      Style="{StaticResource ActionButton}" Margin="0,0,0,12"/>
     </StackPanel>
-    <ListBox x:Name="ScriptsList" Grid.Row="1" SelectionChanged="ScriptsList_SelectionChanged"
-             Background="#0E263D" Foreground="White" BorderBrush="#2D5273"
-             DisplayMemberPath="Name"/>
+    <ListBox x:Name="ScriptsList" Grid.Row="1"
+     SelectionChanged="ScriptsList_SelectionChanged"
+     Background="#132B42" BorderBrush="#3C5B75"
+     HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+     <ListBox.ItemTemplate>
+      <DataTemplate>
+       <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+        TextWrapping="NoWrap" ToolTip="{Binding Name}"
+        Foreground="#F0F6FC" VerticalAlignment="Center"/>
+      </DataTemplate>
+     </ListBox.ItemTemplate>
+    </ListBox>
     <StackPanel Grid.Row="2" Margin="0,12,0,0">
-     <Button Content="导入 JSON 剧本" Click="Import_Click" Margin="0,0,0,8"/>
-     <Button Content="导出当前剧本" Click="Export_Click" Margin="0,0,0,8"/>
-     <TextBlock Text="从 V7 复制的剧本可编辑，原 V7 数据不会被覆盖。"
-                Foreground="#AABDD0" TextWrapping="Wrap" FontSize="12"/>
+     <Button Content="导入 JSON" Click="Import_Click"
+      Style="{StaticResource ActionButton}" Margin="0,0,0,7"/>
+     <Button Content="导出当前剧本" Click="Export_Click"
+      Style="{StaticResource ActionButton}" Margin="0,0,0,10"/>
+     <TextBlock Text="剧本数据本地保存，升级不会覆盖。"
+      FontSize="11" Foreground="#A5BED6" TextWrapping="Wrap"/>
     </StackPanel>
    </Grid>
   </Border>
-
   <Grid Grid.Column="2">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
-    <RowDefinition Height="10"/>
+    <RowDefinition Height="12"/>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="12"/>
     <RowDefinition Height="*"/>
     <RowDefinition Height="12"/>
-    <RowDefinition Height="Auto"/>
-    <RowDefinition Height="8"/>
+    <RowDefinition Height="132"/>
+    <RowDefinition Height="10"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
    <DockPanel Grid.Row="0" LastChildFill="False">
-    <TextBlock Text="剧本编辑器" DockPanel.Dock="Left"
-               FontSize="26" FontWeight="SemiBold"/>
-    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-     <Button Content="保存剧本" Click="Save_Click" Background="#14784D"/>
-     <Button Content="关闭" Click="Close_Click"/>
+    <StackPanel DockPanel.Dock="Left">
+     <TextBlock Text="剧本编辑器" FontSize="24" FontWeight="SemiBold"/>
+     <TextBlock Text="所有消息等高排列，完整文字在下方编辑"
+      FontSize="12" Foreground="#A8C1D8" Margin="0,5,0,0"/>
+    </StackPanel>
+    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+     <Button Content="保存剧本" Style="{StaticResource ActionButton}"
+       Click="Save_Click" Background="#127753"/>
+     <Button Content="返回首页" Style="{StaticResource ActionButton}" Click="Close_Click"/>
     </StackPanel>
    </DockPanel>
-
-   <Border Grid.Row="2" Background="#0D2135" Padding="14" BorderBrush="#2B4B6A"
-           BorderThickness="1" CornerRadius="8">
+   <Border Grid.Row="2" Background="#11273C" BorderBrush="#304D67"
+    BorderThickness="1" CornerRadius="8" Padding="12">
     <Grid>
      <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="2*"/>
-      <ColumnDefinition Width="14"/>
+      <ColumnDefinition Width="2*"/><ColumnDefinition Width="14"/>
       <ColumnDefinition Width="*"/>
      </Grid.ColumnDefinitions>
      <StackPanel>
-      <TextBlock Text="剧本名称" Foreground="#A9C1D9" Margin="0,0,0,6"/>
-      <TextBox x:Name="NameBox" FontSize="15" MaxLength="120"
-               TextChanged="EditorField_Changed"/>
+      <TextBlock Text="剧本名称" Foreground="#B9D0E4" Margin="0,0,0,5"/>
+      <TextBox x:Name="NameBox" MaxLength="120" FontSize="14"
+       TextChanged="EditorField_Changed"/>
      </StackPanel>
      <StackPanel Grid.Column="2">
-      <TextBlock Text="目标群组编号（可留空）" Foreground="#A9C1D9" Margin="0,0,0,6"/>
+      <TextBlock Text="关联群组（可选）" Foreground="#B9D0E4" Margin="0,0,0,5"/>
       <TextBox x:Name="GroupBox" MaxLength="500"
-               TextChanged="EditorField_Changed"/>
+       TextChanged="EditorField_Changed"/>
      </StackPanel>
     </Grid>
    </Border>
-
    <Grid Grid.Row="4">
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
+     <RowDefinition Height="10"/>
      <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
-    <DockPanel Margin="0,0,0,10" LastChildFill="False">
+    <DockPanel Grid.Row="0" LastChildFill="False">
      <TextBlock Text="消息列表" DockPanel.Dock="Left"
-                VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold"/>
+      VerticalAlignment="Center" FontSize="17" FontWeight="SemiBold"/>
      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-      <Button Content="添加到末尾" Click="Append_Click"/>
-      <Button Content="为选中句导入图片" Click="ImportImage_Click"/>
-      <Button Content="预览图片" Click="PreviewImage_Click"/>
-      <Button Content="选中上移" Click="MoveUp_Click"/>
-      <Button Content="选中下移" Click="MoveDown_Click"/>
+      <Button Content="＋ 加一句" Click="Append_Click" Style="{StaticResource ActionButton}"/>
+      <Button Content="导入图片" Click="ImportImage_Click" Style="{StaticResource ActionButton}"/>
+      <Button Content="预览图片" Click="PreviewImage_Click" Style="{StaticResource ActionButton}"/>
+      <Button Content="向上移动" Click="MoveUp_Click" Style="{StaticResource ActionButton}"/>
+      <Button Content="向下移动" Click="MoveDown_Click" Style="{StaticResource ActionButton}"/>
      </StackPanel>
     </DockPanel>
-    <DataGrid x:Name="StepsGrid" Grid.Row="1" AlternationCount="2"
-              CellEditEnding="StepsGrid_CellEditEnding">
+    <DataGrid x:Name="StepsGrid" Grid.Row="2"
+     AutoGenerateColumns="False" CanUserAddRows="False"
+     IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
+     ColumnHeaderStyle="{StaticResource DarkGridHeader}"
+     AlternationCount="2" RowHeaderWidth="0" SelectionMode="Single"
+     SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding"
+     BorderBrush="#3B5871" Background="#112438" Foreground="#EFF6FD"
+     RowBackground="#132D44" AlternatingRowBackground="#1A354C"
+     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+     EnableRowVirtualization="True">
      <DataGrid.Columns>
-      <DataGridTextColumn Header="序号" Binding="{Binding PositionLabel}" IsReadOnly="True" Width="46"/>
-      <DataGridTemplateColumn Header="插入 / 删除" Width="125">
+      <DataGridTextColumn Header="序号" Width="49"
+       Binding="{Binding PositionLabel}" IsReadOnly="True"
+       ElementStyle="{StaticResource TruncatedGridText}"/>
+      <DataGridTemplateColumn Header="插入 / 删除" Width="126">
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
-         <StackPanel Orientation="Horizontal">
-          <Button Content="↑＋" ToolTip="在这句上方插入" Tag="{Binding}" Click="InsertAbove_Click" Padding="4,3" MinHeight="20"/>
-          <Button Content="↓＋" ToolTip="在这句下方插入" Tag="{Binding}" Click="InsertBelow_Click" Padding="4,3" MinHeight="20"/>
-          <Button Content="×" ToolTip="删除这句话" Tag="{Binding}" Click="DeleteStep_Click" Padding="4,3" MinHeight="20"/>
+         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+          <Button Content="↑＋" ToolTip="上方插入" Tag="{Binding}"
+           Click="InsertAbove_Click" Style="{StaticResource SmallRowButton}"/>
+          <Button Content="↓＋" ToolTip="下方插入" Tag="{Binding}"
+           Click="InsertBelow_Click" Style="{StaticResource SmallRowButton}"/>
+          <Button Content="×" ToolTip="删除此句" Tag="{Binding}"
+           Click="DeleteStep_Click" Style="{StaticResource SmallRowButton}"/>
          </StackPanel>
         </DataTemplate>
        </DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
-      <DataGridTextColumn Header="账号（可空）" Width="115"
-       Binding="{Binding Account,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"/>
-      <DataGridTemplateColumn Header="消息内容" Width="2*">
+      <DataGridTemplateColumn Header="发送账号备注" Width="165">
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
-         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" Padding="3"
-                    MaxHeight="110"/>
+         <TextBlock Text="{Binding AccountLabel}" Foreground="#E6F2FE"
+          TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
+          VerticalAlignment="Center" Margin="8,0"
+          ToolTip="{Binding AccountLabel}"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellTemplate>
+       <DataGridTemplateColumn.CellEditingTemplate>
+        <DataTemplate>
+         <ComboBox
+          ItemsSource="{Binding AccountOptions,RelativeSource={RelativeSource AncestorType=UserControl}}"
+          SelectedValue="{Binding Account,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+          SelectedValuePath="Account" DisplayMemberPath="Label"
+          Background="#17354C" Foreground="White" MinHeight="36"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellEditingTemplate>
+      </DataGridTemplateColumn>
+      <DataGridTemplateColumn Header="消息内容（单击下方查看全文）" Width="3*">
+       <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate>
+         <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis"
+          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="8,0"
+          ToolTip="{Binding Message}" Foreground="#F0F6FD"/>
         </DataTemplate>
        </DataGridTemplateColumn.CellTemplate>
        <DataGridTemplateColumn.CellEditingTemplate>
         <DataTemplate>
          <TextBox Text="{Binding Message,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-                  AcceptsReturn="True" TextWrapping="Wrap" MinHeight="55" MaxHeight="180"
-                  VerticalScrollBarVisibility="Auto"/>
+          AcceptsReturn="False" TextWrapping="NoWrap"
+          HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Center"/>
         </DataTemplate>
        </DataGridTemplateColumn.CellEditingTemplate>
       </DataGridTemplateColumn>
-      <DataGridTextColumn Header="间隔秒" Width="70"
-       Binding="{Binding DelayText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"/>
-      <DataGridTextColumn Header="输入秒" Width="70"
-       Binding="{Binding TypingText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"/>
-      <DataGridCheckBoxColumn Header="暂停提醒" Width="80"
-       Binding="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
-      <DataGridTextColumn Header="提醒内容" Width="160"
-       Binding="{Binding ReminderText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"/>
-      <DataGridTextColumn Header="附件路径" Width="140"
-       Binding="{Binding Attachment,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"/>
+      <DataGridTextColumn Header="间隔(秒)" Width="86"
+       Binding="{Binding DelayText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"
+       ElementStyle="{StaticResource TruncatedGridText}"/>
+      <DataGridTextColumn Header="输入(秒)" Width="86"
+       Binding="{Binding TypingText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"
+       ElementStyle="{StaticResource TruncatedGridText}"/>
+      <DataGridTemplateColumn Header="提醒" Width="62">
+       <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate>
+         <CheckBox IsChecked="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+          HorizontalAlignment="Center" VerticalAlignment="Center" MinWidth="42"
+          ToolTip="此句发送后暂停并提醒"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellTemplate>
+      </DataGridTemplateColumn>
+      <DataGridTemplateColumn Header="提醒内容" Width="145">
+       <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate>
+         <TextBlock Text="{Binding ReminderText}" TextTrimming="CharacterEllipsis"
+          TextWrapping="NoWrap" Foreground="#EEF5FD"
+          ToolTip="{Binding ReminderText}" VerticalAlignment="Center" Margin="8,0"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellTemplate>
+       <DataGridTemplateColumn.CellEditingTemplate>
+        <DataTemplate>
+         <TextBox Text="{Binding ReminderText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+          TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellEditingTemplate>
+      </DataGridTemplateColumn>
+      <DataGridTemplateColumn Header="附件" Width="94">
+       <DataGridTemplateColumn.CellTemplate>
+        <DataTemplate>
+         <TextBlock Text="{Binding AttachmentLabel}" Foreground="#B7D7EE"
+          ToolTip="{Binding Attachment}" TextTrimming="CharacterEllipsis"
+          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="6,0"/>
+        </DataTemplate>
+       </DataGridTemplateColumn.CellTemplate>
+      </DataGridTemplateColumn>
      </DataGrid.Columns>
     </DataGrid>
    </Grid>
-
-   <TextBlock Grid.Row="6" x:Name="StatusText" Text="可以新建剧本，也可以选择左侧已有剧本。"
-              Foreground="#B6C7DA" TextWrapping="Wrap"/>
-   <TextBlock Grid.Row="8"
-    Text="注意：当前是剧本管理测试版。每句话可先不指定账号；输入时间和间隔以秒计算。附件路径仅保存文字引用，尚未实现图片打包或实际发送。"
-    Foreground="#E9B967" TextWrapping="Wrap"/>
+   <Border Grid.Row="6" Background="#11283E" BorderBrush="#3E5C74"
+    BorderThickness="1" CornerRadius="8" Padding="12">
+    <Grid DataContext="{Binding SelectedItem,ElementName=StepsGrid}">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+     <DockPanel Grid.Row="0" Margin="0,0,0,7">
+      <TextBlock Text="所选消息 · 完整内容" FontWeight="SemiBold"
+       Foreground="#D1E4F3"/>
+      <TextBlock DockPanel.Dock="Right" Text="可滚动阅读或直接编辑，列表行高保持不变"
+       Foreground="#8FA9C2" FontSize="11"/>
+     </DockPanel>
+     <TextBox Grid.Row="1" Text="{Binding Message,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+      AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+      HorizontalScrollBarVisibility="Auto" MinHeight="74" FontSize="13"
+      ToolTip="点击消息行选中，长文本在这里完整查看和编辑"/>
+    </Grid>
+   </Border>
+   <TextBlock Grid.Row="8" x:Name="StatusText"
+    Text="选中消息后下方会显示全文；账号列双击可选择账号备注。"
+    Foreground="#BBD0E3" TextWrapping="Wrap" FontSize="12"/>
   </Grid>
  </Grid>
 </UserControl>
