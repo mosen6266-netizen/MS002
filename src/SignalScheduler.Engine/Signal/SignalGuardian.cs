@@ -26,7 +26,7 @@ public sealed class SignalGuardian : BackgroundService
     int _restartCount;
     int _consecutiveFailures;
     SignalGuardianSnapshot _snapshot=new(
-        "starting","等待 Signal Guardian 启动","","false"=="true",0,DateTimeOffset.UtcNow,Array.Empty<string>());
+        "starting","等待 Signal Guardian 启动","",false,0,DateTimeOffset.UtcNow,Array.Empty<string>());
 
     public SignalGuardian(RuntimePaths paths)=>_paths=paths;
 
