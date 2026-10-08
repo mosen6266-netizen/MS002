@@ -43,7 +43,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $ghHeaders = @{ "User-Agent" = "MS002-CI"; "Authorization" = "Bearer $env:GITHUB_TOKEN"; "Accept" = "application/vnd.github+json" }
-          $runtime = Join-Path $pwd "artifacts/publish/Runtime"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
           New-Item -ItemType Directory -Force $runtime | Out-Null
 
           # signal-cli: pin a specific signed GitHub release and verify GitHub's asset digest when present.
@@ -111,7 +111,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
-          $runtime = Join-Path $pwd "artifacts/publish/Runtime"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
           $java = Join-Path $runtime "jre/bin/java.exe"
           $cp = Join-Path $runtime "signal-cli/lib/*"
           $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
@@ -160,11 +160,11 @@ jobs:
           Start-Sleep -Seconds 2
           if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
-          if (-not (Test-Path (Join-Path $testRoot "Runtime\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
-          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
 
           $installedJava = Join-Path $testRoot "Runtime\jre\bin\java.exe"
-          $installedCp = Join-Path $testRoot "Runtime\signal-cli\lib\*"
+          $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
           & $installedJava -classpath $installedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
 
