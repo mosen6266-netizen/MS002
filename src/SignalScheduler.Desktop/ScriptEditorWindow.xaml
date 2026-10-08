@@ -61,18 +61,25 @@
       </DataTemplate>
      </ListBox.ItemTemplate>
     </ListBox>
-    <StackPanel Grid.Row="2" Margin="0,12,0,0">
-     <Button Content="导入 JSON" Click="Import_Click"
-      Style="{StaticResource ActionButton}" Margin="0,0,0,7"/>
-     <Button Content="检查当前剧本图片" Click="CheckImages_Click"
-      Style="{StaticResource ActionButton}" Margin="0,0,0,7"/>
-     <Button Content="查看 / 恢复旧版本" Click="RestoreVersion_Click"
-      Style="{StaticResource ActionButton}" Margin="0,0,0,7"/>
-     <Button Content="导出当前剧本" Click="Export_Click"
-      Style="{StaticResource ActionButton}" Margin="0,0,0,10"/>
-     <TextBlock Text="剧本数据本地保存，升级不会覆盖。"
-      FontSize="11" Foreground="#A5BED6" TextWrapping="Wrap"/>
-    </StackPanel>
+    <Expander Grid.Row="2" Margin="0,8,0,0" IsExpanded="False"
+     Foreground="#EAF4FD" Background="#132B42">
+     <Expander.Header>
+      <TextBlock Text="更多操作 · 导入 / 导出 / 历史 / 图片"
+       FontSize="12" Foreground="#D1E7F8" TextWrapping="Wrap"/>
+     </Expander.Header>
+     <StackPanel Margin="0,9,0,0">
+      <Button Content="导入 JSON" Click="Import_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <Button Content="检查当前剧本图片" Click="CheckImages_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <Button Content="查看 / 恢复旧版本" Click="RestoreVersion_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <Button Content="导出当前剧本" Click="Export_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <TextBlock Text="数据保存于本地，升级不会覆盖。"
+       FontSize="11" Foreground="#A5BED6" TextWrapping="Wrap"/>
+     </StackPanel>
+    </Expander>
    </Grid>
   </Border>
   <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
@@ -145,7 +152,7 @@
      IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
      ColumnHeaderStyle="{StaticResource DarkGridHeader}"
      AlternationCount="2" RowHeaderWidth="0" SelectionMode="Single"
-     SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding" PreviewMouseLeftButtonDown="StepsGrid_PreviewMouseLeftButtonDown"
+     SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding" PreviewMouseLeftButtonUp="StepsGrid_PreviewMouseLeftButtonUp"
      BorderBrush="#3B5871" Background="#112438" Foreground="#EFF6FD"
      RowBackground="#132D44" AlternatingRowBackground="#1A354C"
      ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -286,7 +293,7 @@
     </Grid>
    </Border>
    <TextBlock Grid.Row="8" x:Name="StatusText"
-    Text="选中消息后下方会显示全文；账号列双击可选择账号备注。"
+    Text="单击消息行即可选中；账号、间隔和提醒可单击编辑，图片可右键操作。"
     Foreground="#BBD0E3" TextWrapping="Wrap" FontSize="12"/>
   </Grid>
  </Grid>
