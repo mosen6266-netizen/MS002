@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace SignalScheduler.Engine.Signal;
 
@@ -12,11 +13,17 @@ namespace SignalScheduler.Engine.Signal;
 public sealed class SignalReadCoordinator : BackgroundService
 {
     readonly RuntimePaths _paths;
+    readonly ILogger<SignalReadCoordinator> _logger;
+    long _lastStreamWarningMs;
     readonly HttpClient _http=new(){BaseAddress=new Uri("http://127.0.0.1:7583/"),Timeout=Timeout.InfiniteTimeSpan};
     readonly SemaphoreSlim _databaseGate=new(1,1);
     string? _lastEventId;
 
-    public SignalReadCoordinator(RuntimePaths paths)=>_paths=paths;
+    public SignalReadCoordinator(RuntimePaths paths,ILogger<SignalReadCoordinator> logger)
+    {
+        _paths=paths;
+        _logger=logger;
+    }
 
     SqliteConnection Open()
     {
@@ -113,7 +120,11 @@ public sealed class SignalReadCoordinator : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try{await InitializeAsync(ct);}
-        catch(Exception) when(!ct.IsCancellationRequested){return;}
+        catch(Exception ex) when(!ct.IsCancellationRequested)
+        {
+            _logger.LogError(ex,"Read event persistence initialization failed");
+            return;
+        }
         while(!ct.IsCancellationRequested)
         {
             try
@@ -125,6 +136,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                 using var response=await _http.SendAsync(request,
                     HttpCompletionOption.ResponseHeadersRead,ct);
                 response.EnsureSuccessStatusCode();
+                _logger.LogInformation("Signal read event stream connected");
                 await using var stream=await response.Content.ReadAsStreamAsync(ct);
                 using var reader=new StreamReader(stream);
                 var data=new System.Text.StringBuilder();
@@ -145,7 +157,17 @@ public sealed class SignalReadCoordinator : BackgroundService
                 }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
-            catch(Exception){ /* Daemon offline: reconnect when available. */ }
+            catch(Exception ex)
+            {
+                // Avoid flooding logs while the daemon is temporarily offline.
+                var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                if(now-Interlocked.Read(ref _lastStreamWarningMs)>30000)
+                {
+                    Interlocked.Exchange(ref _lastStreamWarningMs,now);
+                    _logger.LogWarning(ex,
+                        "Signal read event stream unavailable; retrying");
+                }
+            }
             try{await Task.Delay(TimeSpan.FromSeconds(3),ct);}
             catch(OperationCanceledException){break;}
         }
@@ -211,7 +233,11 @@ public sealed class SignalReadCoordinator : BackgroundService
                 }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-            catch(Exception ex){detail="已读回执失败："+ex.GetType().Name;}
+            catch(Exception ex)
+            {
+                detail="已读回执失败："+ex.GetType().Name;
+                _logger.LogWarning(ex,"Read receipt request failed; retained for retry");
+            }
             await _databaseGate.WaitAsync(ct);
             try
             {
