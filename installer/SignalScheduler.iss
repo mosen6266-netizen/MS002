@@ -60,11 +60,6 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\Engine\SignalScheduler.Engine.exe"; Parameters: "--background"; Flags: nowait runhidden skipifsilent; StatusMsg: "正在启动后台引擎…"
 Filename: "{app}\SignalScheduler.exe"; Description: "立即启动 Signal Auto Scheduler"; Flags: nowait postinstall skipifsilent
 
-[UninstallRun]
-Filename: "{app}\Engine\SignalScheduler.Engine.exe"; Parameters: "--prepare-update"; Flags: runhidden waituntilterminated skipifdoesntexist
-Filename: "{sys}\taskkill.exe"; Parameters: "/IM SignalScheduler.exe /T /F"; Flags: runhidden waituntilterminated
-Filename: "{sys}\taskkill.exe"; Parameters: "/IM SignalScheduler.Engine.exe /T /F"; Flags: runhidden waituntilterminated
-
 [CustomMessages]
 chinesesimplified.SafeClosingOldVersion=正在安全关闭旧版本…
 chinesesimplified.WaitingForBackground=正在等待后台任务安全结束…
@@ -108,7 +103,7 @@ begin
   );
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+function StopEngineForMaintenance(ShowInstallStatus: Boolean): String;
 var
   EnginePath: String;
   MarkerPath: String;
@@ -116,51 +111,56 @@ var
   KillResult: Integer;
 begin
   Result := '';
-  NeedsRestart := False;
-
-  WizardForm.StatusLabel.Caption := CustomMessage('SafeClosingOldVersion');
-  CloseDesktopWindow();
 
   EnginePath := ExpandConstant('{app}\Engine\SignalScheduler.Engine.exe');
   MarkerPath := ExpandConstant('{app}\update-protocol-v1.marker');
 
-  if not FileExists(EnginePath) then
+  { Nothing is running, so do not launch an old Engine merely to ask it to stop. }
+  if not IsEngineRunning() then
     Exit;
 
-  { alpha.4+ engines understand --prepare-update and refuse unsafe shutdowns. }
-  if Exec(
-       EnginePath,
-       '--prepare-update',
-       ExtractFileDir(EnginePath),
-       SW_HIDE,
-       ewWaitUntilTerminated,
-       ResultCode
-     ) then
+  if ShowInstallStatus then
+    WizardForm.StatusLabel.Caption := CustomMessage('SafeClosingOldVersion');
+
+  { alpha.4+ understands this command. alpha.1-alpha.3 will simply exit the
+    second Engine instance because the real Engine already owns the mutex. }
+  if FileExists(EnginePath) then
   begin
-    if ResultCode = 20 then
+    if Exec(
+         EnginePath,
+         '--prepare-update',
+         ExtractFileDir(EnginePath),
+         SW_HIDE,
+         ewWaitUntilTerminated,
+         ResultCode
+       ) then
     begin
-      Result := CustomMessage('SafeUpdateBlocked');
-      Exit;
+      if ResultCode = 20 then
+      begin
+        Result := CustomMessage('SafeUpdateBlocked');
+        Exit;
+      end;
     end;
   end;
 
-  WizardForm.StatusLabel.Caption := CustomMessage('WaitingForBackground');
+  if ShowInstallStatus then
+    WizardForm.StatusLabel.Caption := CustomMessage('WaitingForBackground');
 
   if WaitForEngineStop(15000) then
     Exit;
 
-  { If the marker exists, this installed version supports the safe protocol.
-    Never force-kill it: a non-exit can mean an active or uncertain send. }
+  { A marker means the installed build supports safe-update. Never force-kill
+    such a build after a failed handshake because it may have active/in-flight work. }
   if FileExists(MarkerPath) then
   begin
     Result := CustomMessage('EngineDidNotExit');
     Exit;
   end;
 
-  { alpha.1-alpha.3 never enabled irreversible Signal sends.
-    They do not understand the safe-update command, so one legacy-only fallback
-    is allowed. /T terminates the Engine-owned Java child as part of the tree. }
-  WizardForm.StatusLabel.Caption := CustomMessage('LegacyFallback');
+  { Legacy alpha.1-alpha.3 never enabled irreversible Signal sends.
+    This one-time fallback safely removes that test-era Engine and its own Java child. }
+  if ShowInstallStatus then
+    WizardForm.StatusLabel.Caption := CustomMessage('LegacyFallback');
 
   Exec(
     ExpandConstant('{sys}\taskkill.exe'),
@@ -180,10 +180,34 @@ begin
   Sleep(800);
 end;
 
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := '';
+  NeedsRestart := False;
+
+  CloseDesktopWindow();
+  Result := StopEngineForMaintenance(True);
+end;
+
+function InitializeUninstall(): Boolean;
+var
+  StopError: String;
+begin
+  CloseDesktopWindow();
+  StopError := StopEngineForMaintenance(False);
+
+  if StopError <> '' then
+  begin
+    MsgBox(StopError, mbError, MB_OK);
+    Result := False;
+  end
+  else
+    Result := True;
+end;
+
 procedure CurInstallProgressChanged(CurProgress, MaxProgress: Integer);
 begin
-  if WizardForm.CurPageID = wpInstalling then
-    WizardForm.StatusLabel.Caption := CustomMessage('InstallingFiles');
+  WizardForm.StatusLabel.Caption := CustomMessage('InstallingFiles');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
