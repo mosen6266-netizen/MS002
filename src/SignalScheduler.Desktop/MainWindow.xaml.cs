@@ -72,6 +72,12 @@ public partial class MainWindow : Window
         var window=new LiveProbeWindow{Owner=this};
         window.Show();
     }
+    void LivePilot_Click(object sender,RoutedEventArgs e)
+    {
+        var window=new LivePilotWindow{Owner=this};
+        window.Show();
+    }
+
 
 
     void ScriptEditor_Click(object sender,RoutedEventArgs e)
