@@ -131,6 +131,41 @@ public sealed partial class StateStore
             filename,file.Length,sha);
     }
 
+    public async Task<IReadOnlyList<ImageCheckResult>> CheckImagesAsync(
+        ImageCheckRequest request,CancellationToken ct)
+    {
+        if(request?.References is null || request.References.Count>1500)
+            throw new ArgumentException("图片检查最多支持 1500 个引用。");
+        var output=new List<ImageCheckResult>();
+        foreach(var reference in request.References.Distinct(StringComparer.Ordinal))
+        {
+            if(string.IsNullOrWhiteSpace(reference))continue;
+            if(!reference.StartsWith("img:",StringComparison.Ordinal))
+            {
+                // Do not expose arbitrary absolute paths or probe unrelated files.
+                output.Add(new ImageCheckResult(reference,"legacy",
+                    "旧版路径引用，请用右键“替换图片”重新导入。"));
+                continue;
+            }
+            try
+            {
+                await LookupImageAsync(new ImageLookupRequest(reference),ct);
+                output.Add(new ImageCheckResult(reference,"ok","附件校验通过"));
+            }
+            catch(FileNotFoundException)
+            {
+                output.Add(new ImageCheckResult(reference,"missing",
+                    "附件缺失，请重新选择图片。"));
+            }
+            catch(Exception ex) when(ex is IOException or ArgumentException)
+            {
+                output.Add(new ImageCheckResult(reference,"invalid",
+                    "附件校验失败，请重新导入。"));
+            }
+        }
+        return output;
+    }
+
     static async Task<bool> HasMatchingHashAsync(
         string path,string expected,CancellationToken ct)
     {
