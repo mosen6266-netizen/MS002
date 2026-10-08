@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Hosting;
 using System.IO.Pipes;
 using System.Text.Json;
 using SignalScheduler.Shared;
