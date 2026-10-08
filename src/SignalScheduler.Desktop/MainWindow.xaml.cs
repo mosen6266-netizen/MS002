@@ -356,8 +356,10 @@ public partial class MainWindow : Window
 
     void AddNotification(string message,bool critical)
     {
-        if(string.IsNullOrWhiteSpace(message) ||
-           !_seenNotifications.Add(message))return;
+        if(string.IsNullOrWhiteSpace(message))return;
+        // Critical events are already de-duplicated by job/cursor at the
+        // source. A new job with the same error text must still alert.
+        if(!_seenNotifications.Add(message) && !critical)return;
         _notifications.Insert(0,$"{DateTime.Now:HH:mm:ss}  {message}");
         if(_notifications.Count>100)_notifications.RemoveAt(_notifications.Count-1);
         AlertStrip.Visibility=Visibility.Visible;
