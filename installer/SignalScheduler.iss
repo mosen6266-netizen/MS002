@@ -1,6 +1,6 @@
 #define MyAppName "Signal Auto Scheduler"
 #ifndef MyAppVersion
- #define MyAppVersion "8.0.0-alpha.6"
+ #define MyAppVersion "8.0.0-alpha.7"
 #endif
 #ifndef PublishRoot
  #define PublishRoot "..\artifacts\publish"
@@ -19,7 +19,7 @@ DefaultGroupName=Signal Auto Scheduler
 DisableDirPage=no
 DisableProgramGroupPage=no
 OutputDir={#OutputRoot}
-OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.6
+OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.7
 Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=lowest

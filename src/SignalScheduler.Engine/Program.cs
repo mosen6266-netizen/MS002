@@ -40,6 +40,10 @@ var inventory = await migrator.AnalyzeAsync(CancellationToken.None);
 if (inventory.LegacyDetected && !inventory.MetadataMigrated)
     await migrator.MigrateMetadataAsync(CancellationToken.None);
 
+// Copy legacy script metadata into a separate editable V8 authoring store.
+// Safe to run repeatedly: existing edited scripts are never overwritten.
+await store.InitializeScriptEditorAsync(CancellationToken.None);
+
 await host.RunAsync();
 
 static async Task<int> RequestPrepareUpdateAsync()

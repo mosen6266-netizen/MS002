@@ -27,6 +27,21 @@ public sealed class NamedPipeControlServer : BackgroundService
         _lifetime=lifetime;
     }
 
+    static T ParsePayload<T>(JsonElement? payload)
+    {
+        if(payload is not { } data || data.ValueKind!=JsonValueKind.Object)
+            throw new ArgumentException("请求缺少有效参数。");
+        try
+        {
+            return JsonSerializer.Deserialize<T>(data.GetRawText())
+                ??throw new ArgumentException("参数内容为空。");
+        }
+        catch(JsonException)
+        {
+            throw new ArgumentException("参数格式错误。");
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         while(!ct.IsCancellationRequested)
@@ -50,7 +65,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.6",
+                            version="8.0.0-alpha.7",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -80,6 +95,33 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.RecoveryOverview:
                         response=new ControlResponse(true,Data:await _store.GetRecoveryOverviewAsync(ct));
+                        break;
+                    case ControlCommands.ScriptList:
+                        response=new ControlResponse(true,Data:await _store.ListEditorScriptsAsync(ct));
+                        break;
+                    case ControlCommands.ScriptRead:
+                        try
+                        {
+                            var read=ParsePayload<ScriptReadRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ReadEditorScriptAsync(read.ScriptId,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.ScriptSave:
+                        try
+                        {
+                            var save=ParsePayload<ScriptSaveRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.SaveEditorScriptAsync(save,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
                         break;
                     case ControlCommands.PauseJob:
                         if(request.Payload is not { } pausePayload ||

@@ -42,7 +42,8 @@
 
 ## Stage 4 — feature parity
 - [ ] Multi-account management UI
-- [ ] Script editor/import/export
+- [x] Native editable script authoring with per-step insert/reorder, JSON import/export
+- [ ] Binary attachment import/export and preview
 - [ ] Group selection
 - [ ] Typing/read logic
 - [ ] Multi-group runner
