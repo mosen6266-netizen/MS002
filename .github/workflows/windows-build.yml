@@ -21,6 +21,10 @@ jobs:
         with:
           dotnet-version: 8.0.414
 
+      - name: Generate desktop and installer icon
+        shell: powershell
+        run: .\tools\GenerateBrandIcon.ps1
+
       - name: Restore
         run: dotnet restore SignalScheduler.V8.sln
 
