@@ -49,7 +49,7 @@ public sealed class StateStore
     public async Task ReserveAsync(DispatchIdentity d,CancellationToken ct)
     {
         await using var c=Open();
-        await using var tx=await c.BeginTransactionAsync(ct);
+        using var tx=c.BeginTransaction();
         await using var q=c.CreateCommand(); q.Transaction=tx;
         q.CommandText="SELECT state,payload_hash FROM v8_dispatch_journal WHERE dispatch_key=$k";
         q.Parameters.AddWithValue("$k",d.DispatchKey);
@@ -76,7 +76,7 @@ public sealed class StateStore
         cmd.Parameters.AddWithValue("$a",d.AccountId); cmd.Parameters.AddWithValue("$h",d.PayloadHash);
         cmd.Parameters.AddWithValue("$n",now);
         await cmd.ExecuteNonQueryAsync(ct);
-        await tx.CommitAsync(ct);
+        tx.Commit();
     }
 
     public Task MarkSendingAsync(DispatchIdentity d,CancellationToken ct)=>SetStateAsync(d.DispatchKey,"Sending",null,ct);
@@ -96,7 +96,7 @@ public sealed class StateStore
     public async Task CommitConfirmedAsync(DispatchIdentity d,SignalSendResult result,CancellationToken ct)
     {
         await using var c=Open();
-        await using var tx=await c.BeginTransactionAsync(ct);
+        using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         await using var journal=c.CreateCommand(); journal.Transaction=tx;
@@ -124,6 +124,6 @@ public sealed class StateStore
         log.Parameters.AddWithValue("$j",d.JobId); log.Parameters.AddWithValue("$k",d.DispatchKey);
         log.Parameters.AddWithValue("$d",(object?)result.Detail??DBNull.Value); log.Parameters.AddWithValue("$n",now);
         await log.ExecuteNonQueryAsync(ct);
-        await tx.CommitAsync(ct);
+        tx.Commit();
     }
 }
