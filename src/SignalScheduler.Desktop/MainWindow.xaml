@@ -83,7 +83,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-beta.4" Foreground="#8EACC8" Margin="0,7,0,0"/>
+     <TextBlock Text="V8.0.0-beta.5" Foreground="#8EACC8" Margin="0,7,0,0"/>
      <TextBlock Text="桌面消息管理" Foreground="#7390AC" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
