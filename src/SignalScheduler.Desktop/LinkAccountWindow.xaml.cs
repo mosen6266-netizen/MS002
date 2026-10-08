@@ -21,6 +21,14 @@ public partial class LinkAccountWindow : Window
     {
         InitializeComponent();
         Loaded+=async(_,_)=>{
+            try
+            {
+                var raw=await MainWindow.SendAsync(
+                    ControlCommands.AccountGroupCatalog,3500);
+                foreach(var item in UnwrapCatalog(raw).Accounts)
+                    _beforeAccounts.Add(item.Account);
+            }
+            catch { /* Catalog may not be ready until after link. */ }
             await StartLinkAsync();
             _timer.Tick+=async(_,_)=>await PollAsync();
             _timer.Start();
