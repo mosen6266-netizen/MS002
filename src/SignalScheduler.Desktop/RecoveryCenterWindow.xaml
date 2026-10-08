@@ -64,7 +64,7 @@
     <DataGrid.Columns>
      <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="3*"
       ElementStyle="{StaticResource TruncatedGridText}"/>
-     <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="2*"/>
+     <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="2*"/>
      <DataGridTextColumn Header="当前消息序号" Binding="{Binding Cursor}" Width="*"/>
      <DataGridCheckBoxColumn Header="旧版记录" Binding="{Binding IsLegacy}" Width="*"/>
      <DataGridCheckBoxColumn Header="需要人工核对" Binding="{Binding NeedsReview}" Width="*"/>
@@ -87,9 +87,9 @@
              SelectionChanged="DispatchGrid_SelectionChanged">
     <DataGrid.Columns>
      <DataGridTextColumn Header="消息序号" Binding="{Binding Cursor}" Width="75"/>
-     <DataGridTextColumn Header="发送状态" Binding="{Binding State}" Width="150"/>
-     <DataGridTextColumn Header="账号" Binding="{Binding AccountId}" Width="140"/>
-     <DataGridTextColumn Header="群组 ID" Binding="{Binding GroupId}" Width="160"/>
+     <DataGridTextColumn Header="发送状态" Binding="{Binding StateDisplay}" Width="150"/>
+     <DataGridTextColumn Header="账号备注" Binding="{Binding AccountDisplay}" Width="140"/>
+     <DataGridTextColumn Header="群组" Binding="{Binding GroupDisplay}" Width="160"/>
      <DataGridTextColumn Header="提供方消息 ID" Binding="{Binding ProviderMessageId}" Width="180"/>
      <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="2*"
       ElementStyle="{StaticResource TruncatedGridText}"/>
