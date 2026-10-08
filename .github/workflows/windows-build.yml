@@ -89,6 +89,37 @@ jobs:
           & cmd.exe /d /c ('"' + (Join-Path $runtime "signal-cli/bin/signal-cli.bat") + '" --version')
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli failed" }
 
+      - name: Signal JSON-RPC daemon smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime"
+          $java = Join-Path $runtime "jre/bin/java.exe"
+          $cp = Join-Path $runtime "signal-cli/lib/*"
+          $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
+          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http","127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Milliseconds 750
+              if ($proc.HasExited) { break }
+              try {
+                $body = @{ jsonrpc = "2.0"; method = "listAccounts"; id = 1 } | ConvertTo-Json -Compress
+                $reply = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $body -Uri "http://127.0.0.1:7583/api/v1/rpc" -TimeoutSec 3
+                if ($reply.jsonrpc -eq "2.0" -and $null -ne $reply.result) { $ok = $true; break }
+              } catch {}
+            }
+            if (-not $ok) {
+              if (Test-Path $stdout) { Get-Content $stdout -Tail 100 }
+              if (Test-Path $stderr) { Get-Content $stderr -Tail 100 }
+              throw "signal-cli daemon JSON-RPC smoke test failed"
+            }
+          } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+            Get-Process "java" -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
+
       - name: Install pinned Inno Setup
         shell: powershell
         run: choco install innosetup --version=6.7.1 -y --no-progress
