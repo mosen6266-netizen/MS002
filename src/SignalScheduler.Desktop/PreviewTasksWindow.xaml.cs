@@ -52,9 +52,11 @@ public partial class PreviewTasksWindow : Window
         try
         {
             var oldScript=(ScriptsBox.SelectedItem as ScriptEditorSummary)?.ScriptId;
-            var (scriptRaw,groupRaw)=await Task.WhenAll(
+            var results=await Task.WhenAll(
                 MainWindow.SendAsync(ControlCommands.ScriptList,7000),
                 MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,7000));
+            var scriptRaw=results[0];
+            var groupRaw=results[1];
             var scripts=Unwrap<List<ScriptEditorSummary>>(scriptRaw);
             var groups=Unwrap<AccountGroupOverview>(groupRaw);
             _scripts.Clear();
