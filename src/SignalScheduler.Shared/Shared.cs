@@ -154,7 +154,7 @@ public sealed record LivePilotPlanRequest(
 public sealed record LivePilotControlRequest(string JobId,string Action);
 public sealed record LivePilotItem(
     string JobId,string ScriptName,string GroupName,string Account,
-    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
+    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail,long EstimatedRemainingMs=0);
 
 /// <summary>Explicit user-started native script dispatch; group IDs must be saved/selected.</summary>
 public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend,bool SkipUnavailableImages=false);
