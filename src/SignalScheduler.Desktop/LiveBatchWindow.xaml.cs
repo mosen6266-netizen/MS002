@@ -470,13 +470,7 @@ public sealed class BatchJobRow : INotifyPropertyChanged
         }
     }
     public string Progress=>$"{Cursor}/{TotalSteps}";
-    public string StateDisplay=>State switch
-    {
-        "Running"=>"运行中","Paused"=>"已暂停",
-        "Completed"=>"已完成","RecoveryRequired"=>"需核对",
-        "Stopped"=>"已停止","Failed"=>"异常",
-        _=>State
-    };
+    public string StateDisplay=>StatusLabels.Task(State);
     public bool CanPause=>State=="Running";
     public bool CanResume=>State=="Paused" && Cursor<TotalSteps;
     public bool CanStop=>State is "Running" or "Paused";
