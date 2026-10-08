@@ -14,8 +14,10 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<RuntimePaths>();
 builder.Services.AddSingleton<StateStore>();
 builder.Services.AddSingleton<LegacyV7Migrator>();
+builder.Services.AddSingleton<SignalGuardian>();
 builder.Services.AddSingleton<ISignalTransport, SignalCliTransport>();
 builder.Services.AddSingleton<DurableTaskEngine>();
+builder.Services.AddHostedService(sp=>sp.GetRequiredService<SignalGuardian>());
 builder.Services.AddHostedService<NamedPipeControlServer>();
 
 var host = builder.Build();
