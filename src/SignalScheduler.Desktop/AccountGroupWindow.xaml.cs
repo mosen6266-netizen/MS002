@@ -9,7 +9,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class AccountGroupWindow : Window
+public partial class AccountGroupWindow : UserControl
 {
     readonly ObservableCollection<GroupSelectionRow> _groups=new();
     readonly ObservableCollection<ManagedAccount> _accounts=new();
@@ -145,7 +145,8 @@ public partial class AccountGroupWindow : Window
         }
     }
 
-    void Close_Click(object sender,RoutedEventArgs e)=>Close();
+    void Close_Click(object sender,RoutedEventArgs e)=>
+        (Window.GetWindow(this) as MainWindow)?.NavigateHome();
 }
 
 public sealed class GroupSelectionRow : INotifyPropertyChanged
