@@ -1,0 +1,13 @@
+bin/
+obj/
+artifacts/
+.vs/
+*.user
+*.suo
+*.db
+*.db-shm
+*.db-wal
+runtime/java/*
+runtime/signal-cli/*
+!runtime/java/.gitkeep
+!runtime/signal-cli/.gitkeep
