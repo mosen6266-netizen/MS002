@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.13 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-beta.1 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -87,3 +87,9 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 - 一次只允许一个测试剧本运行，90 秒内不能重复创建实发测试。每条实发前检查有效在线卡密和健康的 Signal 服务。
 
 **这是小规模真实群发送试点，CI 使用虚拟 HTTP 响应，不能代表已在实际 Signal 群通过收发长测。** 多群、多账号和完整规模自动发送仍未开放。
+
+## V8 beta.1：授权群组的完整消息排程（开发验收阶段）
+
+新增原生「运行任务」窗口：可以从已保存剧本选择最多20个已勾选的群组，按群独立存储进度、暂停、继续和停止。消息正文和已导入的图片附件由本地 Signal RPC 接口处理，运行中需要有效在线卡密。每条发送在不可逆 RPC 调用之前登记，遇到超时、断线或未知发送结果立即暂停并交由恢复中心核对，不自动重发。具有 1,500 条消息的剧本编辑上限，任务从保存的剧本生成不可变快照。
+
+**开发版本：仅适用于你已获授权的群通知、运营公告及正常消息排程，不得制造虚假的用户讨论或互动。此分支的完整 Windows CI 和真实端到端收发测试尚未完成，不能标为正式稳定版。**
