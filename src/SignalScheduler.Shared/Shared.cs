@@ -100,6 +100,8 @@ public sealed record ScriptSaveRequest(
     string? ScriptId,string Name,string TargetGroupId,int Revision,
     IReadOnlyList<ScriptEditorStep> Steps);
 public sealed record ScriptReadRequest(string ScriptId);
+public sealed record ScriptDeleteRequest(string ScriptId,int ExpectedRevision);
+public sealed record ScriptDeleteResult(string ScriptId,bool Deleted);
 
 public sealed record ManagedAccount(
     string Account,string Label,bool Enabled,bool Online,long Revision);
@@ -155,7 +157,12 @@ public sealed record LivePilotItem(
     string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
 
 /// <summary>Explicit user-started native script dispatch; group IDs must be saved/selected.</summary>
-public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend);
+public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend,bool SkipUnavailableImages=false);
+public sealed record LiveBatchMediaInspectionRequest(string ScriptId);
+public sealed record LiveBatchMediaIssue(int Position,string Problem,string Action);
+public sealed record LiveBatchMediaInspection(
+    string ScriptName,int TotalRows,int SendableRows,
+    IReadOnlyList<LiveBatchMediaIssue> Issues);
 public sealed record LiveBatchStartResult(IReadOnlyList<string> JobIds,int GroupCount,int MessageCount);
 public sealed record LiveBatchControlRequest(string JobId,string Action);
 public sealed record LiveBatchItem(
@@ -190,6 +197,7 @@ public static class ControlCommands
     public const string ScriptList="script-list";
     public const string ScriptRead="script-read";
     public const string ScriptSave="script-save";
+    public const string ScriptDelete="script-delete";
     public const string AccountGroupCatalog="account-group-catalog";
     public const string UpdateAccount="update-account";
     public const string SetSelectedGroups="set-selected-groups";
@@ -206,6 +214,7 @@ public static class ControlCommands
     public const string LivePilotList="live-pilot-list";
     public const string LivePilotControl="live-pilot-control";
     public const string LiveBatchStart="live-batch-start";
+    public const string LiveBatchInspect="live-batch-inspect";
     public const string LiveBatchList="live-batch-list";
     public const string LiveBatchControl="live-batch-control";
 }
