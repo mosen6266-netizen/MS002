@@ -20,17 +20,20 @@ public sealed class LiveBatchRunner : BackgroundService
     readonly SignalGuardian _guardian;
     readonly DurableTaskEngine _engine;
     readonly ISignalTypingTransport _typing;
+    readonly SignalReadCoordinator _read;
     readonly ConcurrentDictionary<string,SemaphoreSlim> _accountLocks=new();
     readonly SemaphoreSlim _slots=new(4,4);
 
     public LiveBatchRunner(StateStore store,LicenseManager license,
-        SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing)
+        SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing,
+        SignalReadCoordinator read)
     {
         _store=store;
         _license=license;
         _guardian=guardian;
         _engine=engine;
         _typing=typing;
+        _read=read;
     }
 
     async Task SimulateTypingAsync(StateStore.DueLiveBatch due,CancellationToken ct)
@@ -113,8 +116,10 @@ public sealed class LiveBatchRunner : BackgroundService
                 }
             }
 
-            // The signal-cli daemon requests read receipts as messages arrive.
-            // No extra receive call here: daemon already consumes inbound events.
+            // Targeted read receipts are best effort and never advance the dispatch journal.
+            try{await _read.TrySendForGroupAsync(due.Dispatch.AccountId,due.Dispatch.GroupId,ct);}
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+            catch { /* Send the scheduled message even if read receipts fail. */ }
 
             await SimulateTypingAsync(due,ct);
 
