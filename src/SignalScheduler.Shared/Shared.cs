@@ -20,6 +20,34 @@ public sealed record DispatchIdentity(string JobId,string RunToken,long RunCycle
     }
 }
 
+public sealed record DashboardAccount(long LegacyId,string Account,string Label,bool Enabled);
+public sealed record DashboardGroup(long LegacyId,string Account,string GroupId,string Name,bool Enabled);
+public sealed record DashboardScript(long LegacyId,string Name,long StepCount);
+public sealed record DashboardJob(long LegacyId,string Name,string GroupId,string State,long Cursor,bool RecoveryRequired);
+
+public sealed record DashboardSnapshot(
+    string Version,
+    string EngineState,
+    string TransportState,
+    bool LegacyDetected,
+    bool MetadataMigrated,
+    int Accounts,
+    int EnabledAccounts,
+    int Groups,
+    int Scripts,
+    int Jobs,
+    int RecoveryJobs,
+    IReadOnlyList<DashboardAccount> AccountItems,
+    IReadOnlyList<DashboardGroup> GroupItems,
+    IReadOnlyList<DashboardScript> ScriptItems,
+    IReadOnlyList<DashboardJob> JobItems);
+
 public sealed record ControlRequest(string Command, JsonElement? Payload = null);
 public sealed record ControlResponse(bool Ok, string? Error = null, object? Data = null);
-public static class ControlCommands { public const string Status="status"; public const string Ping="ping"; }
+
+public static class ControlCommands
+{
+    public const string Status="status";
+    public const string Ping="ping";
+    public const string Dashboard="dashboard";
+}
