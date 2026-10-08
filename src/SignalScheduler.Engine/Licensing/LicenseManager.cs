@@ -113,7 +113,7 @@ public sealed class LicenseManager : BackgroundService
         try
         {
             var device=await GetDeviceAsync(ct);
-            using var response=await PostAsync("api/license/activate",
+            var response=await PostAsync("api/license/activate",
                 key,device,ct);
             var claims=LicenseLeaseVerifier.Verify(
                 response.GetProperty("lease").GetString()!,
@@ -162,7 +162,7 @@ public sealed class LicenseManager : BackgroundService
                 var device=await GetDeviceAsync(ct);
                 if(saved.DeviceId!=device)
                     throw new CryptographicException("授权设备标识不一致。");
-                using var response=await PostAsync("api/license/check",
+                var response=await PostAsync("api/license/check",
                     saved.LicenseKey,device,ct);
                 var publicKey=response.GetProperty("public_key");
                 var claims=LicenseLeaseVerifier.Verify(
