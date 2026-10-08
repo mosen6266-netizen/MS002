@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     bool _engineFaultNotified;
     string? _signalFaultSignature;
     readonly HashSet<string> _notifiedRecoveryJobs=new(StringComparer.Ordinal);
+    readonly HashSet<string> _notifiedBatchAlerts=new(StringComparer.Ordinal);
 
     public MainWindow()
     {
@@ -208,6 +209,49 @@ public partial class MainWindow : Window
                     $"检测到 {newlyUnresolved} 个新出现的待人工恢复任务（当前共 {snapshot.RecoveryJobs} 个）。\n\n"+
                     "为避免重复发送或漏发，程序已将对应任务标记为待恢复，不会自动重新发送。请打开“运行任务”确认。");
             }
+            // The main desktop window must surface task failures even if the
+            // task management window has been closed or minimized. Avoid
+            // duplicating a popup every polling cycle.
+            try
+            {
+                var batchRaw=await SendAsync(ControlCommands.LiveBatchList,2000);
+                if(!string.IsNullOrWhiteSpace(batchRaw))
+                {
+                    using var batchDoc=JsonDocument.Parse(batchRaw);
+                    var reply=batchDoc.RootElement;
+                    if(reply.TryGetProperty("Ok",out var batchOk) && batchOk.GetBoolean())
+                    {
+                        var jobs=JsonSerializer.Deserialize<List<LiveBatchItem>>(
+                            reply.GetProperty("Data").GetRawText())??new();
+                        var active=new HashSet<string>(StringComparer.Ordinal);
+                        foreach(var job in jobs)
+                        {
+                            var needsAlert=job.State=="RecoveryRequired" ||
+                                (job.State=="Paused" &&
+                                 (job.Detail.Contains("提醒",StringComparison.Ordinal) ||
+                                  job.Detail.Contains("异常",StringComparison.Ordinal) ||
+                                  job.Detail.Contains("断开",StringComparison.Ordinal) ||
+                                  job.Detail.Contains("失败",StringComparison.Ordinal) ||
+                                  job.Detail.Contains("授权",StringComparison.Ordinal)));
+                            if(!needsAlert)continue;
+                            var mark=$"{job.JobId}:{job.Cursor}:{job.State}";
+                            active.Add(mark);
+                            if(_notifiedBatchAlerts.Add(mark))
+                                ShowCriticalAlert(
+                                    $"授权群组任务已暂停或异常。\n剧本：{job.ScriptName}\n"+
+                                    $"群组：{job.GroupName}\n进度：{job.Cursor}/{job.TotalSteps}\n"+
+                                    $"状态：{job.State}\n{job.Detail}\n"+
+                                    "请在运行任务或恢复中心处理，未知结果不会自动重发。");
+                        }
+                        _notifiedBatchAlerts.IntersectWith(active);
+                    }
+                }
+            }
+            catch
+            {
+                // Dashboard service connection reporting remains authoritative.
+            }
+
         }
         catch(Exception ex)
         {
