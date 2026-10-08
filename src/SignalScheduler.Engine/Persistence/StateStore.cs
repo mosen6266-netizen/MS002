@@ -126,4 +126,97 @@ public sealed class StateStore
         await log.ExecuteNonQueryAsync(ct);
         tx.Commit();
     }
+
+    public async Task<DashboardSnapshot> GetDashboardAsync(CancellationToken ct)
+    {
+        await using var c=Open();
+
+        async Task<bool> TableExists(string name)
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="SELECT 1 FROM sqlite_master WHERE type='table' AND name=$n LIMIT 1";
+            cmd.Parameters.AddWithValue("$n",name);
+            return await cmd.ExecuteScalarAsync(ct) is not null;
+        }
+
+        var accounts=new List<DashboardAccount>();
+        var groups=new List<DashboardGroup>();
+        var scripts=new List<DashboardScript>();
+        var jobs=new List<DashboardJob>();
+        var legacyDetected=await TableExists("accounts") && await TableExists("groups") && await TableExists("scripts");
+        var metadataMigrated=false;
+
+        if(await TableExists("v8_schema"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="SELECT value FROM v8_schema WHERE key='v7_metadata_migration'";
+            metadataMigrated=string.Equals(Convert.ToString(await cmd.ExecuteScalarAsync(ct)),"complete-v1",StringComparison.Ordinal);
+        }
+
+        if(await TableExists("v8_accounts"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="SELECT legacy_id,account,label,enabled FROM v8_accounts ORDER BY sort_order,legacy_id LIMIT 200";
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                accounts.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3)!=0));
+        }
+
+        if(await TableExists("v8_groups"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="SELECT legacy_id,account,group_id,name,enabled FROM v8_groups ORDER BY name,legacy_id LIMIT 500";
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                groups.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4)!=0));
+        }
+
+        if(await TableExists("v8_scripts"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT s.legacy_id,s.name,COUNT(st.legacy_id)
+                FROM v8_scripts s
+                LEFT JOIN v8_script_steps st ON st.script_id=s.legacy_id
+                GROUP BY s.legacy_id,s.name
+                ORDER BY s.name,s.legacy_id
+                LIMIT 300;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                scripts.Add(new(r.GetInt64(0),r.GetString(1),r.GetInt64(2)));
+        }
+
+        if(await TableExists("v8_legacy_jobs"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT legacy_id,name,group_id,mapped_state,step_cursor,recovery_needed
+                FROM v8_legacy_jobs
+                ORDER BY legacy_id DESC
+                LIMIT 200;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                jobs.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4),r.GetInt64(5)!=0));
+        }
+
+        return new DashboardSnapshot(
+            "8.0.0-alpha.2",
+            "running",
+            "disabled-foundation-stage",
+            legacyDetected,
+            metadataMigrated,
+            accounts.Count,
+            accounts.Count(x=>x.Enabled),
+            groups.Count,
+            scripts.Count,
+            jobs.Count,
+            jobs.Count(x=>x.RecoveryRequired || string.Equals(x.State,"RecoveryRequired",StringComparison.OrdinalIgnoreCase)),
+            accounts,
+            groups,
+            scripts,
+            jobs);
+    }
+
 }
