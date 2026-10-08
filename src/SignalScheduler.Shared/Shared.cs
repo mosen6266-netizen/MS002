@@ -149,6 +149,16 @@ public sealed record LivePilotItem(
     string JobId,string ScriptName,string GroupName,string Account,
     string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
 
+/// <summary>Explicit user-started native script dispatch; group IDs must be saved/selected.</summary>
+public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend);
+public sealed record LiveBatchStartResult(IReadOnlyList<string> JobIds,int GroupCount,int MessageCount);
+public sealed record LiveBatchControlRequest(string JobId,string Action);
+public sealed record LiveBatchItem(
+    string JobId,string ScriptName,string GroupId,string GroupName,
+    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
+/// <summary>Internal, not a UI-supplied raw file path.</summary>
+public sealed record SignalMessagePayload(string Message,string? AttachmentPath);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -189,4 +199,7 @@ public static class ControlCommands
     public const string LivePilotPlan="live-pilot-plan";
     public const string LivePilotList="live-pilot-list";
     public const string LivePilotControl="live-pilot-control";
+    public const string LiveBatchStart="live-batch-start";
+    public const string LiveBatchList="live-batch-list";
+    public const string LiveBatchControl="live-batch-control";
 }
