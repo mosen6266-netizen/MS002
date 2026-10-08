@@ -4,7 +4,7 @@
 - [x] Native WPF shell
 - [x] Native dashboard with migrated account/group/script/job summary
 - [x] Explicit desktop + Start Menu shortcut installer flow
-- [x] Independent Windows Service
+- [x] Independent per-user background engine
 - [x] Named Pipe IPC
 - [x] SQLite V8 schema
 - [x] Durable dispatch-state skeleton
@@ -13,23 +13,29 @@
 - [x] CI build proof / installer artifact proof
 
 ## Stage 2 — V7 data compatibility
-- [ ] Read V7 schema without mutation
-- [ ] Backup/rollback transaction
-- [ ] Accounts + remarks
-- [ ] Scripts + steps + attachments
-- [ ] Groups + jobs + recovery states
+- [x] Read V7 core schema without destructive mutation
+- [x] Consistent SQLite backup before first metadata migration
+- [x] Accounts + remarks metadata migration
+- [x] Scripts + steps metadata migration
+- [x] Groups + conservative job/recovery metadata migration
+- [ ] Attachment binary migration/verification
 - [ ] License compatibility
 
 ## Stage 3 — Signal runtime
-- [ ] Bundle fixed Java runtime
-- [ ] Bundle pinned signal-cli
-- [ ] JSON-RPC transport
-- [ ] Guardian state machine
-- [ ] Two-phase restart handshake
-- [ ] Account/group sync and QR link
+- [x] Bundle fixed Java 25 runtime
+- [x] Bundle pinned signal-cli
+- [x] JSON-RPC identity/health probe
+- [x] Guardian healthy/busy/fault state machine
+- [x] Reuse valid daemon / refuse to kill unknown port owner
+- [x] Privacy-filtered rotating signal-cli diagnostics
+- [ ] Two-phase restart handshake with durable task engine
+- [ ] Account sync into V8 authoritative account model
+- [ ] Group sync
+- [ ] QR link flow
+- [ ] Durable send transport
 
 ## Stage 4 — feature parity
-- [ ] Multi-account UI
+- [ ] Multi-account management UI
 - [ ] Script editor/import/export
 - [ ] Group selection
 - [ ] Typing/read logic
