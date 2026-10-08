@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.9 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-alpha.10 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -55,3 +55,9 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 在左侧「运行任务」中选择已保存的剧本、勾选此前在群组管理中保存的群组，可以创建彼此独立的任务**预演**。后台负责按剧本顺序、输入时间、消息间隔模拟推进；可对单个群的任务暂停、继续、停止，提醒暂停会置顶弹窗。所有游标、任务状态及审计事件写入 SQLite，重启后待运行任务一律暂停并需人工继续。
 
 **预演绝不调用 Signal API，也不会发送真实消息。** 这一步验证工作流、调度和异常恢复。实际发送、图片附件和授权管理仍不可用，不应将 alpha.9 当成可自动发消息的正式版。
+
+## V8 alpha.10 图片附件导入和预览
+
+在原生剧本编辑器选中某条消息，点击「为选中句导入图片」，程序把不超过 15 MB 的 PNG/JPEG/GIF/BMP 图片复制到 `%LOCALAPPDATA%\SignalSchedulerData\attachments\images`，采用 SHA-256 内容寻址去重并防路径穿越，保存到剧本中的仅为 `img:<sha256>.<ext>` 引用。使用「预览图片」时重新校验 SHA-256，阻止受损文件显示。原始用户图片不删除，升级程序不覆盖附件数据。
+
+**当前不包含图片实际发送，也不自动修复 V7 已丢失的附件路径。** 与 alpha.9 一样，真实 Signal 自动发送仍关闭。
