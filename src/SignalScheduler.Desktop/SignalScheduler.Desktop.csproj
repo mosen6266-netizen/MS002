@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\SignalScheduler.Shared\SignalScheduler.Shared.csproj" />
+      <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
 </Project>
