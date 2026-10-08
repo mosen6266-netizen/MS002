@@ -330,6 +330,60 @@ public partial class ScriptEditorWindow : UserControl
         StatusText.Text="新剧本尚未保存，完成编辑后点击右上角“保存剧本”。";
     }
 
+    async void RestoreVersion_Click(object sender,RoutedEventArgs e)
+    {
+        if(string.IsNullOrWhiteSpace(_scriptId))
+        {
+            StatusText.Text="请先打开一个已保存的剧本。";
+            return;
+        }
+        if(!ConfirmDiscard())return;
+        try
+        {
+            var raw=await MainWindow.SendAsync(ControlCommands.ScriptVersions,10000,
+                new ScriptReadRequest(_scriptId));
+            var versions=ReadData<List<ScriptVersionSummary>>(raw);
+            if(versions.Count==0)
+            {
+                StatusText.Text="这个剧本还没有可恢复的旧版本；首次修改保存后才会生成历史。";
+                return;
+            }
+            var names=string.Join("\n",versions.Take(15).Select(x=>
+                $"版本 {x.Revision}  ·  {x.Name}  ·  {DateTimeOffset.FromUnixTimeSeconds(x.SavedAt).ToLocalTime():MM-dd HH:mm}"));
+            var answer=Microsoft.VisualBasic.Interaction.InputBox(
+                "可用历史版本（最近 15 个）：\n"+names+
+                "\n\n输入需要查看并恢复的版本号：",
+                "剧本修订历史",versions[0].Revision.ToString());
+            if(!int.TryParse(answer,out var revision) ||
+               !versions.Any(x=>x.Revision==revision))return;
+            var versionRaw=await MainWindow.SendAsync(ControlCommands.ScriptVersionRead,
+                10000,new ScriptVersionRequest(_scriptId,revision));
+            var old=ReadData<ScriptEditorDocument>(versionRaw);
+            if(MessageBox.Show(Window.GetWindow(this),
+                $"将版本 {revision} 载入当前编辑区？\n正式剧本不会被直接覆盖，核对后需要手动保存。",
+                "恢复历史剧本",MessageBoxButton.YesNo,
+                MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            var currentRevision=_revision;
+            var currentScriptId=_scriptId;
+            _loading=true;
+            NameBox.Text=old.Name;
+            GroupBox.Text=old.TargetGroupId;
+            _steps.Clear();
+            foreach(var step in old.Steps)AppendRow(new ScriptStepRow(step),-1);
+            Reindex();
+            _scriptId=currentScriptId;
+            _revision=currentRevision;
+            _dirty=true;
+            _loading=false;
+            StatusText.Text=$"旧版本 {revision} 已载入编辑区。请检查内容后点击保存剧本。";
+        }
+        catch(Exception ex)
+        {
+            _loading=false;
+            StatusText.Text="恢复旧版本失败："+ex.Message;
+        }
+    }
+
     void ScriptsList_PreviewMouseRightButtonDown(object sender,
         System.Windows.Input.MouseButtonEventArgs e)
     {
