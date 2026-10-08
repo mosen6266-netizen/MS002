@@ -20,17 +20,20 @@ public sealed class LiveBatchRunner : BackgroundService
     readonly SignalGuardian _guardian;
     readonly DurableTaskEngine _engine;
     readonly ISignalTypingTransport _typing;
+    readonly ISignalReadBeforeSendTransport _reader;
     readonly ConcurrentDictionary<string,SemaphoreSlim> _accountLocks=new();
     readonly SemaphoreSlim _slots=new(4,4);
 
     public LiveBatchRunner(StateStore store,LicenseManager license,
-        SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing)
+        SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing,
+        ISignalReadBeforeSendTransport reader)
     {
         _store=store;
         _license=license;
         _guardian=guardian;
         _engine=engine;
         _typing=typing;
+        _reader=reader;
     }
 
     async Task SimulateTypingAsync(StateStore.DueLiveBatch due,CancellationToken ct)
@@ -112,6 +115,16 @@ public sealed class LiveBatchRunner : BackgroundService
                     return;
                 }
             }
+
+            // Read receipts are best effort. Any RPC error is intentionally
+            // non-blocking and must not advance the message send journal.
+            try
+            {
+                await _reader.TryReadPendingAsync(
+                    due.Dispatch.AccountId,due.Dispatch.GroupId,ct);
+            }
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+            catch { /* Continue sending even if read synchronization failed. */ }
 
             await SimulateTypingAsync(due,ct);
 
