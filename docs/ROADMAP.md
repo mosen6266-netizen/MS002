@@ -29,9 +29,9 @@
 - [x] Reuse valid daemon / refuse to kill unknown port owner
 - [x] Privacy-filtered rotating signal-cli diagnostics
 - [ ] Two-phase restart handshake with durable task engine
-- [ ] Account sync into V8 authoritative account model
-- [ ] Group sync
-- [ ] QR link flow
+- [x] Live account catalog sync preserving migrated remarks
+- [x] Live group catalog sync
+- [x] QR link flow
 - [ ] Durable send transport
 
 ## Stage 4 — feature parity
