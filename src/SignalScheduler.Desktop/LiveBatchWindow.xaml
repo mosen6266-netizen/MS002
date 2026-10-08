@@ -96,9 +96,14 @@
     <TextBlock Text="01 选择剧本与群组" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FC"/>
     <TextBlock Text="选择一个剧本，可同时勾选多个群组。" Foreground="#AAC5DB" Margin="0,7,0,12"/>
     <TextBlock Text="选择剧本" Foreground="#DBEAF8" Margin="0,0,0,6"/>
-    <ComboBox x:Name="ScriptBox" DisplayMemberPath="Name"
+    <ComboBox x:Name="ScriptBox" DisplayMemberPath="Name" TextSearch.TextPath="Name"
      SelectionChanged="ScriptBox_SelectionChanged" MinHeight="44"
-     MaxDropDownHeight="350" Margin="0,0,0,18"/>
+     MaxDropDownHeight="350" Margin="0,0,0,18">
+     <ComboBox.ItemTemplate>
+      <DataTemplate><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+       Foreground="#F5F9FF" ToolTip="{Binding Name}"/></DataTemplate>
+     </ComboBox.ItemTemplate>
+    </ComboBox>
     <Grid Margin="0,0,0,9">
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBlock Text="02 选择群组（最多 20 个）" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -208,6 +213,11 @@
    <TextBlock Grid.Column="1" Text="每行右侧直接操作" Foreground="#95B8D5"
     VerticalAlignment="Center"/>
   </Grid>
+  <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,10">
+   <Button x:Name="PreviousJobsPage" Content="上一页" Click="PreviousJobsPage_Click" Style="{StaticResource QuietAction}" Margin="0,0,8,0"/>
+   <TextBlock x:Name="JobsPageLabel" Text="第 1 / 1 页" Foreground="#DCEAF8" VerticalAlignment="Center" Margin="0,0,10,0"/>
+   <Button x:Name="NextJobsPage" Content="下一页" Click="NextJobsPage_Click" Style="{StaticResource QuietAction}"/>
+  </StackPanel>
   <DataGrid x:Name="JobsGrid" Height="440" Background="#112538"
    ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="52"
    ColumnHeaderHeight="44" AlternationCount="2" Foreground="#EDF5FD"
