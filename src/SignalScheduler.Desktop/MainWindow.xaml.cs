@@ -119,7 +119,7 @@ public partial class MainWindow : Window
         WorkspaceScroll.VerticalScrollBarVisibility=key=="scripts"
             ?ScrollBarVisibility.Disabled:ScrollBarVisibility.Auto;
         PageHost.Height=key=="scripts"
-            ?Math.Max(650,WorkspaceScroll.ActualHeight):double.NaN;
+            ?Math.Max(300,WorkspaceScroll.ActualHeight):double.NaN;
         PageHost.Content=GetPage(key);
         _currentPage=key;
         var (heading,subtitle)=key switch
