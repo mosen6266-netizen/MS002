@@ -19,8 +19,17 @@ public sealed partial class StateStore
         {
             query.CommandText="""
                 SELECT j.job_id,j.state,j.cursor,
-                       COALESCE(NULLIF(b.group_name,'') || ' · ' || NULLIF(b.script_name,''),j.job_id)
-                FROM v8_jobs j LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                       COALESCE(
+                           NULLIF(b.group_name,'') || ' · ' || NULLIF(b.script_name,''),
+                           NULLIF(p.group_name,'') || ' · ' || NULLIF(p.script_name,''),
+                           NULLIF(v.group_name,'') || ' · ' || NULLIF(v.script_name,''),
+                           NULLIF(q.group_name,'') || ' · 实发测试',
+                           '未命名任务')
+                FROM v8_jobs j
+                LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                LEFT JOIN v8_live_pilot_plans p ON p.job_id=j.job_id
+                LEFT JOIN v8_preview_plans v ON v.job_id=j.job_id
+                LEFT JOIN v8_live_probe_jobs q ON q.job_id=j.job_id
                 ORDER BY j.updated_at DESC,j.job_id LIMIT 500;
                 """;
             await using var r=await query.ExecuteReaderAsync(ct);
