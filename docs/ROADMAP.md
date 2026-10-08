@@ -80,3 +80,10 @@
 
 - [x] Manual review of ambiguous real sends with evidence, double confirmation and durable audit
 - [ ] Automated real-device loss-of-network and restart integration validation
+
+### Beta.2 single-window design
+- [x] Five embedded pages in the only main WPF Window, modal owned login and confirmation dialogs
+- [x] Direct home script/group start without previously saving a group selection
+- [x] Draft empty-row skip in frozen job snapshot, specific row number on invalid content
+- [x] Centralized exception notifications, single owned modal and visibility-safe navigation
+- [ ] Multi-monitor DPI/keyboard/actual customer desktop usability acceptance
