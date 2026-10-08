@@ -64,14 +64,19 @@ public sealed class SignalReadCoordinator : BackgroundService
     {
         account=group=author="";
         timestamp=0;
-        if(root.ValueKind!=JsonValueKind.Object ||
-           !root.TryGetProperty("params",out var p))return false;
-        // SSE may contain a JSON-RPC receive notification or the notification params.
+        if(root.ValueKind!=JsonValueKind.Object)return false;
+        // Both raw daemon SSE envelopes and wrapped JSON-RPC receive
+        // notifications are supported, including manual subscription format.
+        var p=root;
+        if(root.TryGetProperty("params",out var wrapped))p=wrapped;
+        if(p.ValueKind!=JsonValueKind.Object)return false;
         if(p.TryGetProperty("result",out var result))p=result;
-        account=String(p,"account")??"";
+        if(p.ValueKind!=JsonValueKind.Object)return false;
+        account=String(p,"account")??String(root,"account")??"";
         if(!p.TryGetProperty("envelope",out var envelope) ||
-           !envelope.TryGetProperty("dataMessage",out var msg) ||
-           !msg.TryGetProperty("groupInfo",out var groupInfo))return false;
+           !envelope.TryGetProperty("dataMessage",out var msg))return false;
+        if(!msg.TryGetProperty("groupInfo",out var groupInfo) &&
+           !msg.TryGetProperty("groupV2",out groupInfo))return false;
         group=String(groupInfo,"groupId")??String(groupInfo,"id")??"";
         author=String(envelope,"sourceUuid")??String(envelope,"sourceNumber")
             ??String(envelope,"source")??"";
