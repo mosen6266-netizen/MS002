@@ -1,11 +1,8 @@
-<Window x:Class="SignalScheduler.Desktop.LicenseWindow"
+<UserControl x:Class="SignalScheduler.Desktop.LicenseWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="卡密授权管理 - Signal 调度台"
- WindowStartupLocation="CenterOwner"
- Background="#091928" Foreground="#EEF5FF"
- Width="660" Height="560" MinWidth="570" MinHeight="510">
- <Window.Resources>
+ Background="#091928" Foreground="#EEF5FF">
+ <UserControl.Resources>
   <Style TargetType="Button">
    <Setter Property="Background" Value="#193B59"/>
    <Setter Property="Foreground" Value="White"/>
@@ -13,7 +10,7 @@
    <Setter Property="Padding" Value="15,9"/>
    <Setter Property="Margin" Value="0,0,12,0"/>
   </Style>
- </Window.Resources>
+ </UserControl.Resources>
  <Grid Margin="26">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
@@ -56,4 +53,4 @@
    Text="授权校验使用现有 Cloudflare 后台，卡密使用 Windows 当前用户加密保存。"
    Foreground="#AFC7E0" TextWrapping="Wrap"/>
  </Grid>
-</Window>
+</UserControl>

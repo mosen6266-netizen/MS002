@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-beta.1 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-beta.2 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -97,3 +97,12 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 ### 人工核对未知发送结果
 
 遇到 `RecoveryRequired` 时，打开「恢复记录」，查看对应的账号、群组、消息序号与日志，再到 Signal 中核对。只有输入检查依据并再次确认，才能选「核实已发送」或「核实未发送」：前者记为 `ManuallyConfirmed` 并跳过该条，后者保持原消息序号且待人工再次继续。所有判断写入持久审计事件，V7 历史只读。**不要在未经实际核对时随意选择。**
+
+## V8 beta.2 · 单主窗口体验重构
+
+- 侧边栏只保留首页、账号与群组、剧本管理、任务与恢复、授权设置五个原生页面。除扫码、确认操作和图片预览外，功能在同一个主窗口切换，不再叠加数十个管理窗口。
+- 首页直接读取当前所有可用 Signal 群，选择剧本、勾选目标群后就可以启动，不需要预先到子页面勾选保存。目标群默认全不勾选，避免误触。
+- 发送计划仅忽略没有文字也没有附件的空白草稿气泡，不修改原剧本；超长消息或附件损坏会明确报出剧本和消息序号。
+- 严重异常进入顶部通知中心，只显示一次主窗口拥有的模态提醒。后续异常加入可查的通知清单，避免多个悬空无所属的置顶对话框。
+- 退出主窗口前，如果仍有运行任务，明确解释后台将继续运行并征求确认。关闭/切换页不会再隐藏整个主窗口。
+- 本次只重构 UI 与消息计划校验，保留现有持久化目录、卡密和 V7 迁移数据。

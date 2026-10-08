@@ -1,3 +1,4 @@
+using System.Windows.Controls;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
@@ -6,7 +7,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class LicenseWindow : Window
+public partial class LicenseWindow : UserControl
 {
     public LicenseWindow()
     {
@@ -76,7 +77,7 @@ public partial class LicenseWindow : Window
             FeedbackText.Text="请输入卡密。";
             return;
         }
-        if(MessageBox.Show(this,
+        if(MessageBox.Show(Window.GetWindow(this),
             "首次激活可能立即开始计算卡密有效期，并绑定当前设备。\n\n确定要激活吗？",
             "确认卡密激活",MessageBoxButton.YesNo,MessageBoxImage.Warning)
             !=MessageBoxResult.Yes) return;
@@ -91,7 +92,7 @@ public partial class LicenseWindow : Window
         catch(Exception ex)
         {
             FeedbackText.Text=$"激活失败：{ex.Message}";
-            MessageBox.Show(this,ex.Message,"授权激活失败",
+            MessageBox.Show(Window.GetWindow(this),ex.Message,"授权激活失败",
                 MessageBoxButton.OK,MessageBoxImage.Warning);
         }
         finally

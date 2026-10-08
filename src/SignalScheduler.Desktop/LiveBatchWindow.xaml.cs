@@ -9,7 +9,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class LiveBatchWindow : Window
+public partial class LiveBatchWindow : UserControl
 {
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
@@ -29,7 +29,7 @@ public partial class LiveBatchWindow : Window
             _timer.Start();
         };
         _timer.Tick+=async(_,_)=>await LoadJobsAsync();
-        Closed+=(_,_)=>_timer.Stop();
+        Unloaded+=(_,_)=>_timer.Stop();
         UpdateButtons();
     }
 
@@ -60,10 +60,14 @@ public partial class LiveBatchWindow : Window
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();
             _groups.Clear();
-            foreach(var group in overview.Groups.Where(g=>g.Selected))
-                _groups.Add(new BatchGroupRow(group));
-            StatusText.Text=$"找到 {scripts.Count} 个剧本和 {_groups.Count} 个已保存群组。"+
-                "每个群会独立运行；不同剧本也可分批启动。";
+            foreach(var group in overview.Groups.Where(g=>g.MemberAccounts>0))
+            {
+                var row=new BatchGroupRow(group);
+                row.PropertyChanged+=(_,_)=>UpdateButtons();
+                _groups.Add(row);
+            }
+            StatusText.Text=$"已读取 {scripts.Count} 个剧本与 {_groups.Count} 个 Signal 群。"+
+                "直接勾选本次群组即可，草稿空白气泡不会发送。";
         }
         catch(Exception ex){StatusText.Text=$"刷新目录失败：{ex.Message}";}
         UpdateButtons();
@@ -126,6 +130,8 @@ public partial class LiveBatchWindow : Window
         UpdateButtons();
     }
 
+    void ScriptBox_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
+    void GroupsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
     void Consent_Changed(object sender,RoutedEventArgs e)=>UpdateButtons();
     void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
 
@@ -155,11 +161,11 @@ public partial class LiveBatchWindow : Window
             return;
         }
         var preview=$"确定开始真正发送？\n\n剧本：{script.Name}\n"+
-            $"消息：{script.StepCount} 条\n群组：{ids.Length} 个\n\n"+
+            $"剧本气泡：{script.StepCount} 个（空白草稿行自动忽略）\n群组：{ids.Length} 个\n\n"+
             "所有群会在后台分别运行。发送的文字和图片将真实出现在 Signal 群内。"+
             "关闭此窗口不会停止任务；发生异常会暂停并提醒。\n\n"+
             "只有你管理且允许这样发送的群组可以启动。";
-        if(MessageBox.Show(this,preview,"确认多群真实运行",
+        if(MessageBox.Show(Window.GetWindow(this),preview,"确认多群真实运行",
             MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
             return;
 
@@ -190,7 +196,7 @@ public partial class LiveBatchWindow : Window
             var msg=action=="resume"
                 ?"将从已保存的下一条继续真实发送。请确认没有待核对的消息。"
                 :"停止这个群组任务后，不能直接从相同位置重新开始。确定停止吗？";
-            if(MessageBox.Show(this,msg,"确认任务操作",
+            if(MessageBox.Show(Window.GetWindow(this),msg,"确认任务操作",
                 MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
                 return;
         }

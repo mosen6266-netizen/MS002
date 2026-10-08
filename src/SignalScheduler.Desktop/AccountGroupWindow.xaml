@@ -1,11 +1,8 @@
-<Window x:Class="SignalScheduler.Desktop.AccountGroupWindow"
+<UserControl x:Class="SignalScheduler.Desktop.AccountGroupWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="账号与群组管理 - Signal 调度台"
- Height="760" Width="1160" MinHeight="640" MinWidth="990"
- WindowStartupLocation="CenterOwner"
  Background="#071521" Foreground="#EAF2FF">
- <Window.Resources>
+ <UserControl.Resources>
   <Style TargetType="Button">
    <Setter Property="Background" Value="#17324E"/>
    <Setter Property="Foreground" Value="#EAF2FF"/>
@@ -30,7 +27,7 @@
    <Setter Property="BorderBrush" Value="#2C4660"/>
    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
   </Style>
- </Window.Resources>
+ </UserControl.Resources>
  <Grid Margin="22">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
@@ -126,4 +123,4 @@
   <TextBlock Grid.Row="4" x:Name="StatusText" Text="正在读取账号和群组资料…"
              Foreground="#AEC5DB" TextWrapping="Wrap"/>
  </Grid>
-</Window>
+</UserControl>

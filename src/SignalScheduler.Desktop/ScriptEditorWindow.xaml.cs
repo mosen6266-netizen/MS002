@@ -12,7 +12,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
-public partial class ScriptEditorWindow : Window
+public partial class ScriptEditorWindow : UserControl
 {
     readonly ObservableCollection<ScriptStepRow> _steps=new();
     string? _scriptId;
@@ -25,10 +25,7 @@ public partial class ScriptEditorWindow : Window
         InitializeComponent();
         StepsGrid.ItemsSource=_steps;
         Loaded+=async(_,_)=>await ReloadScriptsAsync(loadFirst:true);
-        Closing+=(_,e)=>
-        {
-            if(!ConfirmDiscard()) e.Cancel=true;
-        };
+
     }
 
     static T ReadData<T>(string? raw)
@@ -118,10 +115,12 @@ public partial class ScriptEditorWindow : Window
         await LoadScriptAsync(next.ScriptId);
     }
 
+    public bool CanLeave()=>ConfirmDiscard();
+
     bool ConfirmDiscard()
     {
         if(!_dirty) return true;
-        return MessageBox.Show(this,
+        return MessageBox.Show(Window.GetWindow(this),
             "当前剧本有尚未保存的修改。确定放弃这些修改吗？",
             "未保存的修改",MessageBoxButton.YesNo,MessageBoxImage.Warning)
             ==MessageBoxResult.Yes;
@@ -216,7 +215,7 @@ public partial class ScriptEditorWindow : Window
             Filter="图片文件 (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
             CheckFileExists=true
         };
-        if(picker.ShowDialog(this)!=true) return;
+        if(picker.ShowDialog(Window.GetWindow(this))!=true) return;
         try
         {
             var data=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
@@ -230,7 +229,7 @@ public partial class ScriptEditorWindow : Window
         catch(Exception ex)
         {
             StatusText.Text=$"图片导入失败：{ex.Message}";
-            MessageBox.Show(this,ex.Message,"图片导入失败",
+            MessageBox.Show(Window.GetWindow(this),ex.Message,"图片导入失败",
                 MessageBoxButton.OK,MessageBoxImage.Warning);
         }
     }
@@ -258,7 +257,7 @@ public partial class ScriptEditorWindow : Window
             bitmap.Freeze();
             var window=new Window
             {
-                Owner=this,
+                Owner=Window.GetWindow(this),
                 Title=$"预览图片 - {info.OriginalName}",
                 Width=850,Height=670,
                 MinWidth=500,MinHeight=380,
@@ -270,13 +269,13 @@ public partial class ScriptEditorWindow : Window
                     Child=new Image{Source=bitmap,Stretch=Stretch.Uniform}
                 }
             };
-            window.Show();
+            window.ShowDialog();
             StatusText.Text="本地附件图片校验通过，已打开预览窗口。";
         }
         catch(Exception ex)
         {
             StatusText.Text=$"无法预览图片：{ex.Message}";
-            MessageBox.Show(this,ex.Message,"图片预览失败",
+            MessageBox.Show(Window.GetWindow(this),ex.Message,"图片预览失败",
                 MessageBoxButton.OK,MessageBoxImage.Warning);
         }
     }
@@ -356,7 +355,7 @@ public partial class ScriptEditorWindow : Window
         catch(Exception ex)
         {
             StatusText.Text=$"保存失败：{ex.Message}。当前内容仍在编辑器中。";
-            MessageBox.Show(this,ex.Message,"无法保存剧本",MessageBoxButton.OK,
+            MessageBox.Show(Window.GetWindow(this),ex.Message,"无法保存剧本",MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
     }
@@ -370,7 +369,7 @@ public partial class ScriptEditorWindow : Window
             Filter="JSON 文件 (*.json)|*.json",
             CheckFileExists=true
         };
-        if(picker.ShowDialog(this)!=true) return;
+        if(picker.ShowDialog(Window.GetWindow(this))!=true) return;
         try
         {
             if(new FileInfo(picker.FileName).Length>8*1024*1024)
@@ -413,7 +412,7 @@ public partial class ScriptEditorWindow : Window
                 FileName="剧本.json",
                 AddExtension=true
             };
-            if(picker.ShowDialog(this)!=true) return;
+            if(picker.ShowDialog(Window.GetWindow(this))!=true) return;
             // Metadata and original attachment path only, no photo binaries.
             File.WriteAllText(picker.FileName,
                 JsonSerializer.Serialize(draft with{ScriptId=null,Revision=0},
@@ -426,7 +425,8 @@ public partial class ScriptEditorWindow : Window
         }
     }
 
-    void Close_Click(object sender,RoutedEventArgs e)=>Close();
+    void Close_Click(object sender,RoutedEventArgs e)=>
+        (Window.GetWindow(this) as MainWindow)?.NavigateHome();
 }
 
 public sealed class ScriptStepRow : INotifyPropertyChanged

@@ -1,29 +1,48 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Pipes;
-using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
 
+/// <summary>
+/// The only primary application Window. Pages are UserControls hosted in the
+/// same content area; QR login and explicit confirmations remain true dialogs.
+/// </summary>
 public partial class MainWindow : Window
 {
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(5)};
+    readonly Dictionary<string,UserControl> _pages=new(StringComparer.Ordinal);
+    readonly ObservableCollection<string> _notifications=new();
+    readonly HashSet<string> _seenNotifications=new(StringComparer.Ordinal);
+    readonly HashSet<string> _unresolvedJobs=new(StringComparer.Ordinal);
+    readonly HashSet<string> _batchAlerts=new(StringComparer.Ordinal);
     bool _refreshing;
-    bool _engineFaultNotified;
-    string? _signalFaultSignature;
-    readonly HashSet<string> _notifiedRecoveryJobs=new(StringComparer.Ordinal);
-    readonly HashSet<string> _notifiedBatchAlerts=new(StringComparer.Ordinal);
+    bool _engineNotified;
+    bool _hasShownOneCriticalDialog;
+    bool _hasLiveJobs;
+    string? _signalIssue;
+    string _currentPage="home";
 
     public MainWindow()
     {
         InitializeComponent();
-        Loaded+=async(_,_)=>{
+        Application.Current.MainWindow=this;
+        NotificationsList.ItemsSource=_notifications;
+        Loaded+=async(_,_)=>
+        {
+            // Launch the Engine before the home page fetches scripts/groups.
+            // Otherwise the first data request races Engine initialization
+            // and displays an empty catalog until a manual refresh.
             await EnsureEngineAsync();
+            Navigate("home");
             await RefreshAsync();
             _timer.Start();
         };
@@ -31,280 +50,326 @@ public partial class MainWindow : Window
         Closed+=(_,_)=>_timer.Stop();
     }
 
+    UserControl GetPage(string key)
+    {
+        if(_pages.TryGetValue(key,out var cached))return cached;
+        UserControl page=key switch
+        {
+            "home"=>new LiveBatchWindow(),
+            "accounts"=>new AccountGroupWindow(),
+            "scripts"=>new ScriptEditorWindow(),
+            "recovery"=>new RecoveryCenterWindow(),
+            "license"=>new LicenseWindow(),
+            _=>throw new ArgumentException("未知的导航位置。")
+        };
+        _pages.Add(key,page);
+        return page;
+    }
+
+    public void NavigateHome()=>Navigate("home");
+
+    void Nav_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button {Tag:string key})Navigate(key);
+    }
+
+    void Navigate(string key)
+    {
+        if(key==_currentPage && PageHost.Content is not null)return;
+        if(_currentPage=="scripts" &&
+           _pages.TryGetValue("scripts",out var old) &&
+           old is ScriptEditorWindow editor &&
+           !editor.CanLeave())return;
+
+        PageHost.Content=GetPage(key);
+        _currentPage=key;
+        var (heading,subtitle)=key switch
+        {
+            "home"=>("首页 · 快速开始",
+                "直接勾选群组、选择剧本并启动；进行中的任务在同一页独立管理。"),
+            "accounts"=>("账号与群组",
+                "管理账号备注、可用状态与 Signal 群组，不再打开新窗口。"),
+            "scripts"=>("剧本管理",
+                "编辑消息、图片、发送间隔和提醒；修改保存在本地。"),
+            "recovery"=>("任务与恢复",
+                "核对真实发送回执、暂停异常任务，避免未知结果被重复发送。"),
+            "license"=>("卡密与授权",
+                "激活或核验现有卡密；本机资料继续保存在用户目录。"),
+            _=>("Signal 调度台","")
+        };
+        PageTitle.Text=heading;
+        PageSubtitle.Text=subtitle;
+        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,LicenseNav})
+            b.Background=Equals(b.Tag,key)
+                ?new SolidColorBrush(Color.FromRgb(34,73,111))
+                :Brushes.Transparent;
+    }
+
+    void MainWindow_Closing(object sender,CancelEventArgs e)
+    {
+        if(_currentPage=="scripts" &&
+            _pages.TryGetValue("scripts",out var p) &&
+            p is ScriptEditorWindow editor && !editor.CanLeave())
+        {
+            e.Cancel=true;
+            return;
+        }
+        if(_hasLiveJobs)
+        {
+            var result=MessageBox.Show(this,
+                "仍有正在运行的真实群组任务。\n\n"+
+                "关闭界面不等于停止后台发送。要停止，请先到首页暂停对应任务。\n\n"+
+                "仍要关闭这个窗口、让后台继续运行吗？",
+                "确认关闭 Signal 调度台",
+                MessageBoxButton.YesNo,MessageBoxImage.Warning);
+            if(result!=MessageBoxResult.Yes)e.Cancel=true;
+        }
+    }
+
     async Task EnsureEngineAsync()
     {
         try
         {
-            var ping=await SendAsync(ControlCommands.Ping,400);
-            if(ping is not null) return;
+            var ping=await SendAsync(ControlCommands.Ping,600);
+            if(ping is not null)return;
         }
         catch { }
-
         try
         {
-            var engine=Path.Combine(AppContext.BaseDirectory,"Engine","SignalScheduler.Engine.exe");
-            if(!File.Exists(engine)) return;
+            var path=Path.Combine(AppContext.BaseDirectory,
+                "Engine","SignalScheduler.Engine.exe");
+            if(!File.Exists(path))
+            {
+                BottomStatusText.Text="后台执行文件缺失，请重新安装。";
+                return;
+            }
             Process.Start(new ProcessStartInfo{
-                FileName=engine,
-                Arguments="--background",
-                UseShellExecute=false,
-                CreateNoWindow=true,
+                FileName=path,Arguments="--background",
+                UseShellExecute=false,CreateNoWindow=true,
                 WindowStyle=ProcessWindowStyle.Hidden
             });
-            await Task.Delay(1100);
+            // The Engine also migrates V7 metadata and opens signal-cli.
+            // Give its local control pipe a short bounded readiness period.
+            for(var i=0;i<12;i++)
+            {
+                await Task.Delay(450);
+                try
+                {
+                    if(await SendAsync(ControlCommands.Ping,500) is not null)
+                        break;
+                }
+                catch { }
+            }
         }
-        catch { }
+        catch(Exception ex)
+        {
+            BottomStatusText.Text="启动后台失败："+ex.Message;
+        }
     }
 
-    async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
-
-    void RecoveryCenter_Click(object sender,RoutedEventArgs e)
+    async void RefreshButton_Click(object sender,RoutedEventArgs e)
     {
-        var window=new RecoveryCenterWindow{Owner=this};
-        window.Show();
+        await RefreshAsync();
+        // Reload only the visible management page, not the script draft.
+        if(_currentPage=="home")NavigateHome();
     }
-    void PreviewTasks_Click(object sender,RoutedEventArgs e)
-    {
-        var window=new PreviewTasksWindow{Owner=this};
-        window.Show();
-    }
-    void LiveProbe_Click(object sender,RoutedEventArgs e)
-    {
-        var window=new LiveProbeWindow{Owner=this};
-        window.Show();
-    }
-    void LivePilot_Click(object sender,RoutedEventArgs e)
-    {
-        var window=new LivePilotWindow{Owner=this};
-        window.Show();
-    }
-    void LiveBatch_Click(object sender,RoutedEventArgs e)
-    {
-        var manager=new LiveBatchWindow{Owner=this};
-        manager.Show();
-    }
-
-
-
-    void ScriptEditor_Click(object sender,RoutedEventArgs e)
-    {
-        var editor=new ScriptEditorWindow{Owner=this};
-        editor.Show();
-    }
-
-    void AccountGroup_Click(object sender,RoutedEventArgs e)
-    {
-        var manager=new AccountGroupWindow{Owner=this};
-        manager.Show();
-    }
-    void License_Click(object sender,RoutedEventArgs e)
-    {
-        var window=new LicenseWindow{Owner=this};
-        window.Show();
-    }
-
 
     async void LinkAccount_Click(object sender,RoutedEventArgs e)
     {
-        var dialog=new LinkAccountWindow{Owner=this};
+        var dialog=new LinkAccountWindow {Owner=this};
         dialog.ShowDialog();
         await RefreshAsync();
+        // Avoid a stale account/group catalog after completing a QR login.
+        _pages.Remove("accounts");
+        if(_currentPage=="accounts")PageHost.Content=GetPage("accounts");
+        if(_currentPage=="home")
+        {
+            _pages.Remove("home");
+            PageHost.Content=GetPage("home");
+        }
     }
 
     async Task RefreshAsync()
     {
-        if(_refreshing) return;
+        if(_refreshing)return;
         _refreshing=true;
         try
         {
-            var raw=await SendAsync(ControlCommands.Dashboard,2200);
-            if(string.IsNullOrWhiteSpace(raw)) throw new IOException("后台无响应");
-
-            using var doc=JsonDocument.Parse(raw);
-            var root=doc.RootElement;
-            if(!root.TryGetProperty("Ok",out var ok) || !ok.GetBoolean())
-                throw new IOException(root.TryGetProperty("Error",out var err)?err.GetString():"后台返回错误");
-
-            var data=root.GetProperty("Data");
-            var snapshot=JsonSerializer.Deserialize<DashboardSnapshot>(data.GetRawText())
-                ?? throw new IOException("无法解析后台状态");
-
-            _engineFaultNotified=false;
-            EngineBadge.Text="● 后台引擎正常";
+            var raw=await SendAsync(ControlCommands.Dashboard,4000);
+            if(string.IsNullOrWhiteSpace(raw))
+                throw new IOException("后台没有响应。");
+            var snapshot=Unwrap<DashboardSnapshot>(raw);
+            EngineBadge.Text="● 后台引擎已连接";
             EngineBadge.Foreground=Brushes.LightGreen;
+            _engineNotified=false;
 
-            var signalState=snapshot.SignalState.ToLowerInvariant();
-            SignalStatusText.Text=signalState switch
-            {
-                "healthy"=>"正常",
-                "busy"=>"繁忙 / 同步中",
-                "starting"=>"启动中",
-                "fault"=>"异常",
-                "external-conflict"=>"端口冲突",
-                "missing-runtime"=>"Runtime 缺失",
-                _=>snapshot.SignalState
-            };
-            SignalStatusText.Foreground=signalState switch
-            {
-                "healthy"=>Brushes.LightGreen,
-                "busy" or "starting"=>Brushes.Gold,
-                _=>Brushes.IndianRed
-            };
-            SignalDetailText.Text=snapshot.SignalDetail;
-            RuntimeVersionText.Text=$"signal-cli: {snapshot.SignalCliVersion}";
-
-            if(signalState is "fault" or "external-conflict" or "missing-runtime")
-            {
-                var signature=$"{signalState}|{snapshot.SignalDetail}";
-                if(_signalFaultSignature!=signature)
-                {
-                    _signalFaultSignature=signature;
-                    ShowCriticalAlert($"Signal 运行异常：{snapshot.SignalDetail}\n\n任务不会因为 Signal 恢复而自动继续，请检查运行状态。");
-                }
-            }
-            else
-            {
-                _signalFaultSignature=null;
-            }
-            LinkAccountButton.IsEnabled=signalState=="healthy";
-
-            AccountsCountText.Text=$"{snapshot.LiveSignalAccounts} 在线 · {snapshot.EnabledAccounts}/{snapshot.Accounts} 已登记";
-            GroupsCountText.Text=snapshot.Groups.ToString();
-            ScriptsCountText.Text=snapshot.Scripts.ToString();
-
+            var healthy=string.Equals(snapshot.SignalState,"healthy",
+                StringComparison.OrdinalIgnoreCase);
+            SignalStatusText.Text="Signal："+(healthy?"正常":snapshot.SignalState);
+            SignalStatusText.Foreground=healthy?Brushes.LightGreen:Brushes.Gold;
+            ScanButton.IsEnabled=healthy;
+            AccountsCountText.Text=$"账号 {snapshot.LiveSignalAccounts} 在线 · 群 {snapshot.Groups} · 剧本 {snapshot.Scripts}";
+            RuntimeVersionText.Text="signal-cli "+snapshot.SignalCliVersion;
             MigrationBadge.Text=snapshot.MetadataMigrated
-                ?"✓ 已读取 V7 本地资料"
-                : snapshot.LegacyDetected
-                    ?"检测到旧版资料，等待迁移完成"
-                    :"当前为全新 V8 数据";
+                ?"✓ V7 本地数据已读取"
+                :snapshot.LegacyDetected?"检测到旧版资料":"独立 V8 本地数据";
+            BottomStatusText.Text=healthy
+                ?"后台服务正常 · 每个群组任务独立保存"
+                :"Signal 服务："+snapshot.SignalDetail;
 
-            AccountsList.ItemsSource=snapshot.AccountItems
-                .Select(x=>$"{(x.Enabled?"●":"○")} {x.Label}   {x.Account}")
-                .ToArray();
-            GroupsList.ItemsSource=snapshot.GroupItems
-                .Select(x=>$"{(x.Enabled?"●":"○")} {x.Name}")
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            ScriptsList.ItemsSource=snapshot.ScriptItems
-                .Select(x=>$"{x.Name}   · {x.StepCount} 条")
-                .ToArray();
-            JobsList.ItemsSource=snapshot.JobItems
-                .Select(x=>$"{x.Name}   · {x.State}   · 第 {x.Cursor+1} 条")
-                .ToArray();
-            JobsSummaryText.Text=snapshot.Jobs==0
-                ?"暂无任务"
-                :$"{snapshot.Jobs} 个任务 · {snapshot.RecoveryJobs} 个需要人工确认";
+            var failed=snapshot.SignalState.ToLowerInvariant() is
+                "fault" or "external-conflict" or "missing-runtime";
+            var signature=failed?$"{snapshot.SignalState}|{snapshot.SignalDetail}":null;
+            if(failed&&_signalIssue!=signature)
+                ShowCriticalAlert("Signal 服务异常："+snapshot.SignalDetail+
+                    "\n已运行的任务不会因为连接恢复而自动继续。");
+            _signalIssue=signature;
 
             var unresolved=snapshot.JobItems
                 .Where(x=>x.RecoveryRequired ||
-                    string.Equals(x.State,"RecoveryRequired",StringComparison.OrdinalIgnoreCase))
+                    x.State=="RecoveryRequired")
                 .Select(x=>$"{x.LegacyId}:{x.Name}")
                 .ToHashSet(StringComparer.Ordinal);
-            var newlyUnresolved=unresolved.Except(_notifiedRecoveryJobs,StringComparer.Ordinal).Count();
-            _notifiedRecoveryJobs.IntersectWith(unresolved);
-            _notifiedRecoveryJobs.UnionWith(unresolved);
-            if(newlyUnresolved>0)
-            {
-                ShowCriticalAlert(
-                    $"检测到 {newlyUnresolved} 个新出现的待人工恢复任务（当前共 {snapshot.RecoveryJobs} 个）。\n\n"+
-                    "为避免重复发送或漏发，程序已将对应任务标记为待恢复，不会自动重新发送。请打开“运行任务”确认。");
-            }
-            // The main desktop window must surface task failures even if the
-            // task management window has been closed or minimized. Avoid
-            // duplicating a popup every polling cycle.
-            try
-            {
-                var batchRaw=await SendAsync(ControlCommands.LiveBatchList,2000);
-                if(!string.IsNullOrWhiteSpace(batchRaw))
-                {
-                    using var batchDoc=JsonDocument.Parse(batchRaw);
-                    var reply=batchDoc.RootElement;
-                    if(reply.TryGetProperty("Ok",out var batchOk) && batchOk.GetBoolean())
-                    {
-                        var jobs=JsonSerializer.Deserialize<List<LiveBatchItem>>(
-                            reply.GetProperty("Data").GetRawText())??new();
-                        var active=new HashSet<string>(StringComparer.Ordinal);
-                        foreach(var job in jobs)
-                        {
-                            var needsAlert=job.State=="RecoveryRequired" ||
-                                (job.State=="Paused" &&
-                                 (job.Detail.Contains("提醒",StringComparison.Ordinal) ||
-                                  job.Detail.Contains("异常",StringComparison.Ordinal) ||
-                                  job.Detail.Contains("断开",StringComparison.Ordinal) ||
-                                  job.Detail.Contains("失败",StringComparison.Ordinal) ||
-                                  job.Detail.Contains("授权",StringComparison.Ordinal)));
-                            if(!needsAlert)continue;
-                            var mark=$"{job.JobId}:{job.Cursor}:{job.State}";
-                            active.Add(mark);
-                            if(_notifiedBatchAlerts.Add(mark))
-                                ShowCriticalAlert(
-                                    $"授权群组任务已暂停或异常。\n剧本：{job.ScriptName}\n"+
-                                    $"群组：{job.GroupName}\n进度：{job.Cursor}/{job.TotalSteps}\n"+
-                                    $"状态：{job.State}\n{job.Detail}\n"+
-                                    "请在运行任务或恢复中心处理，未知结果不会自动重发。");
-                        }
-                        _notifiedBatchAlerts.IntersectWith(active);
-                    }
-                }
-            }
-            catch
-            {
-                // Dashboard service connection reporting remains authoritative.
-            }
+            if(unresolved.Except(_unresolvedJobs).Any())
+                ShowCriticalAlert("检测到发送结果待确认的任务。\n"+
+                    "请查看「任务与恢复」，在 Signal 核对后再决定后续操作。");
+            _unresolvedJobs.Clear();
+            _unresolvedJobs.UnionWith(unresolved);
 
+            await RefreshLiveJobsAsync();
         }
         catch(Exception ex)
         {
-            SignalStatusText.Text="未知";
-            SignalStatusText.Foreground=Brushes.IndianRed;
-            SignalDetailText.Text="后台未连接";
-            LinkAccountButton.IsEnabled=false;
-            EngineBadge.Text="● 后台引擎未连接";
+            EngineBadge.Text="● 后台未连接";
             EngineBadge.Foreground=Brushes.IndianRed;
-            MigrationBadge.Text=ex.Message;
-            if(!_engineFaultNotified)
+            ScanButton.IsEnabled=false;
+            SignalStatusText.Text="Signal 状态未知";
+            BottomStatusText.Text="后台连接失败："+ex.Message;
+            if(!_engineNotified)
             {
-                _engineFaultNotified=true;
-                ShowCriticalAlert(
-                    $"Signal 调度台后台连接异常：{ex.Message}\n\n请检查后台引擎与本地日志，不要假定任务仍在正常运行。");
+                _engineNotified=true;
+                AddNotification("Signal 后台连接异常："+ex.Message+
+                    "\n请检查后台程序；不要假设任务仍在正常运行。",false);
             }
         }
         finally{_refreshing=false;}
     }
 
-    [DllImport("user32.dll",EntryPoint="MessageBoxW",CharSet=CharSet.Unicode)]
-    static extern int NativeMessageBox(IntPtr parent,string message,string caption,uint type);
+    async Task RefreshLiveJobsAsync()
+    {
+        try
+        {
+            var response=await SendAsync(ControlCommands.LiveBatchList,4000);
+            var jobs=Unwrap<List<LiveBatchItem>>(response);
+            _hasLiveJobs=jobs.Any(x=>x.State=="Running");
+            var current=new HashSet<string>(StringComparer.Ordinal);
+            foreach(var job in jobs)
+            {
+                var flagged=job.State=="RecoveryRequired" ||
+                   (job.State=="Paused" &&
+                    (job.Detail.Contains("提醒",StringComparison.Ordinal)||
+                     job.Detail.Contains("异常",StringComparison.Ordinal)||
+                     job.Detail.Contains("断开",StringComparison.Ordinal)||
+                     job.Detail.Contains("授权",StringComparison.Ordinal)||
+                     job.Detail.Contains("失败",StringComparison.Ordinal)));
+                if(!flagged)continue;
+                var marker=$"{job.JobId}:{job.Cursor}:{job.State}";
+                current.Add(marker);
+                if(_batchAlerts.Add(marker))
+                    ShowCriticalAlert(
+                        $"群组任务需要处理\n剧本：{job.ScriptName}\n"+
+                        $"群组：{job.GroupName}\n进度：{job.Cursor}/{job.TotalSteps}\n"+
+                        $"状态：{job.State}\n{job.Detail}");
+            }
+            _batchAlerts.IntersectWith(current);
+        }
+        catch { /* Connection diagnostic is handled by dashboard. */ }
+    }
+
+    static T Unwrap<T>(string? raw)
+    {
+        if(string.IsNullOrWhiteSpace(raw))
+            throw new IOException("后台没有返回数据。");
+        using var doc=JsonDocument.Parse(raw);
+        var reply=doc.RootElement;
+        if(!reply.GetProperty("Ok").GetBoolean())
+            throw new IOException(reply.TryGetProperty("Error",out var err)
+                ?err.GetString():"读取后台数据失败。");
+        return JsonSerializer.Deserialize<T>(
+            reply.GetProperty("Data").GetRawText())
+            ??throw new IOException("后台数据不完整。");
+    }
 
     /// <summary>
-    /// An unowned native TOPMOST foreground alert stays visible even when the
-    /// WPF window is minimized. Run it off the UI thread so status refreshes
-    /// and the main window remain responsive while the user reads the alert.
+    /// Single notification inbox. No unowned native MessageBox on worker
+    /// threads; no overlapping independent windows hiding their owner.
+    /// At most one owner-modal critical dialog is shown in a session.
+    /// All subsequent alerts are retained in the notification drawer.
     /// </summary>
     internal static void ShowCriticalAlert(string message)
     {
-        _=Task.Run(()=>
-        {
-            try
-            {
-                const uint MbTopMost=0x00040000;
-                const uint MbSetForeground=0x00010000;
-                const uint MbIconWarning=0x00000030;
-                NativeMessageBox(IntPtr.Zero,message,"Signal 调度台 - 重要提醒",
-                    MbTopMost|MbSetForeground|MbIconWarning);
-            }
-            catch { }
-        });
+        var app=Application.Current;
+        if(app?.MainWindow is not MainWindow shell)return;
+        app.Dispatcher.BeginInvoke(new Action(()=>
+            shell.AddNotification(message,true)));
     }
 
-    internal static async Task<string?> SendAsync(string command,int timeoutMs,object? payload=null)
+    void AddNotification(string message,bool critical)
+    {
+        if(string.IsNullOrWhiteSpace(message) ||
+           !_seenNotifications.Add(message))return;
+        _notifications.Insert(0,$"{DateTime.Now:HH:mm:ss}  {message}");
+        if(_notifications.Count>100)_notifications.RemoveAt(_notifications.Count-1);
+        AlertStrip.Visibility=Visibility.Visible;
+        AlertSummaryText.Text=$"当前有 {_notifications.Count} 条提示 · 点击查看";
+        if(!critical || _hasShownOneCriticalDialog)return;
+        _hasShownOneCriticalDialog=true;
+        // Deferring this dialog prevents re-entrant startup/navigation while
+        // the background status snapshot is being processed.
+        Dispatcher.BeginInvoke(new Action(()=>
+        {
+            if(!IsVisible)return;
+            if(WindowState==WindowState.Minimized)
+                WindowState=WindowState.Normal;
+            Activate();
+            MessageBox.Show(this,
+                "出现需要注意的任务或 Signal 异常。\n\n"+
+                "已集中记录在主界面顶部的「通知与异常」，后续提醒不会重复弹出窗口。\n\n"+
+                message,
+                "Signal 调度台 - 重要提醒",
+                MessageBoxButton.OK,MessageBoxImage.Warning);
+        }),DispatcherPriority.Background);
+    }
+
+    void ToggleAlerts_Click(object sender,RoutedEventArgs e)
+    {
+        AlertPanel.Visibility=AlertPanel.Visibility==Visibility.Visible
+            ?Visibility.Collapsed:Visibility.Visible;
+    }
+
+    void ClearAlerts_Click(object sender,RoutedEventArgs e)
+    {
+        _notifications.Clear();
+        _seenNotifications.Clear();
+        AlertPanel.Visibility=Visibility.Collapsed;
+        AlertStrip.Visibility=Visibility.Collapsed;
+        // Do not reset the modal allowance; a flood cannot create new dialogs.
+    }
+
+    internal static async Task<string?> SendAsync(
+        string command,int timeoutMs,object? payload=null)
     {
         using var cts=new CancellationTokenSource(timeoutMs);
-        await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
+        await using var pipe=new NamedPipeClientStream(
+            ".","SignalScheduler.V8.Control",
+            PipeDirection.InOut,PipeOptions.Asynchronous);
         await pipe.ConnectAsync(timeoutMs,cts.Token);
         using var reader=new StreamReader(pipe,leaveOpen:true);
-        using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
-        await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(
-            command,payload is null?null:JsonSerializer.SerializeToElement(payload))));
+        using var writer=new StreamWriter(pipe,leaveOpen:true)
+        {AutoFlush=true};
+        await writer.WriteLineAsync(JsonSerializer.Serialize(
+            new ControlRequest(command,payload is null?null:
+                JsonSerializer.SerializeToElement(payload))));
         return await reader.ReadLineAsync(cts.Token);
     }
 }

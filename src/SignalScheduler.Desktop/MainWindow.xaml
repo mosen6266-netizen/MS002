@@ -1,147 +1,162 @@
 <Window x:Class="SignalScheduler.Desktop.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="Signal Auto Scheduler V8" Height="840" Width="1280" MinHeight="720" MinWidth="1080"
- WindowStartupLocation="CenterScreen"
- Background="#07111F" Foreground="#EAF2FF">
+ Title="Signal 调度台" Width="1380" Height="900" MinWidth="1050" MinHeight="720"
+ WindowStartupLocation="CenterScreen" Closing="MainWindow_Closing"
+ Background="#091523" Foreground="#EAF2FF">
  <Window.Resources>
-  <SolidColorBrush x:Key="PanelBrush" Color="#0D1A2B"/>
-  <SolidColorBrush x:Key="PanelBorder" Color="#233751"/>
+  <SolidColorBrush x:Key="PanelBackground" Color="#10243A"/>
   <Style TargetType="Button">
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="Background" Value="#15263B"/>
-   <Setter Property="BorderBrush" Value="#2B4463"/>
-   <Setter Property="Padding" Value="14,9"/>
-   <Setter Property="Margin" Value="0,0,8,0"/>
+   <Setter Property="Background" Value="#19364F"/>
+   <Setter Property="Foreground" Value="White"/>
+   <Setter Property="BorderBrush" Value="#365571"/>
+   <Setter Property="Padding" Value="12,9"/>
+   <Setter Property="Cursor" Value="Hand"/>
   </Style>
-  <Style TargetType="ListBox">
-   <Setter Property="Background" Value="#091625"/>
-   <Setter Property="Foreground" Value="#DCE8F7"/>
-   <Setter Property="BorderBrush" Value="#263A55"/>
-   <Setter Property="BorderThickness" Value="1"/>
+  <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+   <Setter Property="Margin" Value="0,0,0,7"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="FontSize" Value="14"/>
+   <Setter Property="Padding" Value="16,13"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
   </Style>
  </Window.Resources>
-
  <Grid>
   <Grid.ColumnDefinitions>
-   <ColumnDefinition Width="210"/>
+   <ColumnDefinition Width="215"/>
    <ColumnDefinition Width="*"/>
   </Grid.ColumnDefinitions>
 
-  <Border Background="#091523" BorderBrush="#1D3049" BorderThickness="0,0,1,0">
-   <Grid Margin="18">
+  <Border Grid.Column="0" Background="#081523"
+   BorderBrush="#20354F" BorderThickness="0,0,1,0">
+   <Grid Margin="16,22">
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
-     <RowDefinition Height="26"/>
+     <RowDefinition Height="22"/>
+     <RowDefinition Height="Auto"/>
      <RowDefinition Height="*"/>
      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <StackPanel>
-     <TextBlock Text="Signal 调度台" FontSize="23" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-beta.1" Margin="0,6,0,0" Foreground="#8FA7C2"/>
+     <TextBlock Text="Signal 调度台" FontSize="22" FontWeight="Bold"/>
+     <TextBlock Text="V8.0.0-beta.2" Foreground="#8EACC8" Margin="0,7,0,0"/>
+     <TextBlock Text="桌面消息管理" Foreground="#7390AC" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
-     <Button Content="⌂  首页" HorizontalContentAlignment="Left" Background="#203A61"/>
-     <Button Content="◉  账号" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="AccountGroup_Click"/>
-     <Button Content="✎  剧本" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="ScriptEditor_Click"/>
-     <Button Content="▦  群组" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="AccountGroup_Click"/>
-     <Button Content="▶  运行任务" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="LiveBatch_Click"/>
-     <Button Content="◉  实发测试" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="LiveProbe_Click"/>
-     <Button Content="▷  自动实发试点" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="LivePilot_Click"/>
-     <Button Content="◷  恢复记录" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="RecoveryCenter_Click"/>
-     <Button Content="⚙  授权设置" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="License_Click"/>
+     <Button x:Name="HomeNav" Content="⌂   首页 · 快速开始" Tag="home"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="AccountNav" Content="◉   账号与群组" Tag="accounts"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="ScriptNav" Content="✎   剧本管理" Tag="scripts"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="TaskNav" Content="◷   任务与恢复" Tag="recovery"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="LicenseNav" Content="⚙   授权设置" Tag="license"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
     </StackPanel>
-    <StackPanel Grid.Row="3">
-     <TextBlock x:Name="EngineBadge" Text="● 后台连接中" Foreground="#F5C451"/>
-     <TextBlock x:Name="MigrationBadge" Text="正在读取本地数据" Margin="0,6,0,0" Foreground="#8FA7C2" FontSize="12" TextWrapping="Wrap"/>
-    </StackPanel>
+    <Border Grid.Row="4" Background="#10273C" CornerRadius="8" Padding="12">
+     <StackPanel>
+      <TextBlock x:Name="EngineBadge" Text="● 后台连接中"
+       Foreground="#E8C16A" FontWeight="SemiBold" TextWrapping="Wrap"/>
+      <TextBlock x:Name="SignalStatusText" Text="Signal 检查中…"
+       Foreground="#A5C3DD" Margin="0,7,0,0" TextWrapping="Wrap"/>
+      <TextBlock x:Name="AccountsCountText" Text="账号检查中"
+       Margin="0,7,0,0" Foreground="#A5C3DD" TextWrapping="Wrap"/>
+      <TextBlock x:Name="MigrationBadge" Text="读取本地数据中"
+       Margin="0,9,0,0" Foreground="#8EAAC5" FontSize="11" TextWrapping="Wrap"/>
+     </StackPanel>
+    </Border>
    </Grid>
   </Border>
 
-  <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-   <Grid Margin="28">
-    <Grid.RowDefinitions>
-     <RowDefinition Height="Auto"/>
-     <RowDefinition Height="18"/>
-     <RowDefinition Height="Auto"/>
-     <RowDefinition Height="18"/>
-     <RowDefinition Height="Auto"/>
-     <RowDefinition Height="18"/>
-     <RowDefinition Height="*"/>
-    </Grid.RowDefinitions>
-
+  <Grid Grid.Column="1" Background="#0A1828">
+   <Grid.RowDefinitions>
+    <RowDefinition Height="Auto"/>
+    <RowDefinition Height="Auto"/>
+    <RowDefinition Height="*"/>
+    <RowDefinition Height="Auto"/>
+   </Grid.RowDefinitions>
+   <Border Background="#0D2135" BorderBrush="#263F56"
+    BorderThickness="0,0,0,1" Padding="22,15">
     <Grid>
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-     <StackPanel>
-      <TextBlock Text="首页" FontSize="30" FontWeight="Bold"/>
-      <TextBlock Text="原生 Windows V8 · 授权群组通知调度与安全恢复" Margin="0,5,0,0" Foreground="#8FA7C2"/>
-     </StackPanel>
-     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-      <Button Content="刷新状态" Click="RefreshButton_Click"/>
-      <Button x:Name="LinkAccountButton" Content="+ 扫码登录" IsEnabled="False" Background="#138A4B" Click="LinkAccount_Click"/>
-     </StackPanel>
-    </Grid>
-
-    <Grid Grid.Row="2">
      <Grid.ColumnDefinitions>
-      <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
+      <ColumnDefinition Width="*"/>
+      <ColumnDefinition Width="Auto"/>
      </Grid.ColumnDefinitions>
-     <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,10,0" Padding="18">
-      <StackPanel>
-       <TextBlock Text="Signal 服务" Foreground="#8FA7C2"/>
-       <TextBlock x:Name="SignalStatusText" Text="检查中" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/>
-       <TextBlock x:Name="SignalDetailText" Text="" FontSize="11" Margin="0,5,0,0" Foreground="#8FA7C2" TextWrapping="Wrap"/>
-      </StackPanel>
-     </Border>
-     <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,10,0" Padding="18">
-      <StackPanel><TextBlock Text="Signal 在线账号" Foreground="#8FA7C2"/><TextBlock x:Name="AccountsCountText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
-     </Border>
-     <Border Grid.Column="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,10,0" Padding="18">
-      <StackPanel><TextBlock Text="群组" Foreground="#8FA7C2"/><TextBlock x:Name="GroupsCountText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
-     </Border>
-     <Border Grid.Column="3" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="18">
-      <StackPanel><TextBlock Text="剧本" Foreground="#8FA7C2"/><TextBlock x:Name="ScriptsCountText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
-     </Border>
+     <StackPanel>
+      <TextBlock x:Name="PageTitle" Text="首页 · 直接开始" FontSize="23"
+        FontWeight="Bold"/>
+      <TextBlock x:Name="PageSubtitle"
+       Text="选择剧本、勾选群组，确认后直接启动。每个群的状态单独保存。"
+       FontSize="12" Foreground="#AAC4DC" Margin="0,5,0,0"
+       TextWrapping="Wrap"/>
+     </StackPanel>
+     <StackPanel Grid.Column="1" Orientation="Horizontal"
+       VerticalAlignment="Center">
+      <Button x:Name="ScanButton" Content="+ 扫码登录"
+       Background="#0F7954" IsEnabled="False"
+       Click="LinkAccount_Click" Margin="0,0,9,0"/>
+      <Button Content="刷新" Click="RefreshButton_Click" Padding="16,10"/>
+     </StackPanel>
     </Grid>
+   </Border>
 
-    <Border Grid.Row="4" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="18">
+   <Border x:Name="AlertStrip" Grid.Row="1" Visibility="Collapsed"
+     Background="#403123" BorderBrush="#986638" BorderThickness="0,0,0,1"
+     Padding="18,8">
+    <DockPanel>
+     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+      <TextBlock Text="● " Foreground="#FFCC83"/>
+      <TextBlock x:Name="AlertSummaryText" Text="有未查看的任务提醒"
+       Foreground="#FFE2B8" TextTrimming="CharacterEllipsis"/>
+     </StackPanel>
+     <Button DockPanel.Dock="Right" HorizontalAlignment="Right"
+      Content="查看 / 收起提醒" Background="#59432C" Padding="10,4"
+      Click="ToggleAlerts_Click"/>
+    </DockPanel>
+   </Border>
+
+   <Grid Grid.Row="2">
+    <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch"
+      VerticalContentAlignment="Stretch"/>
+    <Border x:Name="AlertPanel" Visibility="Collapsed" Panel.ZIndex="6"
+      Background="#10273C" BorderBrush="#B17D48" BorderThickness="1"
+      CornerRadius="8" Width="470" MaxWidth="470"
+      HorizontalAlignment="Right" VerticalAlignment="Top"
+      Margin="12" Padding="16">
      <Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-      <StackPanel Grid.Column="0" Margin="0,0,14,0">
-       <TextBlock Text="账号" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-       <ListBox x:Name="AccountsList" Height="180"/>
-      </StackPanel>
-      <StackPanel Grid.Column="1" Margin="0,0,14,0">
-       <TextBlock Text="群组" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-       <ListBox x:Name="GroupsList" Height="180"/>
-      </StackPanel>
-      <StackPanel Grid.Column="2">
-       <TextBlock Text="剧本" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,10"/>
-       <ListBox x:Name="ScriptsList" Height="180"/>
-       <Button Content="打开剧本编辑器" Click="ScriptEditor_Click" Margin="0,10,0,0"/>
-      </StackPanel>
+      <Grid.RowDefinitions>
+       <RowDefinition Height="Auto"/>
+       <RowDefinition Height="12"/>
+       <RowDefinition Height="*" MaxHeight="385"/>
+       <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <DockPanel>
+       <TextBlock Text="通知与异常" FontSize="17" FontWeight="SemiBold"/>
+       <Button DockPanel.Dock="Right" Content="关闭"
+        Click="ToggleAlerts_Click" Padding="8,3"/>
+      </DockPanel>
+      <ListBox x:Name="NotificationsList" Grid.Row="2"
+       Background="#10273C" Foreground="#EFD8BD"
+       BorderThickness="0" FontSize="12"/>
+      <Button Grid.Row="3" Content="清空当前提示" Click="ClearAlerts_Click"
+       Margin="0,12,0,0" Padding="10,7"/>
      </Grid>
     </Border>
-
-    <Grid Grid.Row="6">
-     <Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-     <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,12,0">
-      <StackPanel>
-       <TextBlock Text="任务恢复状态" FontSize="17" FontWeight="SemiBold"/>
-       <TextBlock x:Name="JobsSummaryText" Text="暂无任务" Margin="0,7,0,12" Foreground="#8FA7C2"/>
-       <Button Content="打开任务恢复中心" Click="RecoveryCenter_Click" Margin="0,0,0,10"/>
-       <ListBox x:Name="JobsList" Height="175"/>
-      </StackPanel>
-     </Border>
-     <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Padding="18">
-      <StackPanel>
-       <TextBlock Text="Signal Runtime" FontSize="17" FontWeight="SemiBold"/>
-       <TextBlock x:Name="RuntimeVersionText" Text="正在检测…" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#B9C9DB"/>
-       <TextBlock Text="当前版本已经内置 Java 25 + signal-cli，并由 Guardian 独立监控。真实自动发送仍保持关闭，等发送事务/恢复链完整迁移后再开启。" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#F5C451"/>
-      </StackPanel>
-     </Border>
-    </Grid>
    </Grid>
-  </ScrollViewer>
+
+   <Border Grid.Row="3" BorderBrush="#223B53" BorderThickness="0,1,0,0"
+    Background="#0D2135" Padding="18,8">
+    <Grid>
+     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <TextBlock x:Name="BottomStatusText"
+      Text="准备就绪" FontSize="12" Foreground="#AFC7DF"
+      TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
+     <TextBlock x:Name="RuntimeVersionText" Grid.Column="1"
+      Text="Signal 运行环境检查中" FontSize="11" Foreground="#809EBB"/>
+    </Grid>
+   </Border>
+  </Grid>
  </Grid>
 </Window>

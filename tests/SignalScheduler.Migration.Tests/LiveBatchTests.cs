@@ -136,6 +136,62 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_live_batch_jobs"));
     }
 
+    [Fact]
+    public async Task HomeCanStartFromLiveGroupCatalogWithoutPreviouslySavedGroupSelection()
+    {
+        var (store,db)=await NewStoreAsync();
+        const string account="+49123";
+        await store.SyncSignalCatalogAsync(new[]{account},
+            new[]{new SignalGroupCatalogItem(
+                account,"direct-group","首页直接选取",true,Array.Empty<string>())},
+            new[]{account},Ct);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"授权通知")});
+        var result=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"direct-group"},true),Ct);
+        Assert.Equal(1,result.GroupCount);
+        Assert.Equal(1,result.MessageCount);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_selected_groups"));
+    }
+
+    [Fact]
+    public async Task BlankEditorBubblesAreOmittedOnlyFromFrozenRun_NotOriginalDraft()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]
+        {
+            Step(0,""),
+            Step(1,"真的需要发送的通知"),
+            Step(2," "),
+            Step(3,"第二条通知")
+        });
+        var result=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        Assert.Equal(2,result.MessageCount);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct);
+        Assert.Single(due);
+        Assert.Equal("真的需要发送的通知",due[0].Step.Message);
+        var original=await store.ReadEditorScriptAsync(script.ScriptId,Ct);
+        Assert.Equal(4,original.Steps.Count);
+        Assert.Equal("2",await ScalarAsync(db,
+            "SELECT total_steps FROM v8_live_batch_jobs LIMIT 1"));
+    }
+
+    [Fact]
+    public async Task EntirelyBlankScriptStillFailsWithSpecificScriptName()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,""),Step(1," ")});
+        var ex=await Assert.ThrowsAsync<ArgumentException>(()=>
+            store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1"},true),Ct));
+        Assert.Contains(script.Name,ex.Message);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_live_batch_jobs"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
