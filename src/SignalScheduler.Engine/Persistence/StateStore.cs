@@ -127,7 +127,7 @@ public sealed class StateStore
         tx.Commit();
     }
 
-    public async Task<DashboardSnapshot> GetDashboardAsync(CancellationToken ct)
+    public async Task<DashboardSnapshot> GetDashboardAsync(SignalGuardianSnapshot signal,CancellationToken ct)
     {
         await using var c=Open();
 
@@ -202,9 +202,13 @@ public sealed class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.2",
+            "8.0.0-alpha.3",
             "running",
-            "disabled-foundation-stage",
+            "send-disabled-alpha3",
+            signal.State,
+            signal.Detail,
+            signal.SignalCliVersion,
+            signal.LiveAccounts.Count,
             legacyDetected,
             metadataMigrated,
             accounts.Count,
