@@ -163,10 +163,10 @@ jobs:
           if (-not (Test-Path (Join-Path $testRoot "Runtime\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
 
-          $env:JAVA_HOME = (Join-Path $testRoot "Runtime\jre")
-          $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
-          & cmd.exe /d /c ('"' + (Join-Path $testRoot "Runtime\signal-cli\bin\signal-cli.bat") + '" --version')
-          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli runtime failed" }
+          $installedJava = Join-Path $testRoot "Runtime\jre\bin\java.exe"
+          $installedCp = Join-Path $testRoot "Runtime\signal-cli\lib\*"
+          & $installedJava -classpath $installedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
 
           $desktop = [Environment]::GetFolderPath("Desktop")
           $programs = [Environment]::GetFolderPath("Programs")
