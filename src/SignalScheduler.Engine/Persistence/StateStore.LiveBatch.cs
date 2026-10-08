@@ -266,16 +266,40 @@ public sealed partial class StateStore
         await using var q=c.CreateCommand();
         q.CommandText="""
             SELECT b.job_id,b.script_name,b.group_id,b.group_name,
-                j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail
+                j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail,b.steps_json
             FROM v8_live_batch_jobs b JOIN v8_jobs j ON j.job_id=b.job_id
             ORDER BY b.created_at DESC,b.job_id LIMIT 1000;
             """;
         await using var r=await q.ExecuteReaderAsync(ct);
         while(await r.ReadAsync(ct))
+        {
+            var state=r.GetString(4);
+            var cursor=r.GetInt64(5);
+            long estimated=0;
+            if(state=="Running")
+            {
+                try
+                {
+                    var steps=JsonSerializer.Deserialize<ScriptEditorStep[]>(r.GetString(9));
+                    if(steps is not null)
+                    {
+                        // First future step cannot begin before the persisted due time.
+                        estimated=Math.Max(0,r.GetInt64(7)-DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        for(var i=(int)Math.Clamp(cursor,0,steps.Length);i<steps.Length;i++)
+                        {
+                            estimated+=Math.Max(0,steps[i].TypingSeconds)*1000L;
+                            if(i<steps.Length-1)
+                                estimated+=Math.Max(5,steps[i].DelayAfter)*1000L;
+                        }
+                    }
+                }
+                catch(JsonException) { /* Unknown ETA rather than abort task listing. */ }
+            }
             rows.Add(new LiveBatchItem(
                 r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),
-                r.GetString(4),r.GetInt64(5),r.GetInt32(6),r.GetInt64(7),
-                r.GetString(8)));
+                state,cursor,r.GetInt32(6),r.GetInt64(7),
+                r.GetString(8),estimated));
+        }
         return rows;
     }
 
