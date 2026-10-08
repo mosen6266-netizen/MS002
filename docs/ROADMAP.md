@@ -40,7 +40,8 @@
 - [x] Live group catalog sync
 - [x] QR link flow
 - [x] Confirmed single-message live Signal RPC transport, gated by explicit test consent
-- [ ] Validated full-script live runner with supervised recovery
+- [x] Supervised single-group 3-message live runner with durable journal, pause/resume and minimum 15s spacing
+- [ ] Validated full-scale live runner with multi-group/multi-account and human recovery
 
 ## Stage 4 — feature parity
 - [x] Native account manager: custom remarks, enabled/disabled, persisted across relinks
@@ -50,7 +51,7 @@
 - [x] Group selection by name and unique ID, saved across restart
 - [ ] Typing/read logic
 - [x] Multi-group rehearsal scheduler (SQLite-backed preview only, no actual Signal sends)
-- [ ] Live Signal multi-group runner with durable send transport (one-shot probe is not a script runner)
+- [ ] Live Signal full multi-group runner (alpha.13 supports only a single authorized test group)
 - [x] Read-only recovery center, audit evidence copy, persistent manual pause
 - [x] Manual pause/resume/stop for preview tasks (state persisted, blocked on ambiguous dispatch)
 - [ ] Human adjudication and safe resume for real-send jobs (remains disabled)
