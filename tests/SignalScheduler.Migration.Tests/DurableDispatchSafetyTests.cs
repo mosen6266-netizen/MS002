@@ -127,6 +127,35 @@ public sealed class DurableDispatchSafetyTests
         Assert.Equal("RecoveryRequired",await ValueAsync(db,"SELECT state FROM v8_jobs"));
     }
 
+    [Fact]
+    public async Task GuardianRestart_BlocksWhileSending_ThenQuarantinesIfDaemonExited()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        var d=Identity();
+        await store.ReserveAsync(d,NoCancel);
+        await store.MarkSendingAsync(d,NoCancel);
+
+        var canRestart=await store.TryPrepareGuardianRestartAsync(false,NoCancel);
+        Assert.False(canRestart);
+        Assert.Equal("Paused",await ValueAsync(db,"SELECT state FROM v8_jobs"));
+        Assert.Equal("Sending",await ValueAsync(db,"SELECT state FROM v8_dispatch_journal"));
+
+        // Java then crashes. Do NOT assume success or try the same send again.
+        Assert.True(await store.TryPrepareGuardianRestartAsync(true,NoCancel));
+        Assert.Equal("RecoveryRequired",await ValueAsync(db,"SELECT state FROM v8_jobs"));
+        Assert.Equal("RecoveryRequired",await ValueAsync(db,"SELECT state FROM v8_dispatch_journal"));
+    }
+
+    [Fact]
+    public async Task GuardianRestart_PausesIdleRunningTasksAndDoesNotAutoResume()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        Assert.True(await store.TryPrepareGuardianRestartAsync(false,NoCancel));
+        Assert.Equal("Paused",await ValueAsync(db,"SELECT state FROM v8_jobs"));
+    }
+
     static DispatchIdentity Identity()=>
         new("job-1","run-1",0,0,"group-1","+49123456789","hash-1");
 
