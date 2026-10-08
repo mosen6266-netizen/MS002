@@ -67,11 +67,11 @@ public partial class MainWindow : Window
            home is LiveBatchWindow batch &&
            batch.IsScriptDropDownOpen)
         {
-            e.Handled=true;
+            // Let the popup's own scroll viewer handle wheel messages.
             return;
         }
         scroller.ScrollToVerticalOffset(Math.Clamp(
-            scroller.VerticalOffset-e.Delta/3.0,0,scroller.ScrollableHeight));
+            scroller.VerticalOffset-e.Delta,0,scroller.ScrollableHeight));
         e.Handled=true;
     }
 
