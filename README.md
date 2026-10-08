@@ -34,6 +34,6 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.3 Signal Guardian / offline runtime**.
+Current stage: **8.0.0-alpha.3 Signal Guardian / offline runtime / QR linking**.
 
 Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
