@@ -53,7 +53,7 @@ public partial class MainWindow : Window
     UserControl GetPage(string key)
     {
         if(_pages.TryGetValue(key,out var cached))return cached;
-        var page=key switch
+        UserControl page=key switch
         {
             "home"=>new LiveBatchWindow(),
             "accounts"=>new AccountGroupWindow(),
