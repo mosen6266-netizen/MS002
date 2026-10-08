@@ -615,6 +615,16 @@ public partial class ScriptEditorWindow : UserControl
 
     void Append_Click(object sender,RoutedEventArgs e)=>InsertAt(_steps.Count);
 
+    void AttachmentQuickPreview_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is not Button {Tag:ScriptStepRow row} ||
+           string.IsNullOrWhiteSpace(row.Attachment))return;
+        CommitGrid();
+        StepsGrid.SelectedItem=row;
+        StepsGrid.ScrollIntoView(row);
+        PreviewImage_Click(sender,e);
+    }
+
     bool SelectAttachmentRow(object sender)
     {
         if(sender is not MenuItem {CommandParameter:ScriptStepRow row})return false;
@@ -945,7 +955,8 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
         ?? (string.IsNullOrWhiteSpace(Account)?"默认账号":("账号 "+Account[^Math.Min(4,Account.Length)..]));
     public void RefreshAccountLabel()=>PropertyChanged?.Invoke(
         this,new PropertyChangedEventArgs(nameof(AccountLabel)));
-    public string AttachmentLabel=>string.IsNullOrWhiteSpace(Attachment)?"—":"已添加图片";
+    public string AttachmentLabel=>string.IsNullOrWhiteSpace(Attachment)?"—":"预览图片";
+    public bool HasAttachment=>!string.IsNullOrWhiteSpace(Attachment);
     public string Account
     {
         get=>_account;
@@ -963,6 +974,7 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
         {
             Set(ref _attachment,value);
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(HasAttachment)));
         }
     }
     public string ReminderText{get=>_reminder;set=>Set(ref _reminder,value);}
