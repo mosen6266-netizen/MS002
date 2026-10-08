@@ -164,6 +164,8 @@ public sealed record PreviewTaskItem(
 
 public sealed record ImageImportRequest(string SourcePath);
 public sealed record ImageLookupRequest(string Reference);
+public sealed record ImageCheckRequest(IReadOnlyList<string> References);
+public sealed record ImageCheckResult(string Reference,string Status,string Detail);
 public sealed record ImageAttachmentInfo(
     string Reference,string AbsolutePath,string OriginalName,long Bytes,string Sha256);
 
@@ -257,6 +259,7 @@ public static class ControlCommands
     public const string PreviewControl="preview-control";
     public const string ImageImport="image-import";
     public const string ImageLookup="image-lookup";
+    public const string ImageCheck="image-check";
     public const string LicenseStatus="license-status";
     public const string LicenseActivate="license-activate";
     public const string LicenseCheck="license-check";
