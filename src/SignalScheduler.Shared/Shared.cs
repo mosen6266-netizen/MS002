@@ -177,7 +177,7 @@ public sealed record LivePilotPlanRequest(
 public sealed record LivePilotControlRequest(string JobId,string Action);
 public sealed record LivePilotItem(
     string JobId,string ScriptName,string GroupName,string Account,
-    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail,long EstimatedRemainingMs=0);
+    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
 
 /// <summary>Explicit user-started native script dispatch; group IDs must be saved/selected.</summary>
 public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend,bool SkipUnavailableImages=false);
@@ -190,7 +190,7 @@ public sealed record LiveBatchStartResult(IReadOnlyList<string> JobIds,int Group
 public sealed record LiveBatchControlRequest(string JobId,string Action);
 public sealed record LiveBatchItem(
     string JobId,string ScriptName,string GroupId,string GroupName,
-    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
+    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail,long EstimatedRemainingMs=0);
 /// <summary>Internal, not a UI-supplied raw file path.</summary>
 public sealed record SignalMessagePayload(string Message,string? AttachmentPath);
 
