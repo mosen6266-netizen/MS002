@@ -150,7 +150,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                             or IOException or KeyNotFoundException or HttpRequestException)
                         {
                             response=new ControlResponse(false,
-                                Error="实发诊断未成功完成："+ex.Message+
+                                Error:"实发诊断未成功完成："+ex.Message+
                                 "。请先在恢复中心核对，不能盲目重试。");
                         }
                         break;
