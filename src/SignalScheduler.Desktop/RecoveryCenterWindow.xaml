@@ -28,9 +28,9 @@
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="16"/>
-   <RowDefinition Height="2*"/>
+   <RowDefinition Height="Auto"/>
    <RowDefinition Height="12"/>
-   <RowDefinition Height="3*"/>
+   <RowDefinition Height="Auto"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <DockPanel Grid.Row="0">
@@ -59,10 +59,11 @@
    </Grid.RowDefinitions>
    <TextBlock Text="任务列表（包含旧版历史任务）" FontSize="16" FontWeight="SemiBold"
               Margin="0,0,0,10"/>
-   <DataGrid x:Name="JobsGrid" Grid.Row="1" AlternationCount="2"
+   <DataGrid x:Name="JobsGrid" Grid.Row="1" Height="320" AlternationCount="2"
              SelectionChanged="JobsGrid_SelectionChanged">
     <DataGrid.Columns>
-     <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="3*"/>
+     <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="3*"
+      ElementStyle="{StaticResource TruncatedGridText}"/>
      <DataGridTextColumn Header="状态" Binding="{Binding State}" Width="2*"/>
      <DataGridTextColumn Header="当前消息序号" Binding="{Binding Cursor}" Width="*"/>
      <DataGridCheckBoxColumn Header="旧版记录" Binding="{Binding IsLegacy}" Width="*"/>
@@ -82,7 +83,7 @@
     <Button Content="复制选中记录" DockPanel.Dock="Right"
             Click="Copy_Click" HorizontalAlignment="Right"/>
    </DockPanel>
-<DataGrid x:Name="DispatchGrid" Grid.Row="1" AlternationCount="2"
+<DataGrid x:Name="DispatchGrid" Grid.Row="1" Height="400" AlternationCount="2"
              SelectionChanged="DispatchGrid_SelectionChanged">
     <DataGrid.Columns>
      <DataGridTextColumn Header="消息序号" Binding="{Binding Cursor}" Width="75"/>
@@ -90,7 +91,8 @@
      <DataGridTextColumn Header="账号" Binding="{Binding AccountId}" Width="140"/>
      <DataGridTextColumn Header="群组 ID" Binding="{Binding GroupId}" Width="160"/>
      <DataGridTextColumn Header="提供方消息 ID" Binding="{Binding ProviderMessageId}" Width="180"/>
-     <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="2*"/>
+     <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="2*"
+      ElementStyle="{StaticResource TruncatedGridText}"/>
     </DataGrid.Columns>
    </DataGrid>
   </Grid>
