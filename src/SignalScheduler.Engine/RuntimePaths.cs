@@ -8,11 +8,25 @@ public sealed class RuntimePaths
 
     public RuntimePaths()
     {
-        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        DataRoot = Path.Combine(local, "SignalSchedulerData");
-        BackupRoot = Path.Combine(DataRoot, "backups");
+        var overrideRoot=Environment.GetEnvironmentVariable("SIGNAL_SCHEDULER_V8_TEST_DATA_ROOT");
+        var local=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        DataRoot=string.IsNullOrWhiteSpace(overrideRoot)
+            ? Path.Combine(local,"SignalSchedulerData")
+            : overrideRoot;
+        DatabasePath=Path.Combine(DataRoot,"data.db");
+        BackupRoot=Path.Combine(DataRoot,"backups");
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(BackupRoot);
-        DatabasePath = Path.Combine(DataRoot, "data.db");
     }
+
+    RuntimePaths(string root,string db)
+    {
+        DataRoot=root;
+        DatabasePath=db;
+        BackupRoot=Path.Combine(root,"backups");
+        Directory.CreateDirectory(DataRoot);
+        Directory.CreateDirectory(BackupRoot);
+    }
+
+    public static RuntimePaths ForTesting(string root,string databasePath)=>new(root,databasePath);
 }
