@@ -115,7 +115,29 @@ public sealed class StateStore
             await jobs.ExecuteNonQueryAsync(ct);
         }
 
+        await MarkPreparedAsNotSentAsync(c,tx,now,ct);
         tx.Commit();
+    }
+
+    /// <summary>
+    /// Prepared is strictly before the send boundary. Once tasks are frozen it
+    /// can safely become DefinitelyNotSent; never strand an installer on a
+    /// prepared record left by a previous clean or unclean shutdown.
+    /// </summary>
+    static async Task MarkPreparedAsNotSentAsync(
+        SqliteConnection c,SqliteTransaction tx,long now,CancellationToken ct)
+    {
+        await using var cmd=c.CreateCommand();
+        cmd.Transaction=tx;
+        cmd.CommandText="""
+            UPDATE v8_dispatch_journal
+            SET state='DefinitelyNotSent',
+                detail=COALESCE(detail,'任务在真正发送前已安全中止。'),
+                updated_at=$n
+            WHERE state='Prepared';
+            """;
+        cmd.Parameters.AddWithValue("$n",now);
+        await cmd.ExecuteNonQueryAsync(ct);
     }
 
 
@@ -471,6 +493,8 @@ public sealed class StateStore
             pause.Parameters.AddWithValue("$n",now);
             await pause.ExecuteNonQueryAsync(ct);
         }
+
+        await MarkPreparedAsNotSentAsync(c,tx,now,ct);
 
         if(daemonAlreadyExited)
         {
