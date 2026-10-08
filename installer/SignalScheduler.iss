@@ -47,6 +47,7 @@ Source: "{#PublishRoot}\Desktop\*"; DestDir: "{app}"; Flags: ignoreversion recur
 Source: "{#PublishRoot}\Engine\*"; DestDir: "{app}\Engine"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PublishRoot}\Runtime\*"; DestDir: "{app}\Runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "update-protocol-v1.marker"; DestDir: "{app}"; Flags: ignoreversion
+Source: "third_party\ChineseSimplified-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
 Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; Tasks: desktopicon
