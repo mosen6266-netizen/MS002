@@ -144,6 +144,7 @@ public sealed class StateStore
     public async Task SyncSignalCatalogAsync(
         IReadOnlyList<string> liveAccounts,
         IReadOnlyList<SignalGroupCatalogItem> groups,
+        IReadOnlyList<string> completeGroupAccounts,
         CancellationToken ct)
     {
         await using var c=Open();
@@ -196,6 +197,20 @@ public sealed class StateStore
             cmd.Parameters.AddWithValue("$enabled",enabled);
             cmd.Parameters.AddWithValue("$now",now);
             await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        // Only a successfully fetched full listGroups result may deactivate
+        // previously known memberships. A transient per-account RPC failure
+        // must not erase that account's group catalog.
+        var onlineSet=liveAccounts.ToHashSet(StringComparer.Ordinal);
+        foreach(var account in completeGroupAccounts.Distinct(StringComparer.Ordinal))
+        {
+            if(!onlineSet.Contains(account)) continue;
+            await using var reset=c.CreateCommand();
+            reset.Transaction=tx;
+            reset.CommandText="UPDATE v8_signal_groups SET is_member=0 WHERE account=$a";
+            reset.Parameters.AddWithValue("$a",account);
+            await reset.ExecuteNonQueryAsync(ct);
         }
 
         foreach(var group in groups)
@@ -643,6 +658,48 @@ public sealed class StateStore
                 jobs.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4),r.GetInt64(5)!=0));
         }
 
+        // On a clean V8 install the legacy metadata tables do not exist.
+        // Live synced identities and groups must still be visible on the
+        // native dashboard. Keep existing V7 labels/remarks for overlaps.
+        if(await TableExists("v8_signal_accounts"))
+        {
+            var existing=accounts.Select(a=>a.Account).ToHashSet(StringComparer.Ordinal);
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT account,label,enabled FROM v8_signal_accounts
+                ORDER BY label,account LIMIT 500;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            long syntheticId=-1000000;
+            while(await r.ReadAsync(ct))
+            {
+                var account=r.GetString(0);
+                if(existing.Add(account))
+                    accounts.Add(new DashboardAccount(
+                        syntheticId--,account,r.GetString(1),r.GetInt64(2)!=0));
+            }
+        }
+
+        if(await TableExists("v8_signal_groups"))
+        {
+            var existing=groups.Select(g=>(g.Account,g.GroupId)).ToHashSet();
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT account,group_id,name,is_member FROM v8_signal_groups
+                ORDER BY name,account LIMIT 2000;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            long syntheticId=-1000000;
+            while(await r.ReadAsync(ct))
+            {
+                var account=r.GetString(0);
+                var groupId=r.GetString(1);
+                if(existing.Add((account,groupId)))
+                    groups.Add(new DashboardGroup(
+                        syntheticId--,account,groupId,r.GetString(2),r.GetInt64(3)!=0));
+            }
+        }
+
         // Show new V8 durable jobs alongside migrated V7 history, including
         // all crash/restart quarantines which must be visible to the operator.
         if(await TableExists("v8_jobs"))
@@ -685,7 +742,7 @@ public sealed class StateStore
             metadataMigrated,
             accounts.Count,
             accounts.Count(x=>x.Enabled),
-            groups.Count,
+            groups.Select(x=>x.GroupId).Distinct(StringComparer.Ordinal).Count(),
             scripts.Count,
             jobs.Count,
             jobs.Count(x=>x.RecoveryRequired || string.Equals(x.State,"RecoveryRequired",StringComparison.OrdinalIgnoreCase)),
