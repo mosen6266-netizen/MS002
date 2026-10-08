@@ -2,6 +2,7 @@ using Xunit;
 using Microsoft.Data.Sqlite;
 using SignalScheduler.Engine;
 using SignalScheduler.Engine.Migration;
+using SignalScheduler.Engine.Persistence;
 
 namespace SignalScheduler.Migration.Tests;
 
@@ -48,6 +49,16 @@ public sealed class LegacyV7MigratorTests
         Assert.Equal("客户A",label);
         Assert.Equal("RecoveryRequired",state);
         Assert.NotEmpty(Directory.GetFiles(Path.Combine(root,"backups"),"v8-pre-migration-*.db"));
+
+        var store=new StateStore(paths.ToRuntimePaths());
+        var dashboard=await store.GetDashboardAsync(CancellationToken.None);
+        Assert.Equal(1,dashboard.Accounts);
+        Assert.Equal(1,dashboard.EnabledAccounts);
+        Assert.Equal(1,dashboard.Groups);
+        Assert.Equal(1,dashboard.Scripts);
+        Assert.Equal(1,dashboard.Jobs);
+        Assert.Equal(1,dashboard.RecoveryJobs);
+        Assert.Equal("客户A",dashboard.AccountItems.Single().Label);
     }
 
     static async Task<object?> Scalar(SqliteConnection c,string sql)
