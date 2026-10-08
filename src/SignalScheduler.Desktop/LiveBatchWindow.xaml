@@ -223,6 +223,10 @@
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="进度" Width="72" Binding="{Binding Progress}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="下句倒计时" Width="100" Binding="{Binding NextCountdown}"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="预计剩余时间" Width="140" Binding="{Binding RemainingEstimate}"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="下次发送" Width="88" Binding="{Binding NextSend}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTemplateColumn Header="详情" Width="1.4*">
