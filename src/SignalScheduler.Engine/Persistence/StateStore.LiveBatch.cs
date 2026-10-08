@@ -52,17 +52,34 @@ public sealed partial class StateStore
 
         var groups=request.GroupIds.Distinct(StringComparer.Ordinal).ToArray();
         var script=await ReadEditorScriptAsync(request.ScriptId,ct);
-        if(script.Steps.Count is <1 or >1500)
-            throw new ArgumentException("剧本需要包含 1～1500 条消息。");
+        if(script.Steps.Count>1500)
+            throw new ArgumentException($"剧本「{script.Name}」超过 1500 条的编辑上限。");
 
-        foreach(var step in script.Steps)
+        // Empty editor bubbles are draft placeholders, not sendable messages.
+        // Skip them only in a frozen task snapshot; never rewrite the draft.
+        var sendable=script.Steps
+            .Where(step=>!string.IsNullOrWhiteSpace(step.Message) ||
+                         !string.IsNullOrWhiteSpace(step.Attachment))
+            .ToArray();
+        if(sendable.Length==0)
+            throw new ArgumentException(
+                $"剧本「{script.Name}」没有可发送的内容。请先填写至少一条文字或导入图片。");
+        foreach(var step in sendable)
         {
-            if(step.Message.Length>16000 ||
-                (string.IsNullOrWhiteSpace(step.Message) &&
-                 string.IsNullOrWhiteSpace(step.Attachment)))
-                throw new ArgumentException("存在空白消息或超过长度限制的消息。");
+            if((step.Message?.Length??0)>16000)
+                throw new ArgumentException(
+                    $"剧本「{script.Name}」第 {step.Position+1} 条超过 16000 字符，请缩短后重试。");
             if(!string.IsNullOrWhiteSpace(step.Attachment))
-                await LookupImageAsync(new ImageLookupRequest(step.Attachment),ct);
+            {
+                try { await LookupImageAsync(
+                    new ImageLookupRequest(step.Attachment),ct); }
+                catch(Exception ex) when(ex is ArgumentException or IOException
+                    or FileNotFoundException)
+                {
+                    throw new ArgumentException(
+                        $"剧本「{script.Name}」第 {step.Position+1} 条的图片无法使用：{ex.Message}",ex);
+                }
+            }
         }
 
         await InitializeLiveBatchAsync(ct);
@@ -82,7 +99,6 @@ public sealed partial class StateStore
                 q.CommandText="""
                     SELECT a.account,g.name FROM v8_signal_groups g
                     JOIN v8_signal_accounts a ON a.account=g.account
-                    JOIN v8_selected_groups sel ON sel.group_id=g.group_id
                     LEFT JOIN v8_account_settings pref ON pref.account=a.account
                     WHERE g.group_id=$g AND g.is_member=1 AND a.enabled=1
                       AND a.online=1 AND COALESCE(pref.enabled,1)=1
@@ -98,7 +114,7 @@ public sealed partial class StateStore
             }
             if(eligible.Count==0)
                 throw new InvalidOperationException(
-                    "某个群组不存在、未勾选，或所有成员账号已离线/停用；没有创建任何任务。");
+                    "群组「${groupId}」没有可用的在线发送账号，或账号未加入该群。请刷新账号与群组。");
 
             // Parallel scripts may use disjoint groups; we never silently run
             // two independent scripts in one group at the same time.
@@ -121,7 +137,7 @@ public sealed partial class StateStore
             // Ordinary group notices use one clearly designated sender
             // within each group. Do not orchestrate synthetic dialogues by
             // rotating unrelated identities between script entries.
-            var specified=script.Steps
+            var specified=sendable
                 .Select(x=>x.Account)
                 .Where(x=>!string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.Ordinal)
@@ -133,7 +149,7 @@ public sealed partial class StateStore
             if(!eligible.Contains(sender,StringComparer.Ordinal))
                 throw new ArgumentException(
                     $"群「{groupName}」指定的发送账号不可用或不是已启用的成员。");
-            var steps=script.Steps
+            var steps=sendable
                 .Select((step,index)=>step with {Account=sender,Position=index})
                 .ToArray();
 
@@ -186,7 +202,7 @@ public sealed partial class StateStore
             created.Add(id);
         }
         tx.Commit();
-        return new LiveBatchStartResult(created,created.Count,script.Steps.Count);
+        return new LiveBatchStartResult(created,created.Count,sendable.Length);
     }
 
     public async Task<IReadOnlyList<LiveBatchItem>> ListLiveBatchAsync(CancellationToken ct)
