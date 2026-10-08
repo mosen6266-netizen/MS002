@@ -20,6 +20,13 @@ public sealed record DispatchIdentity(string JobId,string RunToken,long RunCycle
     }
 }
 
+public sealed record SignalGroupCatalogItem(
+    string Account,
+    string GroupId,
+    string Name,
+    bool IsMember,
+    IReadOnlyList<string> Members);
+
 public sealed record SignalGuardianSnapshot(
     string State,
     string Detail,
