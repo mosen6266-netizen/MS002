@@ -136,9 +136,9 @@ public partial class RecoveryCenterWindow : Window
             ?"我已经在 Signal 群中核实这条消息确实已发出；不再重发，游标前进一步。"
             :"我已经在 Signal 群中核实这条消息没有发出；留在原位置，稍后可手动继续。";
         var confirmation=MessageBox.Show(this,
-            $"你正在人工裁定一条真实发送的未知结果。\\n\\n任务：{job.JobId}\\n"+
-            $"发送记录：{message.DispatchKey}\\n\\n结论：{description}\\n\\n"+
-            $"核对依据：{evidence}\\n\\n该操作会写入持久审计记录，不能撤回。确定吗？",
+            $"你正在人工裁定一条真实发送的未知结果。\n\n任务：{job.JobId}\n"+
+            $"发送记录：{message.DispatchKey}\n\n结论：{description}\n\n"+
+            $"核对依据：{evidence}\n\n该操作会写入持久审计记录，不能撤回。确定吗？",
             "再次确认发送核对结果",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(confirmation!=MessageBoxResult.Yes)return;
 
