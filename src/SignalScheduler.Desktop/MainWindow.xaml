@@ -38,7 +38,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="23" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-alpha.2" Margin="0,6,0,0" Foreground="#8FA7C2"/>
+     <TextBlock Text="V8.0.0-alpha.3" Margin="0,6,0,0" Foreground="#8FA7C2"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button Content="⌂  首页" HorizontalContentAlignment="Left" Background="#203A61"/>
@@ -76,7 +76,7 @@
      </StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
       <Button Content="刷新状态" Click="RefreshButton_Click"/>
-      <Button Content="+ 扫码登录" IsEnabled="False" Background="#138A4B"/>
+      <Button x:Name="ScanLoginButton" Content="+ 扫码登录" IsEnabled="False" Background="#138A4B" Click="ScanLoginButton_Click"/>
      </StackPanel>
     </Grid>
 
@@ -85,7 +85,7 @@
       <ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/>
      </Grid.ColumnDefinitions>
      <Border Grid.Column="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,10,0" Padding="18">
-      <StackPanel><TextBlock Text="后台引擎" Foreground="#8FA7C2"/><TextBlock x:Name="EngineStatusText" Text="连接中" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
+      <StackPanel><TextBlock Text="Signal 服务" Foreground="#8FA7C2"/><TextBlock x:Name="EngineStatusText" Text="连接中" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
      </Border>
      <Border Grid.Column="1" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="10" Margin="0,0,10,0" Padding="18">
       <StackPanel><TextBlock Text="账号" Foreground="#8FA7C2"/><TextBlock x:Name="AccountsCountText" Text="0" FontSize="23" FontWeight="Bold" Margin="0,8,0,0"/></StackPanel>
@@ -129,7 +129,7 @@
       <StackPanel>
        <TextBlock Text="当前阶段" FontSize="17" FontWeight="SemiBold"/>
        <TextBlock Text="V8 已经切换为原生 WPF + 独立后台 Engine，不依赖浏览器或 WebView2。" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#B9C9DB"/>
-       <TextBlock Text="Signal 实际发送仍保持关闭，等 Guardian、登录数据和发送链迁移完成后再开启。" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#F5C451"/>
+       <TextBlock Text="本版已经接入 Java 25、signal-cli、Guardian、扫码登录和账号/群同步；真实自动发送仍保持关闭，等发送事务迁移完成后再开启。" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#F5C451"/>
       </StackPanel>
      </Border>
     </Grid>

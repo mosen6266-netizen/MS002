@@ -5,6 +5,12 @@ public sealed class RuntimePaths
     public string DataRoot { get; }
     public string DatabasePath { get; }
     public string BackupRoot { get; }
+    public string LogRoot { get; }
+    public string AppRoot { get; }
+    public string RuntimeRoot { get; }
+    public string JavaExe { get; }
+    public string SignalCliBat { get; }
+    public string SignalCliLogPath { get; }
 
     public RuntimePaths()
     {
@@ -15,8 +21,18 @@ public sealed class RuntimePaths
             : overrideRoot;
         DatabasePath=Path.Combine(DataRoot,"data.db");
         BackupRoot=Path.Combine(DataRoot,"backups");
+        LogRoot=Path.Combine(DataRoot,"logs");
+
+        var engineRoot=AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);
+        AppRoot=Directory.GetParent(engineRoot)?.FullName??engineRoot;
+        RuntimeRoot=Path.Combine(AppRoot,"Runtime");
+        JavaExe=Path.Combine(RuntimeRoot,"jre","bin","java.exe");
+        SignalCliBat=Path.Combine(RuntimeRoot,"signal-cli","bin","signal-cli.bat");
+        SignalCliLogPath=Path.Combine(LogRoot,"signal_cli.log");
+
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(BackupRoot);
+        Directory.CreateDirectory(LogRoot);
     }
 
     RuntimePaths(string root,string db)
@@ -24,8 +40,15 @@ public sealed class RuntimePaths
         DataRoot=root;
         DatabasePath=db;
         BackupRoot=Path.Combine(root,"backups");
+        LogRoot=Path.Combine(root,"logs");
+        AppRoot=root;
+        RuntimeRoot=Path.Combine(root,"Runtime");
+        JavaExe=Path.Combine(RuntimeRoot,"jre","bin","java.exe");
+        SignalCliBat=Path.Combine(RuntimeRoot,"signal-cli","bin","signal-cli.bat");
+        SignalCliLogPath=Path.Combine(LogRoot,"signal_cli.log");
         Directory.CreateDirectory(DataRoot);
         Directory.CreateDirectory(BackupRoot);
+        Directory.CreateDirectory(LogRoot);
     }
 
     public static RuntimePaths ForTesting(string root,string databasePath)=>new(root,databasePath);
