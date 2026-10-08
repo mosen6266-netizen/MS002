@@ -89,12 +89,7 @@ public sealed class SignalCatalogSyncService : BackgroundService
 
     async Task<JsonElement> RpcAsync(string method,object parameters,CancellationToken ct)
     {
-        using var req=new HttpRequestMessage(HttpMethod.Post,RpcUrl)
-        {
-            Content=JsonContent.Create(new{jsonrpc="2.0",method,paramsValue=parameters,id=Guid.NewGuid().ToString("N")})
-        };
-
-        // JsonContent would serialize paramsValue literally. Build the envelope explicitly so the JSON-RPC key is "params".
+        // Build the envelope explicitly so the JSON-RPC key is exactly "params".
         var envelope=JsonSerializer.SerializeToElement(new Dictionary<string,object?>
         {
             ["jsonrpc"]="2.0",
@@ -102,7 +97,10 @@ public sealed class SignalCatalogSyncService : BackgroundService
             ["params"]=parameters,
             ["id"]=Guid.NewGuid().ToString("N")
         });
-        req.Content=JsonContent.Create(envelope);
+        using var req=new HttpRequestMessage(HttpMethod.Post,RpcUrl)
+        {
+            Content=JsonContent.Create(envelope)
+        };
 
         using var response=await _http.SendAsync(req,ct);
         response.EnsureSuccessStatusCode();
