@@ -236,8 +236,17 @@
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
          <TextBlock Text="{Binding AttachmentLabel}" Foreground="#B7D7EE"
-          ToolTip="{Binding Attachment}" TextTrimming="CharacterEllipsis"
-          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="6,0"/>
+          ToolTip="右键可预览、替换或移除附件" TextTrimming="CharacterEllipsis"
+          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="6,0">
+          <TextBlock.ContextMenu>
+           <ContextMenu>
+            <MenuItem Header="预览图片" Click="AttachmentPreview_Click" CommandParameter="{Binding}"/>
+            <MenuItem Header="替换图片" Click="AttachmentReplace_Click" CommandParameter="{Binding}"/>
+            <Separator/>
+            <MenuItem Header="移除图片" Click="AttachmentRemove_Click" CommandParameter="{Binding}"/>
+           </ContextMenu>
+          </TextBlock.ContextMenu>
+         </TextBlock>
         </DataTemplate>
        </DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
