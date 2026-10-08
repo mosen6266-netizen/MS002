@@ -69,6 +69,20 @@ public sealed record DashboardSnapshot(
     IReadOnlyList<DashboardScript> ScriptItems,
     IReadOnlyList<DashboardJob> JobItems);
 
+/// <summary>
+/// Read-only recovery audit contract. Legacy V7 jobs are included for context,
+/// but only native V8 jobs can be paused from the recovery center.
+/// </summary>
+public sealed record RecoveryJobItem(
+    string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview);
+public sealed record RecoveryDispatchItem(
+    string DispatchKey,string JobId,long Cursor,string GroupId,string AccountId,
+    string State,string? ProviderMessageId,string? Detail,long UpdatedAt);
+public sealed record RecoveryOverview(
+    IReadOnlyList<RecoveryJobItem> Jobs,IReadOnlyList<RecoveryDispatchItem> Dispatches);
+public sealed record PauseJobRequest(string JobId);
+public sealed record PauseJobResult(string JobId,string State,string Detail);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -89,4 +103,6 @@ public static class ControlCommands
     public const string CancelLink="cancel-link";
     public const string PrepareUpdate="prepare-update";
     public const string UpdateStatus="update-status";
+    public const string RecoveryOverview="recovery-overview";
+    public const string PauseJob="pause-job";
 }
