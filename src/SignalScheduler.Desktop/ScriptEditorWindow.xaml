@@ -21,9 +21,9 @@
  </UserControl.Resources>
  <Grid Margin="18">
   <Grid.ColumnDefinitions>
-   <ColumnDefinition Width="218"/>
-   <ColumnDefinition Width="14"/>
-   <ColumnDefinition Width="*"/>
+   <ColumnDefinition Width="235" MinWidth="180" MaxWidth="380"/>
+   <ColumnDefinition Width="8"/>
+   <ColumnDefinition Width="*" MinWidth="440"/>
   </Grid.ColumnDefinitions>
   <Border Background="#102438" BorderBrush="#31506B"
    BorderThickness="1" CornerRadius="10" Padding="12">
@@ -75,6 +75,9 @@
     </StackPanel>
    </Grid>
   </Border>
+  <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+   Width="8" Background="#203D56" ResizeBehavior="PreviousAndNext"
+   ShowsPreview="True" ToolTip="拖动调整剧本库和编辑区宽度"/>
   <Grid Grid.Column="2">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
@@ -137,7 +140,7 @@
       <Button Content="向下移动" Click="MoveDown_Click" Style="{StaticResource ActionButton}"/>
      </StackPanel>
     </DockPanel>
-    <DataGrid x:Name="StepsGrid" Grid.Row="2"
+    <DataGrid x:Name="StepsGrid" Grid.Row="2" MinHeight="120"
      AutoGenerateColumns="False" CanUserAddRows="False"
      IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
      ColumnHeaderStyle="{StaticResource DarkGridHeader}"
