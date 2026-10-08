@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -24,6 +25,96 @@ public partial class ScriptEditorWindow : UserControl
     bool _dirty;
     string? _savedSignature;
     ICollectionView? _scriptView;
+    readonly DispatcherTimer _draftTimer=new(){Interval=TimeSpan.FromSeconds(12)};
+    static readonly string DraftDirectory=Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SignalSchedulerData","script-drafts");
+    sealed record LocalDraft(string? ScriptId,int Revision,string Name,string Group,
+        ScriptEditorStep[] Steps,DateTimeOffset SavedAt);
+    string DraftPath(string? id)=>Path.Combine(DraftDirectory,
+        id is null?"new-script.json":"script-"+id.Replace("/","_")
+            .Replace("\\","_")+".json");
+
+    void SaveLocalDraft()
+    {
+        if(_loading || !_dirty || !IsLoaded)return;
+        try
+        {
+            if(_savedSignature is not null &&
+               ComputeDraftSignature()==_savedSignature)return;
+            // Local safety copy only; never writes to the actual scripts table.
+            var steps=_steps.Select((row,i)=>new ScriptEditorStep(
+                i,row.Account,row.Message,row.Attachment,row.PauseAfter,
+                row.ReminderText,int.TryParse(row.DelayText,out var delay)?delay:0,
+                int.TryParse(row.TypingText,out var typing)?typing:0)).ToArray();
+            Directory.CreateDirectory(DraftDirectory);
+            var target=DraftPath(_scriptId);
+            var temp=target+".tmp";
+            File.WriteAllText(temp,JsonSerializer.Serialize(
+                new LocalDraft(_scriptId,_revision,NameBox.Text,GroupBox.Text,
+                    steps,DateTimeOffset.UtcNow)));
+            File.Move(temp,target,true);
+        }
+        catch(IOException){ /* Local draft is optional; formal save stays available. */ }
+        catch(UnauthorizedAccessException){ }
+    }
+
+    void RecoverLocalDraftIfAvailable()
+    {
+        if(_loading)return;
+        try
+        {
+            var path=DraftPath(_scriptId);
+            if(!File.Exists(path))return;
+            var draft=JsonSerializer.Deserialize<LocalDraft>(File.ReadAllText(path));
+            if(draft is null || draft.ScriptId!=_scriptId ||
+               draft.Revision!=_revision)return;
+            var sig=JsonSerializer.Serialize(new{
+                Name=draft.Name,Group=draft.Group,Steps=draft.Steps.Select(x=>new{
+                    x.Account,x.Message,x.Attachment,x.PauseAfter,
+                    x.ReminderText,DelayText=x.DelayAfter.ToString(),
+                    TypingText=x.TypingSeconds.ToString()
+                }).ToArray()
+            });
+            if(sig==_savedSignature)
+            {
+                File.Delete(path);
+                return;
+            }
+            if(MessageBox.Show(Window.GetWindow(this),
+                $"找到 {draft.SavedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} 的本地草稿。\\n"+
+                "恢复后仍需手动点击保存剧本。是否恢复？",
+                "恢复未保存草稿",MessageBoxButton.YesNo,
+                MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            _loading=true;
+            NameBox.Text=draft.Name;
+            GroupBox.Text=draft.Group;
+            _steps.Clear();
+            foreach(var step in draft.Steps)
+                AppendRow(new ScriptStepRow(step),-1);
+            Reindex();
+            _dirty=true;
+            StatusText.Text="已恢复未保存草稿，请核对并点击保存剧本。";
+        }
+        catch(Exception ex) when(ex is IOException or JsonException or
+            UnauthorizedAccessException)
+        {
+            StatusText.Text="本地草稿不可恢复，可继续使用正式保存的数据。";
+        }
+        finally{_loading=false;}
+    }
+
+    void ClearLocalDraft()
+    {
+        try
+        {
+            var path=DraftPath(_scriptId);
+            if(File.Exists(path))File.Delete(path);
+        }
+        catch(IOException){ }
+        catch(UnauthorizedAccessException){ }
+    }
+
     void ScriptSearchBox_TextChanged(object sender,TextChangedEventArgs e)
     {
         if(_scriptView is null)return;
@@ -42,6 +133,9 @@ public partial class ScriptEditorWindow : UserControl
     {
         InitializeComponent();
         StepsGrid.ItemsSource=_steps;
+        _draftTimer.Tick+=(_,_)=>SaveLocalDraft();
+        Loaded+=(_,_)=>_draftTimer.Start();
+        Unloaded+=(_,_)=>{SaveLocalDraft();_draftTimer.Stop();};
         Loaded+=async(_,_)=>
         {
             if(_firstLoad)
@@ -173,6 +267,7 @@ public partial class ScriptEditorWindow : UserControl
         _savedSignature=ComputeDraftSignature();
         _dirty=false;
         _loading=false;
+        RecoverLocalDraftIfAvailable();
     }
 
     // A DataGrid CellEditEnding event can fire when only selecting/focusing
@@ -621,6 +716,7 @@ public partial class ScriptEditorWindow : UserControl
             var request=CollectDraft();
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptSave,16000,request);
             var doc=ReadData<ScriptEditorDocument>(raw);
+            ClearLocalDraft();
             LoadDocument(doc);
             StatusText.Text=$"保存成功：{doc.Name}，共 {doc.Steps.Count} 条消息。";
             await ReloadScriptsAsync(selectId:doc.ScriptId);
