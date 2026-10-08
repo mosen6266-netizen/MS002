@@ -29,15 +29,18 @@ public partial class ScriptEditorWindow : UserControl
     static readonly string DraftDirectory=Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "SignalSchedulerData","script-drafts");
+    // Optional raw text keeps incomplete numeric edits intact across recovery.
+    // The optional fields also allow reading drafts written by earlier builds.
     sealed record LocalDraft(string? ScriptId,int Revision,string Name,string Group,
-        ScriptEditorStep[] Steps,DateTimeOffset SavedAt);
+        ScriptEditorStep[] Steps,DateTimeOffset SavedAt,
+        string[]? DelayTexts=null,string[]? TypingTexts=null);
     string DraftPath(string? id)=>Path.Combine(DraftDirectory,
         id is null?"new-script.json":"script-"+id.Replace("/","_")
             .Replace("\\","_")+".json");
 
     void SaveLocalDraft()
     {
-        if(_loading || !_dirty || !IsLoaded)return;
+        if(_firstLoad || _loading || !_dirty)return;
         try
         {
             if(_savedSignature is not null &&
@@ -52,7 +55,9 @@ public partial class ScriptEditorWindow : UserControl
             var temp=target+".tmp";
             File.WriteAllText(temp,JsonSerializer.Serialize(
                 new LocalDraft(_scriptId,_revision,NameBox.Text,GroupBox.Text,
-                    steps,DateTimeOffset.UtcNow)));
+                    steps,DateTimeOffset.UtcNow,
+                    _steps.Select(x=>x.DelayText).ToArray(),
+                    _steps.Select(x=>x.TypingText).ToArray())));
             File.Move(temp,target,true);
         }
         catch(IOException){ /* Local draft is optional; formal save stays available. */ }
@@ -70,10 +75,13 @@ public partial class ScriptEditorWindow : UserControl
             if(draft is null || draft.ScriptId!=_scriptId ||
                draft.Revision!=_revision)return;
             var sig=JsonSerializer.Serialize(new{
-                Name=draft.Name,Group=draft.Group,Steps=draft.Steps.Select(x=>new{
+                Name=draft.Name,Group=draft.Group,Steps=draft.Steps.Select((x,i)=>new{
                     x.Account,x.Message,x.Attachment,x.PauseAfter,
-                    x.ReminderText,DelayText=x.DelayAfter.ToString(),
-                    TypingText=x.TypingSeconds.ToString()
+                    x.ReminderText,
+                    DelayText=i<(draft.DelayTexts?.Length??0)
+                        ?draft.DelayTexts![i]:x.DelayAfter.ToString(),
+                    TypingText=i<(draft.TypingTexts?.Length??0)
+                        ?draft.TypingTexts![i]:x.TypingSeconds.ToString()
                 }).ToArray()
             });
             if(sig==_savedSignature)
@@ -90,8 +98,15 @@ public partial class ScriptEditorWindow : UserControl
             NameBox.Text=draft.Name;
             GroupBox.Text=draft.Group;
             _steps.Clear();
-            foreach(var step in draft.Steps)
-                AppendRow(new ScriptStepRow(step),-1);
+            for(var i=0;i<draft.Steps.Length;i++)
+            {
+                var row=new ScriptStepRow(draft.Steps[i]);
+                if(i<(draft.DelayTexts?.Length??0))
+                    row.DelayText=draft.DelayTexts![i];
+                if(i<(draft.TypingTexts?.Length??0))
+                    row.TypingText=draft.TypingTexts![i];
+                AppendRow(row,-1);
+            }
             Reindex();
             _dirty=true;
             StatusText.Text="已恢复未保存草稿，请核对并点击保存剧本。";
@@ -307,10 +322,16 @@ public partial class ScriptEditorWindow : UserControl
             _dirty=false;
             return true;
         }
-        return MessageBox.Show(Window.GetWindow(this),
+        var discard=MessageBox.Show(Window.GetWindow(this),
             "当前剧本有尚未保存的修改。确定放弃这些修改吗？",
             "未保存的修改",MessageBoxButton.YesNo,MessageBoxImage.Warning)
             ==MessageBoxResult.Yes;
+        if(discard)
+        {
+            ClearLocalDraft();
+            _dirty=false;
+        }
+        return discard;
     }
 
     void BeginNew()
