@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 using SignalScheduler.Engine;
 using SignalScheduler.Engine.Migration;
 using SignalScheduler.Engine.Persistence;
+using SignalScheduler.Shared;
 
 namespace SignalScheduler.Migration.Tests;
 
@@ -51,7 +52,8 @@ public sealed class LegacyV7MigratorTests
         Assert.NotEmpty(Directory.GetFiles(Path.Combine(root,"backups"),"v8-pre-migration-*.db"));
 
         var store=new StateStore(paths.ToRuntimePaths());
-        var dashboard=await store.GetDashboardAsync(CancellationToken.None);
+        var signal=new SignalGuardianSnapshot("healthy","test","signal-cli test",true,0,DateTimeOffset.UtcNow,new[]{"+491234"});
+        var dashboard=await store.GetDashboardAsync(signal,CancellationToken.None);
         Assert.Equal(1,dashboard.Accounts);
         Assert.Equal(1,dashboard.EnabledAccounts);
         Assert.Equal(1,dashboard.Groups);
@@ -59,6 +61,8 @@ public sealed class LegacyV7MigratorTests
         Assert.Equal(1,dashboard.Jobs);
         Assert.Equal(1,dashboard.RecoveryJobs);
         Assert.Equal("客户A",dashboard.AccountItems.Single().Label);
+        Assert.Equal("healthy",dashboard.SignalState);
+        Assert.Equal(1,dashboard.LiveSignalAccounts);
     }
 
     static async Task<object?> Scalar(SqliteConnection c,string sql)
