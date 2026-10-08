@@ -29,6 +29,10 @@ public sealed record DashboardSnapshot(
     string Version,
     string EngineState,
     string TransportState,
+    string TransportDetail,
+    string SignalCliVersion,
+    bool RuntimeReady,
+    bool ExternalDaemon,
     bool LegacyDetected,
     bool MetadataMigrated,
     int Accounts,
@@ -50,4 +54,6 @@ public static class ControlCommands
     public const string Status="status";
     public const string Ping="ping";
     public const string Dashboard="dashboard";
+    public const string SignalStartLink="signal.startLink";
+    public const string SignalLinkStatus="signal.linkStatus";
 }
