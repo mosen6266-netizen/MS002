@@ -74,10 +74,33 @@ public sealed record DashboardSnapshot(
 /// but only native V8 jobs can be paused from the recovery center.
 /// </summary>
 public sealed record RecoveryJobItem(
-    string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview);
+    string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview)
+{
+    public string StateDisplay=>State switch
+    {
+        "Running"=>"运行中","Paused"=>"已暂停","Completed"=>"已完成",
+        "Stopped"=>"已停止","Failed"=>"发送失败","RecoveryRequired"=>"需要核对",
+        "Sending"=>"正在发送","WaitingSignal"=>"等待 Signal","Stopping"=>"停止中",
+        "Pending"=>"等待执行",_=>State
+    };
+}
 public sealed record RecoveryDispatchItem(
     string DispatchKey,string JobId,long Cursor,string GroupId,string AccountId,
-    string State,string? ProviderMessageId,string? Detail,long UpdatedAt);
+    string State,string? ProviderMessageId,string? Detail,long UpdatedAt,
+    string? GroupName=null,string? AccountLabel=null)
+{
+    public string StateDisplay=>State switch
+    {
+        "Reserved"=>"等待发送","Sending"=>"正在发送",
+        "Confirmed"=>"发送成功","Completed"=>"已完成",
+        "DefinitelyNotSent"=>"未发送","RecoveryRequired"=>"需要核对",
+        "ManuallyConfirmed"=>"人工确认已发送",
+        "Failed"=>"发送失败","Ambiguous"=>"结果待核对",
+        _=>State
+    };
+    public string GroupDisplay=>string.IsNullOrWhiteSpace(GroupName)?"未找到群名":GroupName;
+    public string AccountDisplay=>string.IsNullOrWhiteSpace(AccountLabel)?"未备注账号":AccountLabel;
+}
 public sealed record RecoveryOverview(
     IReadOnlyList<RecoveryJobItem> Jobs,IReadOnlyList<RecoveryDispatchItem> Dispatches);
 public sealed record PauseJobRequest(string JobId);
