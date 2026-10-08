@@ -3,7 +3,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Persistence;
 
-public sealed class StateStore
+public sealed partial class StateStore
 {
     readonly RuntimePaths _paths;
     public StateStore(RuntimePaths paths)=>_paths=paths;
