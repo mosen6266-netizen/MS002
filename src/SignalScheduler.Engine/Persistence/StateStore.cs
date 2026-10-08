@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using SignalScheduler.Engine.Signal;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Persistence;
@@ -40,10 +42,81 @@ public sealed class StateStore
         CREATE TABLE IF NOT EXISTS v8_event_log(
           id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT,dispatch_key TEXT,event_type TEXT NOT NULL,detail TEXT,created_at INTEGER NOT NULL
         );
-        INSERT INTO v8_schema(key,value) VALUES('schema_version','1')
+        CREATE TABLE IF NOT EXISTS v8_signal_accounts(
+          account TEXT PRIMARY KEY,number TEXT,aci TEXT,last_seen INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS v8_signal_groups(
+          account TEXT NOT NULL,group_id TEXT NOT NULL,name TEXT NOT NULL,is_member INTEGER NOT NULL,is_blocked INTEGER NOT NULL,
+          members_json TEXT NOT NULL,last_seen INTEGER NOT NULL,
+          PRIMARY KEY(account,group_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_v8_signal_groups_name ON v8_signal_groups(name);
+        INSERT INTO v8_schema(key,value) VALUES('schema_version','2')
           ON CONFLICT(key) DO UPDATE SET value=excluded.value;
         """;
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+    public async Task ReplaceSignalAccountsAsync(IReadOnlyList<SignalAccountInfo> accounts,CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await using(var clear=c.CreateCommand())
+        {
+            clear.Transaction=tx;
+            clear.CommandText="DELETE FROM v8_signal_accounts";
+            await clear.ExecuteNonQueryAsync(ct);
+        }
+
+        foreach(var a in accounts)
+        {
+            await using var cmd=c.CreateCommand(); cmd.Transaction=tx;
+            cmd.CommandText="""
+                INSERT INTO v8_signal_accounts(account,number,aci,last_seen)
+                VALUES($a,$n,$c,$t);
+                """;
+            cmd.Parameters.AddWithValue("$a",a.Account);
+            cmd.Parameters.AddWithValue("$n",(object?)a.Number??DBNull.Value);
+            cmd.Parameters.AddWithValue("$c",(object?)a.Aci??DBNull.Value);
+            cmd.Parameters.AddWithValue("$t",now);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        tx.Commit();
+    }
+
+    public async Task ReplaceSignalGroupsAsync(string account,IReadOnlyList<SignalGroupInfo> groups,CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await using(var clear=c.CreateCommand())
+        {
+            clear.Transaction=tx;
+            clear.CommandText="DELETE FROM v8_signal_groups WHERE account=$a";
+            clear.Parameters.AddWithValue("$a",account);
+            await clear.ExecuteNonQueryAsync(ct);
+        }
+
+        foreach(var g in groups)
+        {
+            await using var cmd=c.CreateCommand(); cmd.Transaction=tx;
+            cmd.CommandText="""
+                INSERT INTO v8_signal_groups(account,group_id,name,is_member,is_blocked,members_json,last_seen)
+                VALUES($a,$g,$n,$m,$b,$j,$t);
+                """;
+            cmd.Parameters.AddWithValue("$a",g.Account);
+            cmd.Parameters.AddWithValue("$g",g.GroupId);
+            cmd.Parameters.AddWithValue("$n",g.Name);
+            cmd.Parameters.AddWithValue("$m",g.IsMember?1:0);
+            cmd.Parameters.AddWithValue("$b",g.IsBlocked?1:0);
+            cmd.Parameters.AddWithValue("$j",g.MembersJson);
+            cmd.Parameters.AddWithValue("$t",now);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+        tx.Commit();
     }
 
     public async Task ReserveAsync(DispatchIdentity d,CancellationToken ct)
@@ -127,7 +200,7 @@ public sealed class StateStore
         tx.Commit();
     }
 
-    public async Task<DashboardSnapshot> GetDashboardAsync(CancellationToken ct)
+    public async Task<DashboardSnapshot> GetDashboardAsync(SignalHealthSnapshot signal,CancellationToken ct)
     {
         await using var c=Open();
 
@@ -153,7 +226,32 @@ public sealed class StateStore
             metadataMigrated=string.Equals(Convert.ToString(await cmd.ExecuteScalarAsync(ct)),"complete-v1",StringComparison.Ordinal);
         }
 
-        if(await TableExists("v8_accounts"))
+        if(signal.Accounts.Count>0 && await TableExists("v8_signal_accounts"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT s.rowid,s.account,COALESCE(NULLIF(a.label,''),s.account),COALESCE(a.enabled,1)
+                FROM v8_signal_accounts s
+                LEFT JOIN v8_accounts a ON a.account=s.account
+                ORDER BY COALESCE(a.sort_order,999999),s.account
+                LIMIT 200;
+                """;
+            try
+            {
+                await using var r=await cmd.ExecuteReaderAsync(ct);
+                while(await r.ReadAsync(ct))
+                    accounts.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3)!=0));
+            }
+            catch(SqliteException)
+            {
+                await using var fallback=c.CreateCommand();
+                fallback.CommandText="SELECT rowid,account,account,1 FROM v8_signal_accounts ORDER BY account LIMIT 200";
+                await using var r=await fallback.ExecuteReaderAsync(ct);
+                while(await r.ReadAsync(ct))
+                    accounts.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),true));
+            }
+        }
+        else if(await TableExists("v8_accounts"))
         {
             await using var cmd=c.CreateCommand();
             cmd.CommandText="SELECT legacy_id,account,label,enabled FROM v8_accounts ORDER BY sort_order,legacy_id LIMIT 200";
@@ -162,7 +260,20 @@ public sealed class StateStore
                 accounts.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetInt64(3)!=0));
         }
 
-        if(await TableExists("v8_groups"))
+        if(signal.Accounts.Count>0 && await TableExists("v8_signal_groups"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT rowid,account,group_id,name,(is_member=1 AND is_blocked=0)
+                FROM v8_signal_groups
+                ORDER BY name,account
+                LIMIT 500;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                groups.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4)!=0));
+        }
+        else if(await TableExists("v8_groups"))
         {
             await using var cmd=c.CreateCommand();
             cmd.CommandText="SELECT legacy_id,account,group_id,name,enabled FROM v8_groups ORDER BY name,legacy_id LIMIT 500";
@@ -202,13 +313,17 @@ public sealed class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.2",
+            "8.0.0-alpha.3",
             "running",
-            "disabled-foundation-stage",
+            signal.State.ToString().ToLowerInvariant(),
+            signal.Detail,
+            signal.Version,
+            signal.RuntimeReady,
+            signal.ExternalDaemon,
             legacyDetected,
             metadataMigrated,
             accounts.Count,
-            accounts.Count(x=>x.Enabled),
+            signal.State==SignalHealthState.Healthy?accounts.Count(x=>x.Enabled):0,
             groups.Count,
             scripts.Count,
             jobs.Count,
@@ -218,5 +333,4 @@ public sealed class StateStore
             scripts,
             jobs);
     }
-
 }
