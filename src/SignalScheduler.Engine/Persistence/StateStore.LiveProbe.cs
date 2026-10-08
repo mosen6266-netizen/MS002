@@ -20,6 +20,7 @@ public sealed partial class StateStore
             throw new ArgumentException(
                 "必须选择本人可用的账号、已勾选的测试群，并明确确认实际发送。");
 
+        await InitializeLivePilotAsync(ct);
         var now=DateTimeOffset.UtcNow;
         await using var c=Open();
         using var tx=c.BeginTransaction();
@@ -44,7 +45,12 @@ public sealed partial class StateStore
             other.Transaction=tx;
             other.CommandText="""
                 SELECT 1 FROM v8_jobs j JOIN v8_live_probe_jobs p
-                  ON j.job_id=p.job_id WHERE j.state='Running' LIMIT 1;
+                  ON j.job_id=p.job_id WHERE j.state='Running'
+                UNION ALL
+                SELECT 1 FROM v8_jobs j JOIN v8_live_pilot_plans p
+                  ON j.job_id=p.job_id
+                WHERE j.state IN ('Running','Paused','RecoveryRequired')
+                LIMIT 1;
                 """;
             if(await other.ExecuteScalarAsync(ct) is not null)
                 throw new InvalidOperationException(
@@ -55,8 +61,10 @@ public sealed partial class StateStore
         {
             rate.Transaction=tx;
             rate.CommandText="""
-                SELECT 1 FROM v8_live_probe_jobs
-                WHERE created_at>=$last LIMIT 1;
+                SELECT 1 FROM (
+                    SELECT created_at FROM v8_live_probe_jobs
+                    UNION ALL SELECT created_at FROM v8_live_pilot_plans
+                ) WHERE created_at>=$last LIMIT 1;
                 """;
             rate.Parameters.AddWithValue("$last",now.ToUnixTimeSeconds()-90);
             if(await rate.ExecuteScalarAsync(ct) is not null)

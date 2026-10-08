@@ -138,6 +138,17 @@ public sealed record LiveProbeResult(
     string JobId,string GroupName,string Account,string State,
     string Detail,string? ProviderMessageId);
 
+/// <summary>
+/// Supervised pilot: at most 3 real messages from one account to one
+/// explicit test group, with per-step spacing and immediate recovery stop.
+/// </summary>
+public sealed record LivePilotPlanRequest(
+    string ScriptId,string Account,string GroupId,bool ConfirmRealSend);
+public sealed record LivePilotControlRequest(string JobId,string Action);
+public sealed record LivePilotItem(
+    string JobId,string ScriptName,string GroupName,string Account,
+    string State,long Cursor,int TotalSteps,long NextDueMs,string Detail);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -175,4 +186,7 @@ public static class ControlCommands
     public const string LicenseActivate="license-activate";
     public const string LicenseCheck="license-check";
     public const string LiveProbeSend="live-probe-send";
+    public const string LivePilotPlan="live-pilot-plan";
+    public const string LivePilotList="live-pilot-list";
+    public const string LivePilotControl="live-pilot-control";
 }

@@ -73,7 +73,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.12",
+                            version="8.0.0-alpha.13",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -100,6 +100,44 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.LivePilotList:
+                        response=new ControlResponse(true,
+                            Data:await _store.ListLivePilotsAsync(ct));
+                        break;
+                    case ControlCommands.LivePilotPlan:
+                        try
+                        {
+                            var plan=ParsePayload<LivePilotPlanRequest>(request.Payload);
+                            if(plan is null || !plan.ConfirmRealSend)
+                                throw new ArgumentException("没有确认真实自动测试。");
+                            var permit=await _license.CheckAsync(ct);
+                            if(permit.State!="active" || !permit.ServerReachable ||
+                               permit.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                                throw new InvalidOperationException("没有有效在线授权，请先完成卡密检查。");
+                            if(_guardian.Snapshot.State!="healthy")
+                                throw new InvalidOperationException("Signal 服务暂不可用，未启动自动实发。");
+                            response=new ControlResponse(true,
+                                Data:await _store.PlanLivePilotAsync(plan,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException
+                            or KeyNotFoundException or IOException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.LivePilotControl:
+                        try
+                        {
+                            var action=ParsePayload<LivePilotControlRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ControlLivePilotAsync(action,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException
+                            or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
                         break;
                     case ControlCommands.LiveProbeSend:
                         try

@@ -799,9 +799,9 @@ public sealed partial class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.12",
+            "8.0.0-alpha.13",
             "running",
-            "limited-live-probe-alpha12",
+            "supervised-live-pilot-alpha13",
             signal.State,
             signal.Detail,
             signal.SignalCliVersion,

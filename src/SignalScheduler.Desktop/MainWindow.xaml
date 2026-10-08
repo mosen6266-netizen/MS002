@@ -38,7 +38,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="23" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-alpha.12" Margin="0,6,0,0" Foreground="#8FA7C2"/>
+     <TextBlock Text="V8.0.0-alpha.13" Margin="0,6,0,0" Foreground="#8FA7C2"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button Content="⌂  首页" HorizontalContentAlignment="Left" Background="#203A61"/>
@@ -47,6 +47,7 @@
      <Button Content="▦  群组" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="AccountGroup_Click"/>
      <Button Content="▶  运行任务" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="PreviewTasks_Click"/>
      <Button Content="◉  实发测试" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="LiveProbe_Click"/>
+     <Button Content="▷  自动实发试点" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="LivePilot_Click"/>
      <Button Content="◷  恢复记录" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="RecoveryCenter_Click"/>
      <Button Content="⚙  授权设置" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="License_Click"/>
     </StackPanel>
