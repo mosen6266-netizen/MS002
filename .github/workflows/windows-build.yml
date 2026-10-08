@@ -39,8 +39,8 @@ jobs:
           $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V8*.exe | Select-Object -First 1
           if (-not $setup) { throw "Installer not found" }
           $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV8-CI-Smoke"
-          & $setup.FullName /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/DIR=$testRoot" "/TASKS=desktopicon"
-          if ($LASTEXITCODE -ne 0) { throw "Installer exited with $LASTEXITCODE" }
+          $install = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
           Start-Sleep -Seconds 2
           if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
