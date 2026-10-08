@@ -169,6 +169,34 @@ public sealed class DurableDispatchSafetyTests
         Assert.Equal("Paused",await ValueAsync(db,"SELECT state FROM v8_jobs"));
     }
 
+    [Fact]
+    public async Task CleanInstall_ShowsLiveAccountsAndGroups_PartialSyncKeepsOtherMemberships()
+    {
+        var (store,db)=await NewStoreAsync();
+        var accounts=new[]{"+49111","+49222"};
+        var initial=new[]{
+            new SignalGroupCatalogItem(accounts[0],"group-live","Signal Alpha",true,Array.Empty<string>()),
+            new SignalGroupCatalogItem(accounts[1],"group-live","Signal Alpha",true,Array.Empty<string>())
+        };
+        await store.SyncSignalCatalogAsync(accounts,initial,accounts,NoCancel);
+
+        var guardian=new SignalGuardianSnapshot("healthy","ok","signal-cli test",
+            true,0,DateTimeOffset.UtcNow,accounts);
+        var dashboard=await store.GetDashboardAsync(guardian,NoCancel);
+        Assert.Equal(2,dashboard.Accounts);
+        Assert.Equal(1,dashboard.Groups);
+        Assert.Equal(2,dashboard.GroupItems.Count);
+
+        // Only account[0] returned a complete group list. Mark its old
+        // membership inactive, but keep account[1]'s last good catalog.
+        await store.SyncSignalCatalogAsync(
+            accounts,Array.Empty<SignalGroupCatalogItem>(),new[]{accounts[0]},NoCancel);
+        Assert.Equal("0",await ValueAsync(db,
+            "SELECT is_member FROM v8_signal_groups WHERE account='+49111'"));
+        Assert.Equal("1",await ValueAsync(db,
+            "SELECT is_member FROM v8_signal_groups WHERE account='+49222'"));
+    }
+
     static DispatchIdentity Identity()=>
         new("job-1","run-1",0,0,"group-1","+49123456789","hash-1");
 
