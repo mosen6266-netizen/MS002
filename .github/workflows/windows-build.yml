@@ -163,7 +163,7 @@ jobs:
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
 
-          $installedJava = Join-Path $testRoot "Runtime\jre\bin\java.exe"
+          $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
           $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
           & $installedJava -classpath $installedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
