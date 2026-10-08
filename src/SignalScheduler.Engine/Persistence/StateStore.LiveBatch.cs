@@ -191,24 +191,20 @@ public sealed partial class StateStore
                         $"群「{groupName}」已有尚未结束的剧本任务，请先处理旧任务。");
             }
 
-            // Ordinary group notices use one clearly designated sender
-            // within each group. Do not orchestrate synthetic dialogues by
-            // rotating unrelated identities between script entries.
-            var specified=sendable
-                .Select(x=>x.Account)
-                .Where(x=>!string.IsNullOrWhiteSpace(x))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-            if(specified.Length>1)
-                throw new ArgumentException(
-                    "一个群组的通知任务必须使用同一个发送账号。请为剧本统一账号，或留空由系统选择。");
-            var sender=specified.Length==1?specified[0]:eligible[0];
-            if(!eligible.Contains(sender,StringComparer.Ordinal))
-                throw new ArgumentException(
-                    $"群「{groupName}」指定的发送账号不可用或不是已启用的成员。");
-            var steps=sendable
-                .Select((step,index)=>step with {Account=sender,Position=index})
-                .ToArray();
+            // Preserve explicit per-step sender assignments in the immutable
+            // task plan. A blank sender uses the first eligible group member;
+            // it never silently substitutes for an explicitly named sender.
+            var fallbackSender=eligible[0];
+            var steps=sendable.Select((step,index)=>
+            {
+                var sender=string.IsNullOrWhiteSpace(step.Account)
+                    ?fallbackSender:step.Account.Trim();
+                if(!eligible.Contains(sender,StringComparer.Ordinal))
+                    throw new ArgumentException(
+                        $"群「{groupName}」剧本第 {step.Position+1} 条指定账号「{sender}」"+
+                        "不在线、未启用或未加入该群，已取消本次启动。");
+                return step with {Account=sender,Position=index};
+            }).ToArray();
 
             var id=Guid.NewGuid().ToString("N");
             var token=Guid.NewGuid().ToString("N");
