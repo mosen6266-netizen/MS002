@@ -38,6 +38,24 @@ public partial class LiveBatchWindow : UserControl
         finally{_loadingReadOptions=false;}
     }
 
+    async void CheckReadHealth_Click(object sender,RoutedEventArgs e)
+    {
+        try
+        {
+            ReadHealthLabel.Text="正在检查…";
+            var raw=await MainWindow.SendAsync(ControlCommands.ReadHealth,10000);
+            var health=Unwrap<ReadHealthSnapshot>(raw);
+            var last=health.LastEventMs>0
+                ?DateTimeOffset.FromUnixTimeMilliseconds(health.LastEventMs)
+                    .ToLocalTime().ToString("MM-dd HH:mm:ss")
+                :"没有捕获到群消息";
+            ReadHealthLabel.Text=$"监听：{health.StreamState} · 最近消息：{last} · "+
+                $"待处理：{health.Pending} · 已请求：{health.Attempted}"+
+                (string.IsNullOrWhiteSpace(health.LastError)?"":$" · 故障：{health.LastError}");
+        }
+        catch(Exception ex){ReadHealthLabel.Text="已读状态检查失败："+ex.Message;}
+    }
+
     void ReadOptionsChanged(object sender,RoutedEventArgs e)
     {
         if(_loadingReadOptions || ReadReceiptToggle is null ||
