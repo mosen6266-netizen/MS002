@@ -1,6 +1,6 @@
 #define MyAppName "Signal Auto Scheduler"
 #ifndef MyAppVersion
- #define MyAppVersion "8.0.0-beta.2"
+ #define MyAppVersion "8.0.0-beta.3"
 #endif
 #ifndef PublishRoot
  #define PublishRoot "..\artifacts\publish"
@@ -14,12 +14,13 @@ AppId={{E7AF7F8E-10B1-4F56-9D6E-35F7E7BB8002}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher=MS002
+SetupIconFile=..\assets\signal-brand.ico
 DefaultDirName={localappdata}\Programs\Signal Auto Scheduler
 DefaultGroupName=Signal Auto Scheduler
 DisableDirPage=no
 DisableProgramGroupPage=no
 OutputDir={#OutputRoot}
-OutputBaseFilename=SignalScheduler_Setup_V8.0.0-beta.2
+OutputBaseFilename=SignalScheduler_Setup_V8.0.0-beta.3
 Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -43,6 +44,7 @@ Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："
 
 [Files]
+Source: "..\assets\signal-brand.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#PublishRoot}\Desktop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PublishRoot}\Engine\*"; DestDir: "{app}\Engine"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PublishRoot}\Runtime\*"; DestDir: "{app}\Runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -50,7 +52,7 @@ Source: "update-protocol-v1.marker"; DestDir: "{app}"; Flags: ignoreversion
 Source: "third_party\ChineseSimplified-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 
 [Icons]
-Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; IconFilename: "{app}\signal-brand.ico"; Tasks: desktopicon; IconFilename: "{app}\signal-brand.ico"
 Name: "{group}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; Flags: createonlyiffileexists
 
