@@ -57,6 +57,7 @@ public partial class LiveBatchWindow : UserControl
         }
     }
 
+    public bool IsScriptDropDownOpen=>ScriptBox?.IsDropDownOpen==true;
     const int GroupsPerPage=10;
     int _groupPage;
     ICollectionView? _groupsView;
