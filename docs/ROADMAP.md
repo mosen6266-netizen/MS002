@@ -39,7 +39,8 @@
 - [x] Live account catalog sync preserving migrated remarks
 - [x] Live group catalog sync
 - [x] QR link flow
-- [ ] Durable send transport (Signal sending remains disabled)
+- [x] Confirmed single-message live Signal RPC transport, gated by explicit test consent
+- [ ] Validated full-script live runner with supervised recovery
 
 ## Stage 4 — feature parity
 - [x] Native account manager: custom remarks, enabled/disabled, persisted across relinks
@@ -49,18 +50,20 @@
 - [x] Group selection by name and unique ID, saved across restart
 - [ ] Typing/read logic
 - [x] Multi-group rehearsal scheduler (SQLite-backed preview only, no actual Signal sends)
-- [ ] Live Signal multi-group runner with durable send transport
+- [ ] Live Signal multi-group runner with durable send transport (one-shot probe is not a script runner)
 - [x] Read-only recovery center, audit evidence copy, persistent manual pause
 - [x] Manual pause/resume/stop for preview tasks (state persisted, blocked on ambiguous dispatch)
 - [ ] Human adjudication and safe resume for real-send jobs (remains disabled)
 - [x] Native critical alerts for engine/Signal/recovery status
-- [ ] Existing Cloudflare licensing
+- [x] Existing Cloudflare card activation/check and signed temporary lease
+- [ ] Complete V7 device ID migration and license enforcement in full runner
 
 ## Stage 5 — production hardening
 - [ ] Transactional updater/rollback
 - [ ] Fault-injection tests
 - [ ] crash/restart tests
-- [ ] network/signal-cli failure tests
+- [x] Mocked send RPC ack/error/invalid-response tests
+- [ ] Live network and signal-cli outage and restart tests
 - [x] 20-group rehearsal cursor independence test
 - [ ] Real Signal 20-group concurrency tests
 - [ ] sleep/wake tests
