@@ -1,0 +1,94 @@
+name: Publish Verified Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      successful_run_id:
+        description: "已成功的 main 分支 Windows V8 Build 运行编号"
+        required: true
+        type: string
+      version_tag:
+        description: "发布标签（例如 v8.0.0-alpha.8）"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    name: 校验构建并发布测试安装包
+    runs-on: ubuntu-latest
+    steps:
+      - name: 校验来源和构建状态
+        id: verify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.successful_run_id }}
+          VERSION_TAG: ${{ inputs.version_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::构建编号无效"; exit 1; }
+          [[ "$VERSION_TAG" =~ ^v8\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]] || {
+            echo "::error::版本标签必须使用 v8.0.0-alpha.8 等格式"; exit 1;
+          }
+          result="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            --jq '[.conclusion,.head_branch,.name,.head_sha] | join("|")')"
+          IFS='|' read -r conclusion branch workflow sha <<< "$result"
+          if [[ "$conclusion" != "success" || "$branch" != "main" || \
+                "$workflow" != "Windows V8 Build" ]]; then
+            echo "::error::只能发布 main 分支完整通过 Windows V8 Build 的安装包"
+            exit 1
+          fi
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 获取已测试的离线安装器
+        uses: actions/download-artifact@v4
+        with:
+          name: SignalScheduler-V8-Windows
+          path: release-files
+          run-id: ${{ steps.verify.outputs.run_id }}
+          github-token: ${{ github.token }}
+
+      - name: 校验版本文件和哈希清单
+        shell: bash
+        env:
+          VERSION_TAG: ${{ steps.verify.outputs.version }}
+        run: |
+          set -euo pipefail
+          version_no_v="$(echo "$VERSION_TAG" | sed 's/^v//')"
+          installer="release-files/SignalScheduler_Setup_V$version_no_v.exe"
+          test -s "$installer" || { echo "::error::版本不匹配或安装器缺失"; exit 1; }
+          test -s release-files/SHA256.txt || {
+            echo "::error::安装包哈希清单缺失"; exit 1;
+          }
+          echo "将发布：$(basename "$installer")"
+          sha256sum "$installer" | tee release-files/INSTALLER_SHA256.txt
+
+      - name: 发布到 GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION_TAG: ${{ steps.verify.outputs.version }}
+          SOURCE_SHA: ${{ steps.verify.outputs.head_sha }}
+          SOURCE_RUN: ${{ steps.verify.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::该版本已发布。为防止替换验证通过的文件，不允许静默覆盖。"
+            exit 1
+          fi
+          version_no_v="$(echo "$VERSION_TAG" | sed 's/^v//')"
+          gh release create "$VERSION_TAG" \
+            "release-files/SignalScheduler_Setup_V$version_no_v.exe" \
+            release-files/SHA256.txt \
+            release-files/INSTALLER_SHA256.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$SOURCE_SHA" \
+            --title "Signal Auto Scheduler $version_no_v（测试版）" \
+            --notes "Windows 10/11 x64 中文离线安装包。来源：已成功的 Windows CI 运行 #$SOURCE_RUN。请注意本版本是测试版，尚未开放真实 Signal 自动发送。若有旧版正在运行的任务，请先按照程序提示安全停止后升级。" \
+            --prerelease
