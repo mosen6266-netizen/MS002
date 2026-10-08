@@ -13,6 +13,7 @@ public partial class LiveBatchWindow : UserControl
 {
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
+    readonly ObservableCollection<AccountHealthChip> _accounts=new();
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
     readonly HashSet<string> _alerted=new(StringComparer.Ordinal);
     bool _busy;
@@ -23,6 +24,7 @@ public partial class LiveBatchWindow : UserControl
         InitializeComponent();
         GroupsGrid.ItemsSource=_groups;
         JobsGrid.ItemsSource=_jobs;
+        AccountCards.ItemsSource=_accounts;
         Loaded+=async(_,_)=>{
             await LoadCatalogAsync();
             await LoadJobsAsync();
@@ -56,6 +58,28 @@ public partial class LiveBatchWindow : UserControl
                 MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,8000));
             var scripts=Unwrap<List<ScriptEditorSummary>>(results[0]);
             var overview=Unwrap<AccountGroupOverview>(results[1]);
+            _accounts.Clear();
+            var healthy=0;
+            foreach(var account in overview.Accounts
+                .OrderBy(x=>x.Online && x.Enabled)
+                .ThenBy(x=>x.Label,StringComparer.CurrentCulture))
+            {
+                var available=account.Enabled && account.Online;
+                if(available)healthy++;
+                var note=!string.IsNullOrWhiteSpace(account.Label) &&
+                         account.Label!=account.Account
+                    ?account.Label
+                    :"账号 · "+account.Account[^Math.Min(4,account.Account.Length)..];
+                var state=!account.Enabled?"已停用":account.Online?"在线 · 正常":"离线 · 需要检查";
+                _accounts.Add(new AccountHealthChip(note,state,
+                    available?"#72E3B2":"#FFBA80",
+                    note+" | "+state+" | "+account.Account));
+            }
+            AccountsSummary.Text=$"{healthy}/{overview.Accounts.Count} 个可用"+
+                (healthy==overview.Accounts.Count?" · 全部正常":" · 有账号需要处理");
+            AccountsSummary.Foreground=healthy==overview.Accounts.Count
+                ?System.Windows.Media.Brushes.LightGreen
+                :System.Windows.Media.Brushes.Gold;
             ScriptBox.ItemsSource=scripts;
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();
@@ -141,11 +165,7 @@ public partial class LiveBatchWindow : UserControl
         StartButton.IsEnabled=!_busy && ConsentBox.IsChecked==true &&
             ScriptBox.SelectedItem is ScriptEditorSummary &&
             _groups.Any(x=>x.Selected);
-        var selected=JobsGrid.SelectedItem as BatchJobRow;
-        PauseButton.IsEnabled=!_busy&&selected?.State=="Running";
-        ResumeButton.IsEnabled=!_busy&&selected?.State=="Paused" &&
-            selected.Cursor<selected.TotalSteps;
-        StopButton.IsEnabled=!_busy&&(selected?.State is "Running" or "Paused");
+
     }
 
     async void Start_Click(object sender,RoutedEventArgs e)
@@ -188,9 +208,9 @@ public partial class LiveBatchWindow : UserControl
         }
     }
 
-    async Task ControlAsync(string action)
+    async Task ControlAsync(string action,BatchJobRow? selected)
     {
-        if(_busy || JobsGrid.SelectedItem is not BatchJobRow selected)return;
+        if(_busy || selected is null)return;
         if(action is "resume" or "stop")
         {
             var msg=action=="resume"
@@ -213,9 +233,21 @@ public partial class LiveBatchWindow : UserControl
         finally{_busy=false;UpdateButtons();}
     }
 
-    async void Pause_Click(object sender,RoutedEventArgs e)=>await ControlAsync("pause");
-    async void Resume_Click(object sender,RoutedEventArgs e)=>await ControlAsync("resume");
-    async void Stop_Click(object sender,RoutedEventArgs e)=>await ControlAsync("stop");
+    async void JobPause_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button {Tag:BatchJobRow row})
+            await ControlAsync("pause",row);
+    }
+    async void JobResume_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button {Tag:BatchJobRow row})
+            await ControlAsync("resume",row);
+    }
+    async void JobStop_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button {Tag:BatchJobRow row})
+            await ControlAsync("stop",row);
+    }
 }
 
 public sealed class BatchJobRow
@@ -243,7 +275,23 @@ public sealed class BatchJobRow
     public string Detail {get;}
     public string NextSend {get;}
     public string Progress=>$"{Cursor}/{TotalSteps}";
+    public string StateDisplay=>State switch
+    {
+        "Running"=>"运行中",
+        "Paused"=>"已暂停",
+        "Completed"=>"已完成",
+        "RecoveryRequired"=>"需核对",
+        "Stopped"=>"已停止",
+        "Failed"=>"异常",
+        _=>State
+    };
+    public bool CanPause=>State=="Running";
+    public bool CanResume=>State=="Paused" && Cursor<TotalSteps;
+    public bool CanStop=>State is "Running" or "Paused";
 }
+
+public sealed record AccountHealthChip(
+    string Label,string Status,string Color,string Detail);
 
 public sealed class BatchGroupRow : INotifyPropertyChanged
 {
