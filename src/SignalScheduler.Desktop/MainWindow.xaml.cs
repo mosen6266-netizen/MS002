@@ -63,6 +63,12 @@ public partial class MainWindow : Window
         window.Show();
     }
 
+    void ScriptEditor_Click(object sender,RoutedEventArgs e)
+    {
+        var editor=new ScriptEditorWindow{Owner=this};
+        editor.Show();
+    }
+
     async void LinkAccount_Click(object sender,RoutedEventArgs e)
     {
         var dialog=new LinkAccountWindow{Owner=this};

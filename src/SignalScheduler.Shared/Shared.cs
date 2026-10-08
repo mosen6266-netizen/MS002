@@ -83,6 +83,19 @@ public sealed record RecoveryOverview(
 public sealed record PauseJobRequest(string JobId);
 public sealed record PauseJobResult(string JobId,string State,string Detail);
 
+public sealed record ScriptEditorSummary(
+    string ScriptId,string Name,int Revision,int StepCount,bool ImportedFromV7);
+public sealed record ScriptEditorStep(
+    int Position,string Account,string Message,string Attachment,
+    bool PauseAfter,string ReminderText,int DelayAfter,int TypingSeconds);
+public sealed record ScriptEditorDocument(
+    string ScriptId,string Name,string TargetGroupId,int Revision,
+    IReadOnlyList<ScriptEditorStep> Steps,bool ImportedFromV7);
+public sealed record ScriptSaveRequest(
+    string? ScriptId,string Name,string TargetGroupId,int Revision,
+    IReadOnlyList<ScriptEditorStep> Steps);
+public sealed record ScriptReadRequest(string ScriptId);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -105,4 +118,7 @@ public static class ControlCommands
     public const string UpdateStatus="update-status";
     public const string RecoveryOverview="recovery-overview";
     public const string PauseJob="pause-job";
+    public const string ScriptList="script-list";
+    public const string ScriptRead="script-read";
+    public const string ScriptSave="script-save";
 }

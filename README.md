@@ -34,10 +34,12 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.6 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-alpha.7 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
 Alpha.5 adds a journal replay guard, live account/group authorization before Sending, durable ambiguous-result quarantine at startup, and a two-phase Guardian restart barrier that pauses tasks without silently resuming them. CI contains fake-transport regression tests. Irreversible Signal message sending remains deliberately **disabled** until full recovery UI and runner parity are delivered.
 
 Alpha.6 adds a native Simplified-Chinese recovery center with V8 and read-only migrated V7 task rows, per-message journal detail, evidence copying, and transactional manual pause through Named Pipe IPC. The pause survives Windows restart and never rewrites an ambiguous in-flight send; pending sends remain eligible for recovery quarantine. No resume and no real message sending in alpha.6.
+
+Alpha.7 introduces a native script editor backed by separate revisioned SQLite authoring tables. Original V7 script metadata remains untouched. Users can add/reorder/delete steps, specify optional sending accounts, delays, typing seconds, reminders and attachment references, and import/export a bounded JSON format. This stage does not embed attachment binaries or enable Signal message delivery.

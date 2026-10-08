@@ -644,6 +644,26 @@ public sealed partial class StateStore
                 scripts.Add(new(r.GetInt64(0),r.GetString(1),r.GetInt64(2)));
         }
 
+        // Use the editable V8 authoring copy as the canonical dashboard view,
+        // rather than the immutable V7 snapshot. This also exposes brand-new
+        // scripts created after migrating an older installation.
+        if(await TableExists("v8_editor_scripts"))
+        {
+            scripts.Clear();
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT s.script_id,s.name,COUNT(st.step_id)
+                FROM v8_editor_scripts s
+                LEFT JOIN v8_editor_steps st ON st.script_id=s.script_id
+                GROUP BY s.script_id,s.name
+                ORDER BY s.updated_at DESC LIMIT 300;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            long syntheticId=-1;
+            while(await r.ReadAsync(ct))
+                scripts.Add(new DashboardScript(syntheticId--,r.GetString(1),r.GetInt64(2)));
+        }
+
         if(await TableExists("v8_legacy_jobs"))
         {
             await using var cmd=c.CreateCommand();
@@ -731,9 +751,9 @@ public sealed partial class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.6",
+            "8.0.0-alpha.7",
             "running",
-            "send-disabled-alpha6",
+            "send-disabled-alpha7",
             signal.State,
             signal.Detail,
             signal.SignalCliVersion,
