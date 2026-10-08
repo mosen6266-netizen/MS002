@@ -38,14 +38,14 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="23" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-alpha.5" Margin="0,6,0,0" Foreground="#8FA7C2"/>
+     <TextBlock Text="V8.0.0-alpha.6" Margin="0,6,0,0" Foreground="#8FA7C2"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button Content="⌂  首页" HorizontalContentAlignment="Left" Background="#203A61"/>
      <Button Content="◉  账号" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
      <Button Content="✎  剧本" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
      <Button Content="▦  群组" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
-     <Button Content="▶  运行任务" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
+     <Button Content="▶  运行任务" HorizontalContentAlignment="Left" Margin="0,10,0,0" Click="RecoveryCenter_Click"/>
      <Button Content="◷  历史记录" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
      <Button Content="⚙  设置" HorizontalContentAlignment="Left" Margin="0,10,0,0"/>
     </StackPanel>
@@ -126,6 +126,7 @@
       <StackPanel>
        <TextBlock Text="任务恢复状态" FontSize="17" FontWeight="SemiBold"/>
        <TextBlock x:Name="JobsSummaryText" Text="暂无任务" Margin="0,7,0,12" Foreground="#8FA7C2"/>
+       <Button Content="打开任务恢复中心" Click="RecoveryCenter_Click" Margin="0,0,0,10"/>
        <ListBox x:Name="JobsList" Height="175"/>
       </StackPanel>
      </Border>

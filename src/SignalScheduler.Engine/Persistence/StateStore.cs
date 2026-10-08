@@ -3,7 +3,7 @@ using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Persistence;
 
-public sealed class StateStore
+public sealed partial class StateStore
 {
     readonly RuntimePaths _paths;
     public StateStore(RuntimePaths paths)=>_paths=paths;
@@ -731,9 +731,9 @@ public sealed class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.5",
+            "8.0.0-alpha.6",
             "running",
-            "send-disabled-alpha5",
+            "send-disabled-alpha6",
             signal.State,
             signal.Detail,
             signal.SignalCliVersion,
