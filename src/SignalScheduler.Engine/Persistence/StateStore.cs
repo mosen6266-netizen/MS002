@@ -643,6 +643,36 @@ public sealed class StateStore
                 jobs.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetInt64(4),r.GetInt64(5)!=0));
         }
 
+        // Show new V8 durable jobs alongside migrated V7 history, including
+        // all crash/restart quarantines which must be visible to the operator.
+        if(await TableExists("v8_jobs"))
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="""
+                SELECT j.job_id,j.state,j.cursor,
+                    COALESCE((
+                        SELECT x.group_id FROM v8_dispatch_journal x
+                        WHERE x.job_id=j.job_id
+                        ORDER BY x.updated_at DESC LIMIT 1
+                    ),'')
+                FROM v8_jobs j
+                ORDER BY j.updated_at DESC LIMIT 200;
+                """;
+            await using var r=await cmd.ExecuteReaderAsync(ct);
+            long syntheticId=-1;
+            while(await r.ReadAsync(ct))
+            {
+                var state=r.GetString(1);
+                jobs.Add(new DashboardJob(
+                    syntheticId--,
+                    r.GetString(0),
+                    r.GetString(3),
+                    state,
+                    r.GetInt64(2),
+                    string.Equals(state,"RecoveryRequired",StringComparison.OrdinalIgnoreCase)));
+            }
+        }
+
         return new DashboardSnapshot(
             "8.0.0-alpha.5",
             "running",
