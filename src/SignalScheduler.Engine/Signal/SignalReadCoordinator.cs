@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Signal;
 
@@ -18,6 +19,44 @@ public sealed class SignalReadCoordinator : BackgroundService
     readonly HttpClient _http=new(){BaseAddress=new Uri("http://127.0.0.1:7583/"),Timeout=Timeout.InfiniteTimeSpan};
     readonly SemaphoreSlim _databaseGate=new(1,1);
     string? _lastEventId;
+    volatile string _streamState="尚未连接";
+    volatile string _lastError="";
+    long _lastConnectedMs;
+    long _lastEventMs;
+
+    public async Task<ReadHealthSnapshot> GetHealthAsync(CancellationToken ct)
+    {
+        var pending=0;
+        var attempted=0;
+        try
+        {
+            await InitializeAsync(ct);
+            await _databaseGate.WaitAsync(ct);
+            try
+            {
+                await using var db=Open();
+                await using var q=db.CreateCommand();
+                q.CommandText="SELECT state,COUNT(*) FROM v8_read_events GROUP BY state;";
+                await using var r=await q.ExecuteReaderAsync(ct);
+                while(await r.ReadAsync(ct))
+                {
+                    if(r.GetString(0)=="pending")pending+=r.GetInt32(1);
+                    if(r.GetString(0)=="attempted")attempted+=r.GetInt32(1);
+                }
+            }
+            finally{_databaseGate.Release();}
+        }
+        catch(Exception ex) when(!ct.IsCancellationRequested)
+        {
+            return new ReadHealthSnapshot("数据库错误",
+                Interlocked.Read(ref _lastConnectedMs),
+                Interlocked.Read(ref _lastEventMs),0,0,ex.GetType().Name);
+        }
+        return new ReadHealthSnapshot(_streamState,
+            Interlocked.Read(ref _lastConnectedMs),
+            Interlocked.Read(ref _lastEventMs),pending,attempted,_lastError);
+    }
+
 
     public SignalReadCoordinator(RuntimePaths paths,ILogger<SignalReadCoordinator> logger)
     {
@@ -113,6 +152,7 @@ public sealed class SignalReadCoordinator : BackgroundService
             q.Parameters.AddWithValue("$s",author);
             q.Parameters.AddWithValue("$t",timestamp);
             await q.ExecuteNonQueryAsync(ct);
+            Interlocked.Exchange(ref _lastEventMs,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
         finally{_databaseGate.Release();}
     }
@@ -136,6 +176,9 @@ public sealed class SignalReadCoordinator : BackgroundService
                 using var response=await _http.SendAsync(request,
                     HttpCompletionOption.ResponseHeadersRead,ct);
                 response.EnsureSuccessStatusCode();
+                _streamState="已连接";
+                _lastError="";
+                Interlocked.Exchange(ref _lastConnectedMs,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 _logger.LogInformation("Signal read event stream connected");
                 await using var stream=await response.Content.ReadAsStreamAsync(ct);
                 using var reader=new StreamReader(stream);
@@ -159,6 +202,8 @@ public sealed class SignalReadCoordinator : BackgroundService
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
             catch(Exception ex)
             {
+                _streamState="连接中断";
+                _lastError=ex.GetType().Name;
                 // Avoid flooding logs while the daemon is temporarily offline.
                 var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 if(now-Interlocked.Read(ref _lastStreamWarningMs)>30000)
