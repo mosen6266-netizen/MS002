@@ -106,6 +106,18 @@ public sealed record UpdateManagedAccount(
     string Account,string Label,bool Enabled,long ExpectedRevision);
 public sealed record UpdateGroupSelection(IReadOnlyList<string> GroupIds);
 
+/// <summary>
+/// A rehearsal task runs the exact stored script schedule, without sending
+/// any Signal message. Its progress is durable, and it never touches the
+/// irreversible Signal dispatch journal.
+/// </summary>
+public sealed record PreviewTaskPlanRequest(string ScriptId,IReadOnlyList<string> GroupIds);
+public sealed record PreviewTaskPlanResult(int Created,IReadOnlyList<string> JobIds);
+public sealed record PreviewTaskControlRequest(string JobId,string Action);
+public sealed record PreviewTaskItem(
+    string JobId,string Name,string ScriptId,string GroupId,string GroupName,
+    string State,long Cursor,int TotalSteps,long NextDueAt,string Detail);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -134,4 +146,7 @@ public static class ControlCommands
     public const string AccountGroupCatalog="account-group-catalog";
     public const string UpdateAccount="update-account";
     public const string SetSelectedGroups="set-selected-groups";
+    public const string PreviewPlan="preview-plan";
+    public const string PreviewList="preview-list";
+    public const string PreviewControl="preview-control";
 }
