@@ -123,6 +123,11 @@ public sealed record ImageLookupRequest(string Reference);
 public sealed record ImageAttachmentInfo(
     string Reference,string AbsolutePath,string OriginalName,long Bytes,string Sha256);
 
+public sealed record LicenseActivationRequest(string LicenseKey);
+public sealed record LicensePublicStatus(
+    string State,string Detail,string TypeName,long ActivatedAt,
+    long ExpiresAt,long LeaseUntil,bool ServerReachable,bool HasSavedLicense);
+
 public sealed record UpdateReadiness(
     bool CanUpdate,
     int ActiveJobs,
@@ -156,4 +161,7 @@ public static class ControlCommands
     public const string PreviewControl="preview-control";
     public const string ImageImport="image-import";
     public const string ImageLookup="image-lookup";
+    public const string LicenseStatus="license-status";
+    public const string LicenseActivate="license-activate";
+    public const string LicenseCheck="license-check";
 }
