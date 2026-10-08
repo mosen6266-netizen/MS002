@@ -90,96 +90,26 @@
    </Grid>
   </Border>
 
-  <Grid Margin="0,0,0,16">
-   <Grid.ColumnDefinitions>
-    <ColumnDefinition Width="1.06*"/><ColumnDefinition Width="17"/>
-    <ColumnDefinition Width="0.94*"/>
-   </Grid.ColumnDefinitions>
-   <Border Background="#11273C" BorderBrush="#315069" BorderThickness="1"
-     CornerRadius="12" Padding="16">
-    <Grid>
-     <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/><RowDefinition Height="10"/>
-      <RowDefinition Height="*"/>
-     </Grid.RowDefinitions>
-     <StackPanel>
-      <TextBlock Text="01 选择剧本" FontSize="17" FontWeight="SemiBold"
-       Foreground="#F4F7FC"/>
-      <TextBlock Text="可看到更多剧本，单击即选中"
-       Margin="0,5,0,0" Foreground="#AAC5DB" FontSize="12"/>
+  <Border Background="#11273C" BorderBrush="#315069" BorderThickness="1"
+    CornerRadius="12" Padding="18" Margin="0,0,0,16">
+   <StackPanel>
+    <TextBlock Text="01 选择剧本与群组" FontSize="18" FontWeight="SemiBold" Foreground="#F4F7FC"/>
+    <TextBlock Text="选择一个剧本，可同时勾选多个群组。" Foreground="#AAC5DB" Margin="0,7,0,12"/>
+    <TextBlock Text="选择剧本" Foreground="#DBEAF8" Margin="0,0,0,6"/>
+    <ComboBox x:Name="ScriptBox" DisplayMemberPath="Name"
+     SelectionChanged="ScriptBox_SelectionChanged" MinHeight="44"
+     MaxDropDownHeight="350" Margin="0,0,0,18"/>
+    <Grid Margin="0,0,0,9">
+     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <TextBlock Text="02 选择群组（最多 20 个）" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"/>
+     <StackPanel Orientation="Horizontal" Grid.Column="1">
+      <Button Content="全选" Click="SelectAll_Click" Style="{StaticResource QuietAction}" Margin="0,0,7,0"/>
+      <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"/>
      </StackPanel>
-     <ListBox x:Name="ScriptBox" Grid.Row="2" Height="414"
-      SelectionChanged="ScriptBox_SelectionChanged"
-      BorderBrush="#3B5C76" Background="#102237"
-      HorizontalContentAlignment="Stretch"
-      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-      <ListBox.ItemTemplate>
-       <DataTemplate>
-        <DockPanel LastChildFill="True" MinHeight="44">
-         <TextBlock Text="▤" DockPanel.Dock="Left" Foreground="#77ABDB"
-           FontSize="15" Margin="0,0,12,0" VerticalAlignment="Center"/>
-         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-           TextWrapping="NoWrap" VerticalAlignment="Center" FontSize="13"
-           Foreground="#F3F7FD" ToolTip="{Binding Name}"/>
-        </DockPanel>
-       </DataTemplate>
-      </ListBox.ItemTemplate>
-     </ListBox>
     </Grid>
-   </Border>
-   <Border Grid.Column="2" Background="#11273C" BorderBrush="#315069"
-    BorderThickness="1" CornerRadius="12" Padding="16">
-    <Grid>
-     <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/><RowDefinition Height="10"/>
-      <RowDefinition Height="*"/>
-     </Grid.RowDefinitions>
-     <Grid>
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <StackPanel>
-       <TextBlock Text="02 选择群组" FontSize="17" FontWeight="SemiBold" Foreground="#F4F7FC"/>
-       <TextBlock Text="选择本次运行的群组，最多 20 个"
-        Margin="0,5,0,0" Foreground="#AAC5DB" FontSize="12"/>
-      </StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-       <Button Content="全选" Click="SelectAll_Click" Style="{StaticResource QuietAction}" Margin="0,0,7,0"/>
-       <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"/>
-      </StackPanel>
-     </Grid>
-     <DataGrid Grid.Row="2" x:Name="GroupsGrid"
-      SelectionChanged="GroupsGrid_SelectionChanged"
-      Height="414" AlternationCount="2" RowHeight="45"
-      ColumnHeaderHeight="43" ColumnHeaderStyle="{StaticResource DarkGridHeader}"
-      AutoGenerateColumns="False" Background="#12273B" Foreground="#F0F7FD"
-      RowBackground="#12273B" AlternatingRowBackground="#1B344A"
-      CanUserAddRows="False" IsReadOnly="False" BorderBrush="#3C5B73"
-      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-      <DataGrid.Columns>
-       <DataGridTemplateColumn Header="选择" Width="68">
-        <DataGridTemplateColumn.CellTemplate>
-         <DataTemplate>
-          <CheckBox IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-           Style="{StaticResource LargeRowCheckBox}" ToolTip="点击选择或取消该群"/>
-         </DataTemplate>
-        </DataGridTemplateColumn.CellTemplate>
-       </DataGridTemplateColumn>
-       <DataGridTemplateColumn Header="群名称" Width="*">
-        <DataGridTemplateColumn.CellTemplate>
-         <DataTemplate>
-          <TextBlock Text="{Binding Name}" Foreground="#EDF6FD"
-           TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-           Margin="10,0" VerticalAlignment="Center" ToolTip="{Binding Name}"/>
-         </DataTemplate>
-        </DataGridTemplateColumn.CellTemplate>
-       </DataGridTemplateColumn>
-       <DataGridTextColumn Header="账号" Width="67" IsReadOnly="True"
-        Binding="{Binding MemberAccounts}" ElementStyle="{StaticResource TruncatedGridText}"/>
-      </DataGrid.Columns>
-     </DataGrid>
-    </Grid>
-   </Border>
-  </Grid>
 
+   </StackPanel>
+  </Border>
   <Border Background="#10273D" BorderBrush="#31516A" BorderThickness="1"
    CornerRadius="12" Padding="18" Margin="0,0,0,18">
    <StackPanel>
