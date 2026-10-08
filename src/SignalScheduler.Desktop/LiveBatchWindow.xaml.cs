@@ -170,10 +170,15 @@ public partial class LiveBatchWindow : UserControl
             ScriptBox.ItemsSource=scripts;
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();
+            // Preserve in-progress group selections when refreshing the catalog.
+            var selectedBeforeRefresh=_groups.Where(x=>x.Selected)
+                .Select(x=>x.GroupId).ToHashSet(StringComparer.Ordinal);
             _groups.Clear();
             foreach(var group in overview.Groups.Where(g=>g.MemberAccounts>0))
             {
                 var row=new BatchGroupRow(group);
+                if(selectedBeforeRefresh.Contains(row.GroupId))
+                    row.Selected=true;
                 row.PropertyChanged+=(_,e)=>
                 {
                     if(e.PropertyName==nameof(BatchGroupRow.Selected))
