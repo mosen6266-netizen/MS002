@@ -60,10 +60,14 @@ public partial class LiveBatchWindow : UserControl
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();
             _groups.Clear();
-            foreach(var group in overview.Groups.Where(g=>g.Selected))
-                _groups.Add(new BatchGroupRow(group));
-            StatusText.Text=$"找到 {scripts.Count} 个剧本和 {_groups.Count} 个已保存群组。"+
-                "每个群会独立运行；不同剧本也可分批启动。";
+            foreach(var group in overview.Groups.Where(g=>g.MemberAccounts>0))
+            {
+                var row=new BatchGroupRow(group);
+                row.PropertyChanged+=(_,_)=>UpdateButtons();
+                _groups.Add(row);
+            }
+            StatusText.Text=$"已读取 {scripts.Count} 个剧本与 {_groups.Count} 个 Signal 群。"+
+                "直接勾选本次群组即可，草稿空白气泡不会发送。";
         }
         catch(Exception ex){StatusText.Text=$"刷新目录失败：{ex.Message}";}
         UpdateButtons();
@@ -126,6 +130,8 @@ public partial class LiveBatchWindow : UserControl
         UpdateButtons();
     }
 
+    void ScriptBox_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
+    void GroupsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
     void Consent_Changed(object sender,RoutedEventArgs e)=>UpdateButtons();
     void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
 
@@ -155,7 +161,7 @@ public partial class LiveBatchWindow : UserControl
             return;
         }
         var preview=$"确定开始真正发送？\n\n剧本：{script.Name}\n"+
-            $"消息：{script.StepCount} 条\n群组：{ids.Length} 个\n\n"+
+            $"剧本气泡：{script.StepCount} 个（空白草稿行自动忽略）\n群组：{ids.Length} 个\n\n"+
             "所有群会在后台分别运行。发送的文字和图片将真实出现在 Signal 群内。"+
             "关闭此窗口不会停止任务；发生异常会暂停并提醒。\n\n"+
             "只有你管理且允许这样发送的群组可以启动。";
