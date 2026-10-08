@@ -14,6 +14,7 @@ public sealed class NamedPipeControlServer : BackgroundService
     const string PipeName="SignalScheduler.V8.Control";
     readonly StateStore _store;
     readonly SignalGuardian _guardian;
+    readonly SignalReadCoordinator _read;
     readonly SignalLinkManager _link;
     readonly LicenseManager _license;
     readonly LiveProbeCoordinator _liveProbe;
@@ -22,6 +23,7 @@ public sealed class NamedPipeControlServer : BackgroundService
     public NamedPipeControlServer(
         StateStore store,
         SignalGuardian guardian,
+        SignalReadCoordinator read,
         SignalLinkManager link,
         LicenseManager license,
         LiveProbeCoordinator liveProbe,
@@ -29,6 +31,7 @@ public sealed class NamedPipeControlServer : BackgroundService
     {
         _store=store;
         _guardian=guardian;
+        _read=read;
         _link=link;
         _license=license;
         _liveProbe=liveProbe;
@@ -100,6 +103,9 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.ReadHealth:
+                        response=new ControlResponse(true,Data:await _read.GetHealthAsync(ct));
                         break;
                     case ControlCommands.LiveBatchList:
                         response=new ControlResponse(true,
