@@ -3,33 +3,102 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  StartupUri="MainWindow.xaml" ShutdownMode="OnMainWindowClose">
  <Application.Resources>
-  <Style TargetType="DataGridColumnHeader">
-   <Setter Property="Background" Value="#203B54"/>
-   <Setter Property="Foreground" Value="#EEF5FD"/>
-   <Setter Property="BorderBrush" Value="#355771"/>
-   <Setter Property="Padding" Value="9,8"/>
+  <SolidColorBrush x:Key="Surface" Color="#101E30"/>
+  <SolidColorBrush x:Key="SurfaceAlt" Color="#192C42"/>
+  <SolidColorBrush x:Key="BorderColor" Color="#35536D"/>
+  <SolidColorBrush x:Key="TextPrimary" Color="#F1F6FD"/>
+  <SolidColorBrush x:Key="TextSecondary" Color="#BACDE0"/>
+  <Style x:Key="DarkGridHeader" TargetType="DataGridColumnHeader">
+   <Setter Property="Background" Value="#213C56"/>
+   <Setter Property="Foreground" Value="#F5F8FC"/>
+   <Setter Property="BorderBrush" Value="#48637D"/>
+   <Setter Property="BorderThickness" Value="0,0,1,1"/>
+   <Setter Property="Padding" Value="10,10"/>
+   <Setter Property="MinHeight" Value="42"/>
    <Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+  </Style>
+  <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource DarkGridHeader}"/>
+  <Style x:Key="TruncatedGridText" TargetType="TextBlock">
+   <Setter Property="Foreground" Value="#EFF5FD"/>
+   <Setter Property="TextWrapping" Value="NoWrap"/>
+   <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
+   <Setter Property="Margin" Value="8,0"/>
   </Style>
   <Style TargetType="DataGridCell">
-   <Setter Property="Foreground" Value="#EDF4FF"/>
-   <Setter Property="BorderBrush" Value="#355069"/>
-   <Setter Property="Padding" Value="5,3"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Foreground" Value="#EEF5FC"/>
+   <Setter Property="BorderBrush" Value="#314C64"/>
+   <Setter Property="BorderThickness" Value="0,0,1,1"/>
+   <Setter Property="Padding" Value="2,0"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
   <Style TargetType="DataGridRow">
-   <Setter Property="Background" Value="#142D43"/>
+   <Setter Property="Height" Value="48"/>
+   <Setter Property="MinHeight" Value="48"/>
+   <Setter Property="MaxHeight" Value="48"/>
+   <Setter Property="Background" Value="#14283E"/>
    <Setter Property="Foreground" Value="#EEF5FD"/>
+   <Setter Property="SnapsToDevicePixels" Value="True"/>
    <Style.Triggers>
     <Trigger Property="IsSelected" Value="True">
-     <Setter Property="Background" Value="#2B5B83"/>
+     <Setter Property="Background" Value="#244F70"/>
      <Setter Property="Foreground" Value="White"/>
+    </Trigger>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Background" Value="#1C3D59"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style TargetType="DataGrid">
+   <Setter Property="Background" Value="#101E30"/>
+   <Setter Property="Foreground" Value="#EFF5FD"/>
+   <Setter Property="RowBackground" Value="#12283E"/>
+   <Setter Property="AlternatingRowBackground" Value="#192F45"/>
+   <Setter Property="BorderBrush" Value="#365671"/>
+   <Setter Property="ColumnHeaderStyle" Value="{StaticResource DarkGridHeader}"/>
+   <Setter Property="RowHeight" Value="48"/>
+   <Setter Property="ColumnHeaderHeight" Value="42"/>
+   <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+   <Setter Property="HeadersVisibility" Value="Column"/>
+   <Setter Property="CanUserAddRows" Value="False"/>
+   <Setter Property="EnableRowVirtualization" Value="True"/>
+   <Setter Property="EnableColumnVirtualization" Value="True"/>
+  </Style>
+  <Style TargetType="ComboBox">
+   <Setter Property="Background" Value="#17354C"/>
+   <Setter Property="Foreground" Value="#F2F6FC"/>
+   <Setter Property="BorderBrush" Value="#476781"/>
+   <Setter Property="Padding" Value="8,7"/>
+   <Setter Property="MinHeight" Value="36"/>
+  </Style>
+  <Style TargetType="ComboBoxItem">
+   <Setter Property="Foreground" Value="#142033"/>
+   <Setter Property="Padding" Value="10,7"/>
+  </Style>
+  <Style TargetType="ListBoxItem">
+   <Setter Property="Foreground" Value="#F1F6FC"/>
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Padding" Value="9,8"/>
+   <Setter Property="MinHeight" Value="38"/>
+   <Style.Triggers>
+    <Trigger Property="IsSelected" Value="True">
+     <Setter Property="Background" Value="#245278"/>
     </Trigger>
    </Style.Triggers>
   </Style>
   <Style TargetType="TextBox">
-   <Setter Property="Background" Value="#142D43"/>
-   <Setter Property="Foreground" Value="#EDF4FF"/>
-   <Setter Property="BorderBrush" Value="#365874"/>
-   <Setter Property="CaretBrush" Value="White"/>
+   <Setter Property="Background" Value="#142C42"/>
+   <Setter Property="Foreground" Value="#EEF5FC"/>
+   <Setter Property="BorderBrush" Value="#486782"/>
+   <Setter Property="CaretBrush" Value="#FFFFFF"/>
+   <Setter Property="Padding" Value="7,6"/>
+  </Style>
+  <Style TargetType="CheckBox">
+   <Setter Property="MinHeight" Value="35"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="Foreground" Value="#F0F5FC"/>
   </Style>
  </Application.Resources>
 </Application>
