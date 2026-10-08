@@ -154,6 +154,37 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <Style TargetType="TabItem">
+   <Setter Property="Foreground" Value="#EAF4FD"/>
+   <Setter Property="Background" Value="#19354D"/>
+   <Setter Property="FontSize" Value="14"/>
+   <Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="Padding" Value="19,11"/>
+   <Setter Property="Margin" Value="0,0,7,0"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="TabItem">
+      <Border x:Name="TabSurface" Background="{TemplateBinding Background}"
+       CornerRadius="8,8,0,0" BorderBrush="#355875"
+       BorderThickness="1,1,1,0"
+       Padding="{TemplateBinding Padding}">
+       <ContentPresenter ContentSource="Header"
+        HorizontalAlignment="Center" VerticalAlignment="Center"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsSelected" Value="True">
+        <Setter TargetName="TabSurface" Property="Background" Value="#285B83"/>
+        <Setter TargetName="TabSurface" Property="BorderBrush" Value="#6DA9D6"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+       </Trigger>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="TabSurface" Property="Background" Value="#2A4C65"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
   <Style TargetType="ListBoxItem">
    <Setter Property="Foreground" Value="#F0F6FD"/>
    <Setter Property="Background" Value="#132B40"/>
