@@ -51,9 +51,12 @@ public sealed class LivePilotTests
         Assert.Contains("按剧本设置暂停",paused.Detail);
         Assert.Null(await store.FindDueLivePilotAsync(now+999999,Ct));
 
-        await store.ControlLivePilotAsync(new(pilot.JobId,"resume"),Ct);
-        var third=await store.FindDueLivePilotAsync(
-            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct);
+        var resumed=await store.ControlLivePilotAsync(new(pilot.JobId,"resume"),Ct);
+        // Manual resume must preserve the minimum 15-second spacing after
+        // the previous confirmed send. Immediate resend is forbidden.
+        Assert.Null(await store.FindDueLivePilotAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct));
+        var third=await store.FindDueLivePilotAsync(resumed.NextDueMs+1000,Ct);
         Assert.NotNull(third);
         await engine.DispatchAsync(third!.Dispatch,third.Text,Ct);
         await store.ConfirmLivePilotStepAsync(third.Dispatch,now+32000,Ct);
