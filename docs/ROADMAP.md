@@ -4,6 +4,9 @@
 - [x] Native WPF shell
 - [x] Native dashboard with migrated account/group/script/job summary
 - [x] Explicit desktop + Start Menu shortcut installer flow
+- [x] Simplified-Chinese installer UI
+- [x] Safe in-place upgrade handshake with active-send blocking
+- [x] Versioned Signal runtime directory to avoid stale-runtime file locks
 - [x] Independent per-user background engine
 - [x] Named Pipe IPC
 - [x] SQLite V8 schema
