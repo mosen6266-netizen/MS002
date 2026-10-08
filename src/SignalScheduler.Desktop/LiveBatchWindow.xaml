@@ -137,6 +137,11 @@
         Binding="{Binding MemberAccounts}" ElementStyle="{StaticResource TruncatedGridText}"/>
       </DataGrid.Columns>
      </DataGrid>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+     <Button x:Name="PreviousGroupsPage" Content="上一页" Click="PreviousGroupsPage_Click" Style="{StaticResource QuietAction}" Margin="0,0,8,0"/>
+     <TextBlock x:Name="GroupsPageLabel" Text="第 1 / 1 页" VerticalAlignment="Center" Foreground="#EAF3FB" Margin="0,0,10,0"/>
+     <Button x:Name="NextGroupsPage" Content="下一页" Click="NextGroupsPage_Click" Style="{StaticResource QuietAction}"/>
+    </StackPanel>
    </StackPanel>
   </Border>
   <Border Background="#10273D" BorderBrush="#31516A" BorderThickness="1"
