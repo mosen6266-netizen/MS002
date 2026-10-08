@@ -305,6 +305,8 @@ public sealed class SignalGuardian : BackgroundService
                 {
                     if(item.TryGetProperty("number",out var n) && n.ValueKind==JsonValueKind.String)
                         accounts.Add(n.GetString()!);
+                    else if(item.TryGetProperty("aci",out var aci) && aci.ValueKind==JsonValueKind.String)
+                        accounts.Add(aci.GetString()!);
                     else if(item.TryGetProperty("username",out var u) && u.ValueKind==JsonValueKind.String)
                         accounts.Add(u.GetString()!);
                 }
