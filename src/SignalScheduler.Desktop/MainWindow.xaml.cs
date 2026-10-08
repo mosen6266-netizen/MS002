@@ -378,6 +378,12 @@ public partial class MainWindow : Window
         var message=_criticalQueue.Dequeue();
         Dispatcher.BeginInvoke(new Action(()=>
         {
+            if(!IsLoaded)
+            {
+                _criticalDialogOpen=false;
+                _criticalQueue.Clear();
+                return;
+            }
             var originalTopmost=Topmost;
             try
             {
