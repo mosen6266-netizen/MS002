@@ -50,6 +50,15 @@ public partial class MainWindow : Window
         Closed+=(_,_)=>_timer.Stop();
     }
 
+    void WorkspaceScroll_PreviewMouseWheel(object sender,
+        System.Windows.Input.MouseWheelEventArgs e)
+    {
+        if(sender is not ScrollViewer scroller || e.Delta==0)return;
+        scroller.ScrollToVerticalOffset(Math.Clamp(
+            scroller.VerticalOffset-e.Delta/3.0,0,scroller.ScrollableHeight));
+        e.Handled=true;
+    }
+
     UserControl GetPage(string key)
     {
         if(_pages.TryGetValue(key,out var cached))return cached;
