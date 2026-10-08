@@ -7,7 +7,7 @@ Production-oriented Windows rewrite of Signal Auto Scheduler.
 ## V8 foundation
 
 - .NET 8 native WPF desktop application
-- Independent .NET 8 Windows Service
+- Independent **per-user background engine**
 - Named Pipe IPC; no localhost web UI
 - SQLite WAL + `synchronous=FULL`
 - Durable dispatch journal and explicit recovery states
@@ -16,8 +16,10 @@ Production-oriented Windows rewrite of Signal Auto Scheduler.
 - Self-contained Windows publish; users do not install Python or .NET
 - Existing data remains under `%LOCALAPPDATA%\SignalSchedulerData`
 
+A per-user engine is used instead of a LocalSystem Windows Service so existing Signal login data, user-scoped DPAPI and LocalAppData stay in the same Windows security context.
+
 ### Reliability invariant
 
-If delivery becomes ambiguous after entering the irreversible send window, V8 must stop at that message and require recovery. It must never auto-retry an ambiguous send and must never silently advance the cursor.
+If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.1 foundation**. Signal sending is intentionally disabled until the V7.6.2 Signal/Guardian contract is migrated and tested.
+Current stage: **8.0.0-alpha.1 foundation + V7 metadata migration**. Signal sending remains intentionally disabled until the V7.6.2 Signal/Guardian contract is ported and tested.
