@@ -82,6 +82,11 @@ public sealed record RecoveryOverview(
     IReadOnlyList<RecoveryJobItem> Jobs,IReadOnlyList<RecoveryDispatchItem> Dispatches);
 public sealed record PauseJobRequest(string JobId);
 public sealed record PauseJobResult(string JobId,string State,string Detail);
+public sealed record ManualDispatchReviewRequest(
+    string JobId,string DispatchKey,string Decision,string Evidence);
+public sealed record ManualDispatchReviewResult(
+    string JobId,string DispatchKey,string JournalState,string JobState,
+    long Cursor,string Detail);
 
 public sealed record ScriptEditorSummary(
     string ScriptId,string Name,int Revision,int StepCount,bool ImportedFromV7);
@@ -181,6 +186,7 @@ public static class ControlCommands
     public const string UpdateStatus="update-status";
     public const string RecoveryOverview="recovery-overview";
     public const string PauseJob="pause-job";
+    public const string ManualDispatchReview="manual-dispatch-review";
     public const string ScriptList="script-list";
     public const string ScriptRead="script-read";
     public const string ScriptSave="script-save";
