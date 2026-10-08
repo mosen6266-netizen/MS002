@@ -41,10 +41,13 @@
      <Button Content="刷新列表" Click="ReloadScripts_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,12"/>
     </StackPanel>
-    <ListBox x:Name="ScriptsList" Grid.Row="1"
+    <ListBox x:Name="ScriptsList" Grid.Row="1" PreviewMouseRightButtonDown="ScriptsList_PreviewMouseRightButtonDown"
      SelectionChanged="ScriptsList_SelectionChanged"
      Background="#132B42" BorderBrush="#3C5B75"
      HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+     <ListBox.ContextMenu>
+      <ContextMenu><MenuItem Header="重命名剧本" Click="RenameScript_Click"/></ContextMenu>
+     </ListBox.ContextMenu>
      <ListBox.ItemTemplate>
       <DataTemplate>
        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
@@ -66,9 +69,9 @@
   <Grid Grid.Column="2">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
-    <RowDefinition Height="12"/>
-    <RowDefinition Height="Auto"/>
-    <RowDefinition Height="12"/>
+    <RowDefinition Height="8"/>
+    <RowDefinition Height="0"/>
+    <RowDefinition Height="8"/>
     <RowDefinition Height="*"/>
     <RowDefinition Height="12"/>
     <RowDefinition Height="140"/>
@@ -89,7 +92,7 @@
      <Button Content="返回首页" Style="{StaticResource ActionButton}" Click="Close_Click"/>
     </StackPanel>
    </DockPanel>
-   <Border Grid.Row="2" Background="#11273C" BorderBrush="#304D67"
+   <Border Grid.Row="2" Visibility="Collapsed" Background="#11273C" BorderBrush="#304D67"
     BorderThickness="1" CornerRadius="8" Padding="12">
     <Grid>
      <Grid.ColumnDefinitions>
