@@ -61,8 +61,14 @@ public sealed class LivePilotRunner : BackgroundService
                     pending.Dispatch,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                     CancellationToken.None);
             }
-            // On any non-confirmed result DurableTaskEngine has already paused
-            // the job and recorded the reason. Never advance this cursor.
+            else
+            {
+                // The durable journal already owns the result; only update
+                // the UI detail, never advance an unconfirmed cursor.
+                await _store.PauseLivePilotForSafetyAsync(jobId,
+                    result.Detail??"真实发送未得到确认，禁止自动重试。",
+                    CancellationToken.None);
+            }
         }
         catch(OperationCanceledException) when(ct.IsCancellationRequested)
         {
