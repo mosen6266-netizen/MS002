@@ -35,6 +35,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        WorkspaceScroll.SizeChanged+=(_,_)=>
+        {
+            if(_currentPage=="scripts")
+                PageHost.Height=Math.Max(300,WorkspaceScroll.ActualHeight);
+        };
         Application.Current.MainWindow=this;
         NotificationsList.ItemsSource=_notifications;
         Loaded+=async(_,_)=>
