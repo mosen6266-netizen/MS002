@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.10 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-alpha.11 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -61,3 +61,9 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 在原生剧本编辑器选中某条消息，点击「为选中句导入图片」，程序把不超过 15 MB 的 PNG/JPEG/GIF/BMP 图片复制到 `%LOCALAPPDATA%\SignalSchedulerData\attachments\images`，采用 SHA-256 内容寻址去重并防路径穿越，保存到剧本中的仅为 `img:<sha256>.<ext>` 引用。使用「预览图片」时重新校验 SHA-256，阻止受损文件显示。原始用户图片不删除，升级程序不覆盖附件数据。
 
 **当前不包含图片实际发送，也不自动修复 V7 已丢失的附件路径。** 与 alpha.9 一样，真实 Signal 自动发送仍关闭。
+
+## V8 alpha.11 沿用已有授权后台
+
+该版本连接现有 Cloudflare Worker `signal-scheduler-license` 的 `/api/license/activate` 和 `/api/license/check`。在原生「授权设置」中可输入已有或新卡密、在线验证类型与到期日期。卡密和稳定设备标识使用 Windows DPAPI（当前用户）加密保存在 LocalAppData；6 小时以内离线租约通过 P-256 ECDSA 验签与首次激活公钥锁定验证，后台禁用和设备限制以服务器为准。程序不生成新卡、不修改云端数据库、不保存管理员凭证。
+
+**当前仅实现 V8 激活/校验与资料持久化；既有 V7 本地设备绑定标识尚未自动迁移。旧卡如超过设备上限，需要在既有后台合法解绑并重新激活。真实 Signal 发送仍禁用，所以当前授权功能不等于完整的生产级反破解能力。**
