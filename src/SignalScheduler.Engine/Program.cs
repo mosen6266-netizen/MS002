@@ -28,6 +28,7 @@ builder.Services.AddSingleton<SignalGuardian>();
 builder.Services.AddSingleton<SignalLinkManager>();
 builder.Services.AddSingleton<ISignalTransport, SignalCliTransport>();
 builder.Services.AddSingleton<DurableTaskEngine>();
+builder.Services.AddSingleton<LiveProbeCoordinator>();
 builder.Services.AddSingleton<LicenseManager>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<SignalGuardian>());
 builder.Services.AddHostedService<SignalCatalogSyncService>();
@@ -48,6 +49,7 @@ if (inventory.LegacyDetected && !inventory.MetadataMigrated)
 // Safe to run repeatedly: existing edited scripts are never overwritten.
 await store.InitializeScriptEditorAsync(CancellationToken.None);
 await store.InitializePreviewTasksAsync(CancellationToken.None);
+await store.InitializeLiveProbeAsync(CancellationToken.None);
 
 await host.RunAsync();
 
