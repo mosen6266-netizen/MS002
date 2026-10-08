@@ -54,6 +54,16 @@ public partial class MainWindow : Window
         System.Windows.Input.MouseWheelEventArgs e)
     {
         if(sender is not ScrollViewer scroller || e.Delta==0)return;
+        // Let grids and the scripts list consume their own wheel events.
+        if(_currentPage is "accounts" or "scripts" or "recovery")return;
+        // Do not move the underlying page while a script popup is open.
+        if(_pages.TryGetValue("home",out var home) &&
+           home is LiveBatchWindow batch &&
+           batch.IsScriptDropDownOpen)
+        {
+            e.Handled=true;
+            return;
+        }
         scroller.ScrollToVerticalOffset(Math.Clamp(
             scroller.VerticalOffset-e.Delta/3.0,0,scroller.ScrollableHeight));
         e.Handled=true;
