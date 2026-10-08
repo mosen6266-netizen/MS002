@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using System.IO.Pipes;
 using System.Text.Json;
 using SignalScheduler.Engine.Persistence;
+using SignalScheduler.Engine.Licensing;
 using SignalScheduler.Engine.Signal;
 using SignalScheduler.Shared;
 
@@ -13,17 +14,20 @@ public sealed class NamedPipeControlServer : BackgroundService
     readonly StateStore _store;
     readonly SignalGuardian _guardian;
     readonly SignalLinkManager _link;
+    readonly LicenseManager _license;
     readonly IHostApplicationLifetime _lifetime;
 
     public NamedPipeControlServer(
         StateStore store,
         SignalGuardian guardian,
         SignalLinkManager link,
+        LicenseManager license,
         IHostApplicationLifetime lifetime)
     {
         _store=store;
         _guardian=guardian;
         _link=link;
+        _license=license;
         _lifetime=lifetime;
     }
 
@@ -65,7 +69,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.10",
+                            version="8.0.0-alpha.11",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -92,6 +96,28 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.UpdateStatus:
                         response=new ControlResponse(true,Data:await _store.GetUpdateReadinessAsync(ct));
+                        break;
+                    case ControlCommands.LicenseStatus:
+                        response=new ControlResponse(true,Data:_license.Status);
+                        break;
+                    case ControlCommands.LicenseActivate:
+                        try
+                        {
+                            var activation=ParsePayload<LicenseActivationRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _license.ActivateAsync(activation,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or HttpRequestException
+                            or InvalidOperationException or IOException
+                            or System.Security.Cryptography.CryptographicException
+                            or JsonException or FormatException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.LicenseCheck:
+                        response=new ControlResponse(true,
+                            Data:await _license.CheckAsync(ct));
                         break;
                     case ControlCommands.ImageImport:
                         try

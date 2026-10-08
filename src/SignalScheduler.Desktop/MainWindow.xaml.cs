@@ -80,6 +80,12 @@ public partial class MainWindow : Window
         var manager=new AccountGroupWindow{Owner=this};
         manager.Show();
     }
+    void License_Click(object sender,RoutedEventArgs e)
+    {
+        var window=new LicenseWindow{Owner=this};
+        window.Show();
+    }
+
 
     async void LinkAccount_Click(object sender,RoutedEventArgs e)
     {

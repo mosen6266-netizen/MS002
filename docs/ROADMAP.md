@@ -25,7 +25,8 @@
 - [x] Scripts + steps metadata migration
 - [x] Groups + conservative job/recovery metadata migration
 - [ ] Attachment binary migration/verification
-- [ ] License compatibility
+- [x] Existing Cloudflare worker card activation/check with signed lease and DPAPI storage
+- [ ] Lossless V7 device-id/credential migration and real-send license enforcement
 
 ## Stage 3 — Signal runtime
 - [x] Bundle fixed Java 25 runtime
