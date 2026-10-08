@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-beta.2 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-beta.3 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -106,3 +106,12 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 - 严重异常进入顶部通知中心，只显示一次主窗口拥有的模态提醒。后续异常加入可查的通知清单，避免多个悬空无所属的置顶对话框。
 - 退出主窗口前，如果仍有运行任务，明确解释后台将继续运行并征求确认。关闭/切换页不会再隐藏整个主窗口。
 - 本次只重构 UI 与消息计划校验，保留现有持久化目录、卡密和 V7 迁移数据。
+
+## V8 beta.3 专业桌面界面
+
+- 统一深色高对比表头/单元格，消息列表采用固定48px行高、文字自动省略号、鼠标悬停预览和下方独立全文编辑区。
+- 剧本中选择账号时显示用户保存的备注及在线状态，后台仍保持不变的 Signal 账号标识。
+- 首页展示全部账号备注/在线/停用状态；群组选择框扩大至29px、点击区域56×46；剧本列表与群组列表均固定行高。
+- 多群任务每行独立暂停/继续/停止；后台每2秒刷新任务状态时保留滚动位置及行对象，避免频繁清空导致列表跳动。
+- 使用用户上传的 Signal SVG，在 Windows 构建中生成多分辨率ICO与PNG，并设置程序、窗口、安装器及快捷方式图标。
+- 只改 UI/展示层与打包，不修改用户现有剧本、账号、卡密和发送数据。

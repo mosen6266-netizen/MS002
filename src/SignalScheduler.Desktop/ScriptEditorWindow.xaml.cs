@@ -15,6 +15,8 @@ namespace SignalScheduler.Desktop;
 public partial class ScriptEditorWindow : UserControl
 {
     readonly ObservableCollection<ScriptStepRow> _steps=new();
+    public ObservableCollection<AccountChoice> AccountOptions {get;}=new();
+    bool _firstLoad=true;
     string? _scriptId;
     int _revision;
     bool _loading;
@@ -24,8 +26,57 @@ public partial class ScriptEditorWindow : UserControl
     {
         InitializeComponent();
         StepsGrid.ItemsSource=_steps;
-        Loaded+=async(_,_)=>await ReloadScriptsAsync(loadFirst:true);
+        Loaded+=async(_,_)=>
+        {
+            if(_firstLoad)
+            {
+                _firstLoad=false;
+                await ReloadScriptsAsync(loadFirst:true);
+            }
+            await LoadAccountOptionsAsync();
+        };
 
+    }
+
+    async Task LoadAccountOptionsAsync()
+    {
+        try
+        {
+            var raw=await MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,8500);
+            var catalog=ReadData<AccountGroupOverview>(raw);
+            AccountOptions.Clear();
+            AccountOptions.Add(new AccountChoice("","默认账号（本群在线成员）"));
+            foreach(var account in catalog.Accounts.OrderBy(x=>x.Label,StringComparer.CurrentCulture))
+            {
+                var label=string.IsNullOrWhiteSpace(account.Label) ||
+                    account.Label==account.Account
+                    ? "未设置备注 · "+LastFour(account.Account)
+                    : account.Label;
+                var suffix=account.Online?(account.Enabled?" · 在线":" · 已停用"):" · 离线";
+                AccountOptions.Add(new AccountChoice(account.Account,label+suffix));
+            }
+            foreach(var row in _steps) SetDisplayResolver(row);
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="读取账号备注失败，请检查账号管理页面："+ex.Message;
+        }
+    }
+
+    static string LastFour(string account)=>account.Length>4
+        ?account[^4..]:account;
+
+    void SetDisplayResolver(ScriptStepRow row)
+    {
+        if(!string.IsNullOrWhiteSpace(row.Account) &&
+            AccountOptions.All(x=>x.Account!=row.Account))
+            AccountOptions.Add(new AccountChoice(row.Account,
+                "旧账号 · "+LastFour(row.Account)));
+        row.LabelResolver=account=>
+            AccountOptions.FirstOrDefault(x=>x.Account==account)?.Label
+            ?? (string.IsNullOrWhiteSpace(account)
+                ?"默认账号（本群在线成员）":"账号 "+LastFour(account));
+        row.RefreshAccountLabel();
     }
 
     static T ReadData<T>(string? raw)
@@ -173,6 +224,7 @@ public partial class ScriptEditorWindow : UserControl
     void AppendRow(ScriptStepRow row,int index)
     {
         Attach(row);
+        SetDisplayResolver(row);
         if(index<0 || index>=_steps.Count) _steps.Add(row);
         else _steps.Insert(index,row);
     }
@@ -429,6 +481,8 @@ public partial class ScriptEditorWindow : UserControl
         (Window.GetWindow(this) as MainWindow)?.NavigateHome();
 }
 
+public sealed record AccountChoice(string Account,string Label);
+
 public sealed class ScriptStepRow : INotifyPropertyChanged
 {
     string _account="",_message="",_attachment="",_reminder="",_delay="5",_typing="5";
@@ -448,9 +502,31 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
     }
 
     public int PositionLabel{get=>_positionLabel;set=>Set(ref _positionLabel,value);}
-    public string Account{get=>_account;set=>Set(ref _account,value);}
+    public Func<string,string>? LabelResolver {get;set;}
+    public string AccountLabel=>LabelResolver?.Invoke(Account)
+        ?? (string.IsNullOrWhiteSpace(Account)?"默认账号":("账号 "+Account[^Math.Min(4,Account.Length)..]));
+    public void RefreshAccountLabel()=>PropertyChanged?.Invoke(
+        this,new PropertyChangedEventArgs(nameof(AccountLabel)));
+    public string AttachmentLabel=>string.IsNullOrWhiteSpace(Attachment)?"—":"已添加图片";
+    public string Account
+    {
+        get=>_account;
+        set
+        {
+            Set(ref _account,value??"");
+            RefreshAccountLabel();
+        }
+    }
     public string Message{get=>_message;set=>Set(ref _message,value);}
-    public string Attachment{get=>_attachment;set=>Set(ref _attachment,value);}
+    public string Attachment
+    {
+        get=>_attachment;
+        set
+        {
+            Set(ref _attachment,value);
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
+        }
+    }
     public string ReminderText{get=>_reminder;set=>Set(ref _reminder,value);}
     public string DelayText{get=>_delay;set=>Set(ref _delay,value);}
     public string TypingText{get=>_typing;set=>Set(ref _typing,value);}

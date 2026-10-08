@@ -87,3 +87,11 @@
 - [x] Draft empty-row skip in frozen job snapshot, specific row number on invalid content
 - [x] Centralized exception notifications, single owned modal and visibility-safe navigation
 - [ ] Multi-monitor DPI/keyboard/actual customer desktop usability acceptance
+
+### Beta.3 UX and branding
+- [x] Fixed-height script rows and detail editing panel with ellipsis and scroll
+- [x] Account remarks in script sender picker, online/disabled status on home
+- [x] Per-task pause/resume/stop and incremental updates without scroll reset
+- [x] Consistent dark headers and larger target group checkboxes
+- [x] Windows EXE, titlebar, Start menu and desktop custom SVG-derived icon
+- [ ] Manual screen-level DPI/keyboard/accessibility testing on users' Windows machines

@@ -21,6 +21,10 @@ jobs:
         with:
           dotnet-version: 8.0.414
 
+      - name: Generate desktop and installer icon
+        shell: powershell
+        run: .\tools\GenerateBrandIcon.ps1
+
       - name: Restore
         run: dotnet restore SignalScheduler.V8.sln
 
@@ -159,6 +163,7 @@ jobs:
           if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
           Start-Sleep -Seconds 2
           if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "signal-brand.ico"))) { throw "Brand icon missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }

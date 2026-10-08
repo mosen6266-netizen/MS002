@@ -799,7 +799,7 @@ public sealed partial class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.13",
+            "8.0.0-beta.3",
             "running",
             "supervised-live-pilot-alpha13",
             signal.State,
