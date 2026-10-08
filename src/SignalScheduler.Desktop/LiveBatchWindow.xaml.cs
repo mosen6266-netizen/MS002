@@ -106,7 +106,7 @@ public partial class LiveBatchWindow : UserControl
             await LoadJobsAsync();
             _timer.Start();
         };
-        _timer.Tick+=async(_,_)=>await LoadJobsAsync();
+        _timer.Tick+=async(_,_)=>{await LoadJobsAsync();foreach(var job in _jobs)job.RefreshCountdown();};
         Unloaded+=(_,_)=>_timer.Stop();
         UpdateButtons();
     }
@@ -396,6 +396,30 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     public int TotalSteps {get;private set;}
     public string Detail {get;private set;}="";
     public string NextSend {get;private set;}="—";
+    public string NextCountdown {get;private set;}="—";
+    public string RemainingEstimate {get;private set;}="—";
+    long _nextDueMs;
+    long _estimatedRemainingMs;
+    long _estimateSampleMs;
+    public void RefreshCountdown()
+    {
+        var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var seconds=Math.Max(0,(_nextDueMs-now+999)/1000);
+        var remaining=Math.Max(0,(_estimatedRemainingMs-(now-_estimateSampleMs)+999)/1000);
+        var newCountdown=State=="Running"?seconds+" 秒":"—";
+        var newRemaining=State=="Running" && _estimatedRemainingMs>0
+            ?"约 "+TimeSpan.FromSeconds(remaining).ToString(@"hh\:mm\:ss"):"—";
+        if(newCountdown!=NextCountdown)
+        {
+            NextCountdown=newCountdown;
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(NextCountdown)));
+        }
+        if(newRemaining!=RemainingEstimate)
+        {
+            RemainingEstimate=newRemaining;
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(RemainingEstimate)));
+        }
+    }
     public string Progress=>$"{Cursor}/{TotalSteps}";
     public string StateDisplay=>State switch
     {
@@ -416,6 +440,10 @@ public sealed class BatchJobRow : INotifyPropertyChanged
             ?DateTimeOffset.FromUnixTimeMilliseconds(item.NextDueMs)
                 .ToLocalTime().ToString("HH:mm:ss")
             :"—";
+        _nextDueMs=item.NextDueMs;
+        _estimatedRemainingMs=item.EstimatedRemainingMs;
+        _estimateSampleMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        RefreshCountdown();
         if(ScriptName==item.ScriptName && GroupName==item.GroupName &&
            State==item.State && Cursor==item.Cursor &&
            TotalSteps==item.TotalSteps && Detail==item.Detail &&
