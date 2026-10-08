@@ -67,6 +67,7 @@ public partial class MainWindow : Window
     }
 
     public void NavigateHome()=>Navigate("home");
+    public void NavigateTo(string page)=>Navigate(page);
 
     void Nav_Click(object sender,RoutedEventArgs e)
     {
