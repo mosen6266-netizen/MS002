@@ -45,8 +45,8 @@ public sealed class V8Beta4RegressionTests
         await SeedAsync(store);
         var missing=Path.Combine(root,"old-photo.jpg");
         var script=await SaveAsync(store,
-            new(0,"","带旧图片的文字",missing,false,"",12,0),
-            new(1,"","第二句话","",false,"",15,0));
+            new ScriptEditorStep(0,"","带旧图片的文字",missing,false,"",12,0),
+            new ScriptEditorStep(1,"","第二句话","",false,"",15,0));
 
         var check=await store.InspectLiveBatchMediaAsync(
             new(script.ScriptId),Ct);
@@ -78,7 +78,7 @@ public sealed class V8Beta4RegressionTests
         var path=Path.Combine(root,"legacy.png");
         await File.WriteAllBytesAsync(path,ValidPng,Ct);
         var script=await SaveAsync(store,
-            new(0,"","图片通知",path,false,"",12,0));
+            new ScriptEditorStep(0,"","图片通知",path,false,"",12,0));
         var check=await store.InspectLiveBatchMediaAsync(
             new(script.ScriptId),Ct);
         Assert.Empty(check.Issues);
@@ -101,8 +101,8 @@ public sealed class V8Beta4RegressionTests
         var (store,_,root)=await NewAsync();
         await SeedAsync(store);
         var script=await SaveAsync(store,
-            new(0,"","",Path.Combine(root,"missing.png"),false,"",3,0),
-            new(1,"","仍可发布的公告","",false,"",6,0));
+            new ScriptEditorStep(0,"","",Path.Combine(root,"missing.png"),false,"",3,0),
+            new ScriptEditorStep(1,"","仍可发布的公告","",false,"",6,0));
         var inspect=await store.InspectLiveBatchMediaAsync(
             new(script.ScriptId),Ct);
         Assert.Single(inspect.Issues);
@@ -118,7 +118,7 @@ public sealed class V8Beta4RegressionTests
     {
         var (store,db,root)=await NewAsync();
         var script=await SaveAsync(store,
-            new(0,"","可以删的剧本","",false,"",4,0));
+            new ScriptEditorStep(0,"","可以删的剧本","",false,"",4,0));
         await Assert.ThrowsAsync<InvalidOperationException>(()=>
             store.DeleteEditorScriptAsync(
                 new(script.ScriptId,script.Revision+1),Ct));
@@ -179,7 +179,7 @@ public sealed class V8Beta4RegressionTests
         var (store,_,_)=await NewAsync();
         await SeedAsync(store);
         var script=await SaveAsync(store,
-            new(0,"","待发送内容","",false,"",10,0));
+            new ScriptEditorStep(0,"","待发送内容","",false,"",10,0));
         await store.StartLiveBatchAsync(new(
             script.ScriptId,new[]{"test-g"},true),Ct);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>
