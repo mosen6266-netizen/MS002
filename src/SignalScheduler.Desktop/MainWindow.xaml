@@ -95,6 +95,8 @@
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
      <Button x:Name="TaskNav" Content="◷   任务与恢复" Tag="recovery"
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="HistoryNav" Content="◷   历史记录" Tag="history"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
      <Button x:Name="LicenseNav" Content="⚙   授权设置" Tag="license"
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
     </StackPanel>
