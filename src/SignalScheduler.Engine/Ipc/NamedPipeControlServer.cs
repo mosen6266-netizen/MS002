@@ -94,7 +94,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                 }
                 catch(Exception ex)
                 {
-                    response=new ControlResponse(false,Error=ex.Message);
+                    response=new ControlResponse(false,Error:ex.Message);
                 }
 
                 await writer.WriteLineAsync(JsonSerializer.Serialize(response));
