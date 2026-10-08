@@ -21,6 +21,7 @@ public partial class ScriptEditorWindow : UserControl
     int _revision;
     bool _loading;
     bool _dirty;
+    string? _savedSignature;
 
     public ScriptEditorWindow()
     {
@@ -147,9 +148,22 @@ public partial class ScriptEditorWindow : UserControl
         foreach(var step in doc.Steps)
             AppendRow(new ScriptStepRow(step),-1);
         Reindex();
+        _savedSignature=ComputeDraftSignature();
         _dirty=false;
         _loading=false;
     }
+
+    // A DataGrid CellEditEnding event can fire when only selecting/focusing
+    // a cell. Compare actual draft values, not focus/edit event counts.
+    string ComputeDraftSignature()=>JsonSerializer.Serialize(new
+    {
+        Name=NameBox.Text,
+        Group=GroupBox.Text,
+        Steps=_steps.Select(x=>new{
+            x.Account,x.Message,x.Attachment,x.PauseAfter,
+            x.ReminderText,x.DelayText,x.TypingText
+        }).ToArray()
+    });
 
     async void ScriptsList_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
@@ -170,7 +184,12 @@ public partial class ScriptEditorWindow : UserControl
 
     bool ConfirmDiscard()
     {
-        if(!_dirty) return true;
+        if(!_dirty || (_savedSignature is not null &&
+           ComputeDraftSignature()==_savedSignature))
+        {
+            _dirty=false;
+            return true;
+        }
         return MessageBox.Show(Window.GetWindow(this),
             "当前剧本有尚未保存的修改。确定放弃这些修改吗？",
             "未保存的修改",MessageBoxButton.YesNo,MessageBoxImage.Warning)
@@ -188,6 +207,7 @@ public partial class ScriptEditorWindow : UserControl
         _steps.Clear();
         AppendRow(new ScriptStepRow(),-1);
         Reindex();
+        _savedSignature=null;
         _dirty=true;
         _loading=false;
         StatusText.Text="新剧本尚未保存，完成编辑后点击右上角“保存剧本”。";
@@ -205,6 +225,42 @@ public partial class ScriptEditorWindow : UserControl
         _dirty=false;
         await ReloadScriptsAsync(loadFirst:true);
     }
+
+    async void DeleteScript_Click(object sender,RoutedEventArgs e)
+    {
+        if(_scriptId is null)
+        {
+            StatusText.Text="请先在左侧选择要删除的已保存剧本。";
+            return;
+        }
+        var id=_scriptId;
+        var name=NameBox.Text;
+        var confirmation=MessageBox.Show(Window.GetWindow(this),
+            $"确定删除剧本「{name}」吗？\n\n"+
+            "仅删除当前 V8 可编辑剧本，不会删除原 V7 备份或已有的发送历史。"+
+            "删除后无法在编辑器中撤销。","删除剧本",
+            MessageBoxButton.YesNo,MessageBoxImage.Warning);
+        if(confirmation!=MessageBoxResult.Yes)return;
+        try
+        {
+            var raw=await MainWindow.SendAsync(ControlCommands.ScriptDelete,16000,
+                new ScriptDeleteRequest(id,_revision));
+            var result=ReadData<ScriptDeleteResult>(raw);
+            if(!result.Deleted)throw new IOException("后台未确认删除。");
+            _loading=true;
+            _scriptId=null;
+            _savedSignature=null;
+            _dirty=false;
+            _loading=false;
+            await ReloadScriptsAsync(loadFirst:true);
+            StatusText.Text=$"剧本「{name}」已删除。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="删除失败："+ex.Message;
+        }
+    }
+
 
     void EditorField_Changed(object sender,TextChangedEventArgs e)
     {
@@ -442,6 +498,7 @@ public partial class ScriptEditorWindow : UserControl
                 AppendRow(new ScriptStepRow(step),-1);
             Reindex();
             _loading=false;
+            _savedSignature=null;
             _dirty=true;
             StatusText.Text="导入成功（未保存）。请检查消息及附件路径后点击“保存剧本”。";
         }
