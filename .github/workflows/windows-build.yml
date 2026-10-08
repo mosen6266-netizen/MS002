@@ -16,30 +16,142 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.414
+
       - name: Restore
         run: dotnet restore SignalScheduler.V8.sln
+
       - name: Build
         run: dotnet build SignalScheduler.V8.sln -c Release --no-restore
+
       - name: Tests
         run: dotnet test tests/SignalScheduler.Migration.Tests/SignalScheduler.Migration.Tests.csproj -c Release --no-build
+
       - name: Publish desktop
         run: dotnet publish src/SignalScheduler.Desktop/SignalScheduler.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Desktop
+
       - name: Publish engine
         run: dotnet publish src/SignalScheduler.Engine/SignalScheduler.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Engine
+
+      - name: Bundle pinned Java 25 and signal-cli
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ghHeaders = @{ "User-Agent" = "MS002-CI"; "Authorization" = "Bearer $env:GITHUB_TOKEN"; "Accept" = "application/vnd.github+json" }
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime"
+          New-Item -ItemType Directory -Force $runtime | Out-Null
+
+          # signal-cli: pin a specific signed GitHub release and verify GitHub's asset digest when present.
+          $signalVersion = "0.14.9"
+          $release = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/AsamK/signal-cli/releases/tags/v$signalVersion"
+          $assetName = "signal-cli-$signalVersion.tar.gz"
+          $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+          if (-not $asset) { throw "signal-cli asset not found: $assetName" }
+          $signalArchive = Join-Path $pwd "signal-cli.tar.gz"
+          Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $signalArchive
+          if ($asset.digest -and $asset.digest -match "^sha256:(.+)$") {
+            $actual = (Get-FileHash $signalArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = $Matches[1].ToLowerInvariant()
+            if ($actual -ne $expected) { throw "signal-cli SHA256 mismatch" }
+          }
+          $signalExtract = Join-Path $pwd "signal-cli-extract"
+          New-Item -ItemType Directory -Force $signalExtract | Out-Null
+          tar -xzf $signalArchive -C $signalExtract
+          $signalRoot = Get-ChildItem $signalExtract -Directory | Where-Object { $_.Name -like "signal-cli-*" } | Select-Object -First 1
+          if (-not $signalRoot) { throw "signal-cli extraction failed" }
+          Move-Item $signalRoot.FullName (Join-Path $runtime "signal-cli")
+          if (-not (Test-Path (Join-Path $runtime "signal-cli/bin/signal-cli.bat"))) { throw "signal-cli.bat missing" }
+
+          # Eclipse Temurin JRE 25: pin 25.0.4.1+1 and verify the checksum asset from the official GitHub release.
+          $jreVersion = "25.0.4.1+1"
+          $jreTag = [uri]::EscapeDataString("jdk-$jreVersion")
+          $temurinRelease = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/adoptium/temurin25-binaries/releases/tags/$jreTag"
+          $jreAssetName = "OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip"
+          $jreAsset = $temurinRelease.assets | Where-Object { $_.name -eq $jreAssetName } | Select-Object -First 1
+          $jreChecksumAsset = $temurinRelease.assets | Where-Object { $_.name -eq "$jreAssetName.sha256.txt" } | Select-Object -First 1
+          if (-not $jreAsset -or -not $jreChecksumAsset) { throw "Pinned Temurin JRE assets not found" }
+          $jreArchive = Join-Path $pwd "temurin-jre.zip"
+          $jreChecksumFile = Join-Path $pwd "temurin-jre.sha256.txt"
+          Invoke-WebRequest -UseBasicParsing -Uri $jreAsset.browser_download_url -OutFile $jreArchive
+          Invoke-WebRequest -UseBasicParsing -Uri $jreChecksumAsset.browser_download_url -OutFile $jreChecksumFile
+          $jreHash = (Get-FileHash $jreArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedJreHash = $null
+          if ($jreAsset.digest -and $jreAsset.digest -match "^sha256:(?<hash>[0-9a-fA-F]{64})$") {
+            $expectedJreHash = $Matches["hash"].ToLowerInvariant()
+          } else {
+            $checksumText = (Get-Content -Raw $jreChecksumFile)
+            $match = [regex]::Match($checksumText, "(?i)(?<hash>[0-9a-f]{64})")
+            if (-not $match.Success) { throw "Unable to parse Temurin SHA256" }
+            $expectedJreHash = $match.Groups["hash"].Value.ToLowerInvariant()
+          }
+          if ($jreHash -ne $expectedJreHash) {
+            throw "Temurin JRE SHA256 mismatch actual=$jreHash expected=$expectedJreHash"
+          }
+          $jreExtract = Join-Path $pwd "jre-extract"
+          Expand-Archive -Force $jreArchive $jreExtract
+          $jreRoot = Get-ChildItem $jreExtract -Directory | Select-Object -First 1
+          if (-not $jreRoot) { throw "Temurin JRE extraction failed" }
+          Move-Item $jreRoot.FullName (Join-Path $runtime "jre")
+          if (-not (Test-Path (Join-Path $runtime "jre/bin/java.exe"))) { throw "java.exe missing" }
+
+          # Runtime smoke test before installer packaging.
+          & (Join-Path $runtime "jre/bin/java.exe") -version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled Java failed" }
+          $env:JAVA_HOME = (Join-Path $runtime "jre")
+          $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
+          & cmd.exe /d /c ('"' + (Join-Path $runtime "signal-cli/bin/signal-cli.bat") + '" --version')
+          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli failed" }
+
+      - name: Signal JSON-RPC daemon smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime"
+          $java = Join-Path $runtime "jre/bin/java.exe"
+          $cp = Join-Path $runtime "signal-cli/lib/*"
+          $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
+          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Milliseconds 750
+              if ($proc.HasExited) { break }
+              try {
+                $body = @{ jsonrpc = "2.0"; method = "listAccounts"; id = 1 } | ConvertTo-Json -Compress
+                $reply = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $body -Uri "http://127.0.0.1:7583/api/v1/rpc" -TimeoutSec 3
+                if ($reply.jsonrpc -eq "2.0" -and $null -ne $reply.result) { $ok = $true; break }
+              } catch {}
+            }
+            if (-not $ok) {
+              if (Test-Path $stdout) { Get-Content $stdout -Tail 100 }
+              if (Test-Path $stderr) { Get-Content $stderr -Tail 100 }
+              throw "signal-cli daemon JSON-RPC smoke test failed"
+            }
+          } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+            Get-Process "java" -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
+
       - name: Install pinned Inno Setup
         shell: powershell
         run: choco install innosetup --version=6.7.1 -y --no-progress
+
       - name: Build installer
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force artifacts/installer | Out-Null
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DPublishRoot=$pwd\artifacts\publish" "/DOutputRoot=$pwd\artifacts\installer" "installer\SignalScheduler.iss"
+
       - name: Installer smoke test
         shell: powershell
         run: |
+          $ErrorActionPreference = "Stop"
           $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V8*.exe | Select-Object -First 1
           if (-not $setup) { throw "Installer not found" }
           $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV8-CI-Smoke"
@@ -48,16 +160,30 @@ jobs:
           Start-Sleep -Seconds 2
           if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
+
+          $installedJava = Join-Path $testRoot "Runtime\jre\bin\java.exe"
+          $installedCp = Join-Path $testRoot "Runtime\signal-cli\lib\*"
+          & $installedJava -classpath $installedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
+
           $desktop = [Environment]::GetFolderPath("Desktop")
           $programs = [Environment]::GetFolderPath("Programs")
           if (-not (Test-Path (Join-Path $desktop "Signal Auto Scheduler.lnk"))) { throw "Desktop shortcut missing" }
           if (-not (Test-Path (Join-Path $programs "Signal Auto Scheduler\Signal Auto Scheduler.lnk"))) { throw "Start Menu shortcut missing" }
+
           Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process "java" -ErrorAction SilentlyContinue | Stop-Process -Force
           $uninstall = Join-Path $testRoot "unins000.exe"
-          if (Test-Path $uninstall) { & $uninstall /VERYSILENT /SUPPRESSMSGBOXES /NORESTART }
+          if (Test-Path $uninstall) {
+            $u = Start-Process -FilePath $uninstall -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait -PassThru
+          }
+
       - name: Hash installer
         shell: powershell
         run: Get-FileHash artifacts/installer/*.exe -Algorithm SHA256 | Format-List | Out-File artifacts/installer/SHA256.txt
+
       - uses: actions/upload-artifact@v4
         with:
           name: SignalScheduler-V8-Windows

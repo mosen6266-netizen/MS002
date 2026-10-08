@@ -9,20 +9,35 @@ SignalScheduler.exe (native WPF UI)
 SignalScheduler.Engine.exe (per-user background engine)
         ├─ Durable task engine
         ├─ SQLite state store
-        ├─ Signal Guardian / supervisor   [Stage 3]
-        └─ signal-cli transport           [Stage 3]
+        ├─ Signal Guardian
+        │    ├─ JSON-RPC listAccounts probe
+        │    ├─ healthy / busy / fault state machine
+        │    ├─ owned-daemon restart policy
+        │    └─ privacy-filtered diagnostics
+        └─ signal-cli 0.14.9
+             └─ Eclipse Temurin JRE 25.0.4.1+1
 ```
 
-V8 uses a **per-user background engine**, not a LocalSystem Windows Service. This is deliberate: Signal login data, LocalAppData, user-scoped DPAPI and existing V7 data all belong to the interactive Windows user. Running the core as LocalSystem would introduce avoidable profile/permission failures.
+V8 uses a **per-user background engine**, not a LocalSystem Windows Service. Signal login data, LocalAppData, user-scoped DPAPI and the V7 data store all belong to the interactive Windows user.
 
-The engine is independent from the UI. Minimizing or rendering faults cannot stop durable tasks. The installer registers the engine for the current user's login.
+The UI is not a lifecycle authority. Minimizing, closing and reopening the UI does not define durable task state.
+
+## Signal Guardian rules
+
+- Port 7583 is accepted as Signal only after a real JSON-RPC `listAccounts` response is validated.
+- A valid existing signal-cli daemon may be reused.
+- A responsive non-Signal process on 7583 becomes `external-conflict`; V8 never kills it.
+- Short RPC failures become `busy`, not an immediate restart.
+- An owned daemon is eligible for restart only after sustained RPC failure **and** no recent process output.
+- Signal service recovery never implies task recovery.
+- Alpha.3 keeps irreversible sends disabled; the next transport stage must perform a two-phase pause/persist handshake before Guardian may restart an owned daemon during active jobs.
 
 ## V7.6.2 baseline
 
 - APP_VERSION: 7.6.2
 - APP_BUILD: 7.6.2-clean-upgrade-20261008
 - Data: `%LOCALAPPDATA%\SignalSchedulerData`
-- V7 already has durable `dispatch_journal`, inflight markers, `recovery_needed`, WAL and fail-closed behavior.
+- V7 already has durable dispatch journal, inflight markers, recovery-needed semantics, WAL and fail-closed behavior.
 
 V8 creates `v8_*` tables beside the V7 schema. It does not drop or rebuild V7 tables.
 
@@ -44,9 +59,9 @@ V8 creates `v8_*` tables beside the V7 schema. It does not drop or rebuild V7 ta
 1. Read-only V7 schema inventory.
 2. Consistent SQLite backup through SQLite backup API.
 3. Create V8 schema/markers.
-4. Import account labels, scripts, steps, attachments and groups.
+4. Import account labels, scripts, steps and groups.
 5. Any V7 running task is imported as paused; inflight/recovery tasks become `RecoveryRequired`.
 6. Validate source/target counts inside the transaction.
 7. Only after validation may later stages enable V8 execution.
 
-Signal login-store migration is separate and requires real Windows validation.
+Signal login-store behavior is intentionally kept in the same Windows user context. Alpha.3 first validates that the bundled runtime can see the user's existing default signal-cli account store before adding any relocation/migration step.

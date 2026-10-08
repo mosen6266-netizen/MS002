@@ -40,10 +40,110 @@ public sealed class StateStore
         CREATE TABLE IF NOT EXISTS v8_event_log(
           id INTEGER PRIMARY KEY AUTOINCREMENT,job_id TEXT,dispatch_key TEXT,event_type TEXT NOT NULL,detail TEXT,created_at INTEGER NOT NULL
         );
-        INSERT INTO v8_schema(key,value) VALUES('schema_version','1')
+        CREATE TABLE IF NOT EXISTS v8_signal_accounts(
+          account TEXT PRIMARY KEY,
+          label TEXT NOT NULL,
+          enabled INTEGER NOT NULL DEFAULT 1,
+          online INTEGER NOT NULL DEFAULT 0,
+          last_seen INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS v8_signal_groups(
+          account TEXT NOT NULL,
+          group_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          is_member INTEGER NOT NULL DEFAULT 1,
+          members_json TEXT NOT NULL DEFAULT '[]',
+          last_seen INTEGER NOT NULL DEFAULT 0,
+          PRIMARY KEY(account,group_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_v8_signal_groups_name ON v8_signal_groups(name);
+        INSERT INTO v8_schema(key,value) VALUES('schema_version','2')
           ON CONFLICT(key) DO UPDATE SET value=excluded.value;
         """;
         await cmd.ExecuteNonQueryAsync(ct);
+    }
+
+
+    public async Task SyncSignalCatalogAsync(
+        IReadOnlyList<string> liveAccounts,
+        IReadOnlyList<SignalGroupCatalogItem> groups,
+        CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        await using(var offline=c.CreateCommand())
+        {
+            offline.Transaction=tx;
+            offline.CommandText="UPDATE v8_signal_accounts SET online=0";
+            await offline.ExecuteNonQueryAsync(ct);
+        }
+
+        foreach(var account in liveAccounts.Distinct(StringComparer.Ordinal))
+        {
+            string label=account;
+            long enabled=1;
+
+            await using(var legacy=c.CreateCommand())
+            {
+                legacy.Transaction=tx;
+                legacy.CommandText="SELECT label,enabled FROM v8_accounts WHERE account=$a LIMIT 1";
+                legacy.Parameters.AddWithValue("$a",account);
+                try
+                {
+                    await using var r=await legacy.ExecuteReaderAsync(ct);
+                    if(await r.ReadAsync(ct))
+                    {
+                        label=r.IsDBNull(0)?account:r.GetString(0);
+                        enabled=r.IsDBNull(1)?1:r.GetInt64(1);
+                    }
+                }
+                catch(SqliteException)
+                {
+                    // Fresh V8 installs may not have migrated legacy account tables.
+                }
+            }
+
+            await using var cmd=c.CreateCommand();
+            cmd.Transaction=tx;
+            cmd.CommandText="""
+                INSERT INTO v8_signal_accounts(account,label,enabled,online,last_seen)
+                VALUES($a,$label,$enabled,1,$now)
+                ON CONFLICT(account) DO UPDATE SET
+                  online=1,
+                  last_seen=excluded.last_seen;
+                """;
+            cmd.Parameters.AddWithValue("$a",account);
+            cmd.Parameters.AddWithValue("$label",label);
+            cmd.Parameters.AddWithValue("$enabled",enabled);
+            cmd.Parameters.AddWithValue("$now",now);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        foreach(var group in groups)
+        {
+            await using var cmd=c.CreateCommand();
+            cmd.Transaction=tx;
+            cmd.CommandText="""
+                INSERT INTO v8_signal_groups(account,group_id,name,is_member,members_json,last_seen)
+                VALUES($a,$g,$name,$member,$members,$now)
+                ON CONFLICT(account,group_id) DO UPDATE SET
+                  name=excluded.name,
+                  is_member=excluded.is_member,
+                  members_json=excluded.members_json,
+                  last_seen=excluded.last_seen;
+                """;
+            cmd.Parameters.AddWithValue("$a",group.Account);
+            cmd.Parameters.AddWithValue("$g",group.GroupId);
+            cmd.Parameters.AddWithValue("$name",group.Name);
+            cmd.Parameters.AddWithValue("$member",group.IsMember?1:0);
+            cmd.Parameters.AddWithValue("$members",System.Text.Json.JsonSerializer.Serialize(group.Members));
+            cmd.Parameters.AddWithValue("$now",now);
+            await cmd.ExecuteNonQueryAsync(ct);
+        }
+
+        tx.Commit();
     }
 
     public async Task ReserveAsync(DispatchIdentity d,CancellationToken ct)
@@ -127,7 +227,7 @@ public sealed class StateStore
         tx.Commit();
     }
 
-    public async Task<DashboardSnapshot> GetDashboardAsync(CancellationToken ct)
+    public async Task<DashboardSnapshot> GetDashboardAsync(SignalGuardianSnapshot signal,CancellationToken ct)
     {
         await using var c=Open();
 
@@ -202,9 +302,13 @@ public sealed class StateStore
         }
 
         return new DashboardSnapshot(
-            "8.0.0-alpha.2",
+            "8.0.0-alpha.3",
             "running",
-            "disabled-foundation-stage",
+            "send-disabled-alpha3",
+            signal.State,
+            signal.Detail,
+            signal.SignalCliVersion,
+            signal.LiveAccounts.Count,
             legacyDetected,
             metadataMigrated,
             accounts.Count,

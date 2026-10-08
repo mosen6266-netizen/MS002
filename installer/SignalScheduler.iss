@@ -1,6 +1,6 @@
 #define MyAppName "Signal Auto Scheduler"
 #ifndef MyAppVersion
- #define MyAppVersion "8.0.0-alpha.2"
+ #define MyAppVersion "8.0.0-alpha.3"
 #endif
 #ifndef PublishRoot
  #define PublishRoot "..\artifacts\publish"
@@ -19,7 +19,7 @@ DefaultGroupName=Signal Auto Scheduler
 DisableDirPage=no
 DisableProgramGroupPage=no
 OutputDir={#OutputRoot}
-OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.2
+OutputBaseFilename=SignalScheduler_Setup_V8.0.0-alpha.3
 Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -39,6 +39,7 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 [Files]
 Source: "{#PublishRoot}\Desktop\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#PublishRoot}\Engine\*"; DestDir: "{app}\Engine"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#PublishRoot}\Runtime\*"; DestDir: "{app}\Runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; Tasks: desktopicon

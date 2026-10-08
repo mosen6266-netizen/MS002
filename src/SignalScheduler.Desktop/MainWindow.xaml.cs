@@ -3,6 +3,7 @@ using System.IO;
 using System.IO.Pipes;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using SignalScheduler.Shared;
 
@@ -45,12 +46,19 @@ public partial class MainWindow : Window
                 CreateNoWindow=true,
                 WindowStyle=ProcessWindowStyle.Hidden
             });
-            await Task.Delay(900);
+            await Task.Delay(1100);
         }
         catch { }
     }
 
     async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
+
+    async void LinkAccount_Click(object sender,RoutedEventArgs e)
+    {
+        var dialog=new LinkAccountWindow{Owner=this};
+        dialog.ShowDialog();
+        await RefreshAsync();
+    }
 
     async Task RefreshAsync()
     {
@@ -58,7 +66,7 @@ public partial class MainWindow : Window
         _refreshing=true;
         try
         {
-            var raw=await SendAsync(ControlCommands.Dashboard,1800);
+            var raw=await SendAsync(ControlCommands.Dashboard,2200);
             if(string.IsNullOrWhiteSpace(raw)) throw new IOException("后台无响应");
 
             using var doc=JsonDocument.Parse(raw);
@@ -70,17 +78,36 @@ public partial class MainWindow : Window
             var snapshot=JsonSerializer.Deserialize<DashboardSnapshot>(data.GetRawText())
                 ?? throw new IOException("无法解析后台状态");
 
-            EngineStatusText.Text="正常";
-            EngineStatusText.Foreground=System.Windows.Media.Brushes.LightGreen;
             EngineBadge.Text="● 后台引擎正常";
-            EngineBadge.Foreground=System.Windows.Media.Brushes.LightGreen;
+            EngineBadge.Foreground=Brushes.LightGreen;
 
-            AccountsCountText.Text=$"{snapshot.EnabledAccounts} / {snapshot.Accounts}";
+            var signalState=snapshot.SignalState.ToLowerInvariant();
+            SignalStatusText.Text=signalState switch
+            {
+                "healthy"=>"正常",
+                "busy"=>"繁忙 / 同步中",
+                "starting"=>"启动中",
+                "fault"=>"异常",
+                "external-conflict"=>"端口冲突",
+                "missing-runtime"=>"Runtime 缺失",
+                _=>snapshot.SignalState
+            };
+            SignalStatusText.Foreground=signalState switch
+            {
+                "healthy"=>Brushes.LightGreen,
+                "busy" or "starting"=>Brushes.Gold,
+                _=>Brushes.IndianRed
+            };
+            SignalDetailText.Text=snapshot.SignalDetail;
+            RuntimeVersionText.Text=$"signal-cli: {snapshot.SignalCliVersion}";
+            LinkAccountButton.IsEnabled=signalState=="healthy";
+
+            AccountsCountText.Text=$"{snapshot.LiveSignalAccounts} 在线 · {snapshot.EnabledAccounts}/{snapshot.Accounts} 已登记";
             GroupsCountText.Text=snapshot.Groups.ToString();
             ScriptsCountText.Text=snapshot.Scripts.ToString();
 
             MigrationBadge.Text=snapshot.MetadataMigrated
-                ?"✓ 已读取 V7.6.2 本地资料"
+                ?"✓ 已读取 V7 本地资料"
                 : snapshot.LegacyDetected
                     ?"检测到旧版资料，等待迁移完成"
                     :"当前为全新 V8 数据";
@@ -103,16 +130,18 @@ public partial class MainWindow : Window
         }
         catch(Exception ex)
         {
-            EngineStatusText.Text="异常";
-            EngineStatusText.Foreground=System.Windows.Media.Brushes.IndianRed;
+            SignalStatusText.Text="未知";
+            SignalStatusText.Foreground=Brushes.IndianRed;
+            SignalDetailText.Text="后台未连接";
+            LinkAccountButton.IsEnabled=false;
             EngineBadge.Text="● 后台引擎未连接";
-            EngineBadge.Foreground=System.Windows.Media.Brushes.IndianRed;
+            EngineBadge.Foreground=Brushes.IndianRed;
             MigrationBadge.Text=ex.Message;
         }
         finally{_refreshing=false;}
     }
 
-    static async Task<string?> SendAsync(string command,int timeoutMs)
+    internal static async Task<string?> SendAsync(string command,int timeoutMs)
     {
         using var cts=new CancellationTokenSource(timeoutMs);
         await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);

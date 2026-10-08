@@ -20,6 +20,29 @@ public sealed record DispatchIdentity(string JobId,string RunToken,long RunCycle
     }
 }
 
+public sealed record SignalGroupCatalogItem(
+    string Account,
+    string GroupId,
+    string Name,
+    bool IsMember,
+    IReadOnlyList<string> Members);
+
+public sealed record SignalLinkSnapshot(
+    string State,
+    string DeviceLinkUri,
+    string Account,
+    string Detail,
+    DateTimeOffset StartedAt);
+
+public sealed record SignalGuardianSnapshot(
+    string State,
+    string Detail,
+    string SignalCliVersion,
+    bool OwnsProcess,
+    int RestartCount,
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<string> LiveAccounts);
+
 public sealed record DashboardAccount(long LegacyId,string Account,string Label,bool Enabled);
 public sealed record DashboardGroup(long LegacyId,string Account,string GroupId,string Name,bool Enabled);
 public sealed record DashboardScript(long LegacyId,string Name,long StepCount);
@@ -29,6 +52,10 @@ public sealed record DashboardSnapshot(
     string Version,
     string EngineState,
     string TransportState,
+    string SignalState,
+    string SignalDetail,
+    string SignalCliVersion,
+    int LiveSignalAccounts,
     bool LegacyDetected,
     bool MetadataMigrated,
     int Accounts,
@@ -50,4 +77,8 @@ public static class ControlCommands
     public const string Status="status";
     public const string Ping="ping";
     public const string Dashboard="dashboard";
+    public const string SignalStatus="signal-status";
+    public const string StartLink="start-link";
+    public const string LinkStatus="link-status";
+    public const string CancelLink="cancel-link";
 }

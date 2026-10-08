@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using System.IO.Pipes;
 using System.Text.Json;
 using SignalScheduler.Engine.Persistence;
+using SignalScheduler.Engine.Signal;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Ipc;
@@ -10,8 +11,15 @@ public sealed class NamedPipeControlServer : BackgroundService
 {
     const string PipeName="SignalScheduler.V8.Control";
     readonly StateStore _store;
+    readonly SignalGuardian _guardian;
+    readonly SignalLinkManager _link;
 
-    public NamedPipeControlServer(StateStore store)=>_store=store;
+    public NamedPipeControlServer(StateStore store,SignalGuardian guardian,SignalLinkManager link)
+    {
+        _store=store;
+        _guardian=guardian;
+        _link=link;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
@@ -34,15 +42,32 @@ public sealed class NamedPipeControlServer : BackgroundService
                         response=new ControlResponse(true,Data:new{pong=true});
                         break;
                     case ControlCommands.Status:
+                        var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-alpha.2",
+                            version="8.0.0-alpha.3",
                             engine="running",
-                            transport="disabled-foundation-stage",
+                            signal=s.State,
+                            signalDetail=s.Detail,
+                            signalCli=s.SignalCliVersion,
+                            liveAccounts=s.LiveAccounts.Count,
                             process=Environment.ProcessId
                         });
                         break;
+                    case ControlCommands.SignalStatus:
+                        response=new ControlResponse(true,Data:_guardian.Snapshot);
+                        break;
                     case ControlCommands.Dashboard:
-                        response=new ControlResponse(true,Data:await _store.GetDashboardAsync(ct));
+                        response=new ControlResponse(true,Data:await _store.GetDashboardAsync(_guardian.Snapshot,ct));
+                        break;
+                    case ControlCommands.StartLink:
+                        response=new ControlResponse(true,Data:await _link.StartAsync("Signal Scheduler V8",ct));
+                        break;
+                    case ControlCommands.LinkStatus:
+                        response=new ControlResponse(true,Data:_link.Snapshot);
+                        break;
+                    case ControlCommands.CancelLink:
+                        _link.Cancel();
+                        response=new ControlResponse(true,Data:_link.Snapshot);
                         break;
                     default:
                         response=new ControlResponse(false,Error:"unknown_command");

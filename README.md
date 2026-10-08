@@ -11,15 +11,29 @@ Production-oriented Windows rewrite of Signal Auto Scheduler.
 - Named Pipe IPC; no localhost web UI
 - SQLite WAL + `synchronous=FULL`
 - Durable dispatch journal and explicit recovery states
-- signal-cli isolated behind a supervised transport adapter
 - Standard Windows installer with selectable install path/progress UI
-- Self-contained Windows publish; users do not install Python or .NET
+- Self-contained Windows publish; users do not install .NET/Python
 - Existing data remains under `%LOCALAPPDATA%\SignalSchedulerData`
 
-A per-user engine is used instead of a LocalSystem Windows Service so existing Signal login data, user-scoped DPAPI and LocalAppData stay in the same Windows security context.
+## Signal runtime
+
+Alpha.3 adds the real offline Signal runtime:
+
+- Eclipse Temurin JRE **25.0.4.1+1**
+- signal-cli **0.14.9**
+- real JSON-RPC `listAccounts` identity probe on `127.0.0.1:7583`
+- layered Guardian states: `starting / healthy / busy / fault / external-conflict / missing-runtime`
+- existing valid signal-cli daemon can be reused
+- unknown processes on 7583 are never killed
+- owned daemon restart requires sustained RPC failure and lack of processing output
+- diagnostic Signal logs are privacy-filtered and rotated
+
+A per-user engine is used instead of a LocalSystem Windows Service so existing Signal login data, user-scoped DPAPI and LocalAppData stay in the interactive user's security context.
 
 ### Reliability invariant
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.2 native dashboard + V7 metadata migration**. The installer now creates explicit desktop/start-menu shortcuts and the native dashboard reads migrated accounts, groups, scripts and recovery jobs. Signal sending remains intentionally disabled until Guardian/login/send transport migration is completed.
+Current stage: **8.0.0-alpha.3 Signal Guardian / offline runtime / QR linking**.
+
+Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
