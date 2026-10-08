@@ -46,9 +46,11 @@
 - [ ] Binary attachment import/export and preview
 - [x] Group selection by name and unique ID, saved across restart
 - [ ] Typing/read logic
-- [ ] Multi-group runner
+- [x] Multi-group rehearsal scheduler (SQLite-backed preview only, no actual Signal sends)
+- [ ] Live Signal multi-group runner with durable send transport
 - [x] Read-only recovery center, audit evidence copy, persistent manual pause
-- [ ] Safe resume/stop and adjudication workflow (disabled until runner is complete)
+- [x] Manual pause/resume/stop for preview tasks (state persisted, blocked on ambiguous dispatch)
+- [ ] Human adjudication and safe resume for real-send jobs (remains disabled)
 - [x] Native critical alerts for engine/Signal/recovery status
 - [ ] Existing Cloudflare licensing
 
@@ -57,7 +59,8 @@
 - [ ] Fault-injection tests
 - [ ] crash/restart tests
 - [ ] network/signal-cli failure tests
-- [ ] 20-group concurrency tests
+- [x] 20-group rehearsal cursor independence test
+- [ ] Real Signal 20-group concurrency tests
 - [ ] sleep/wake tests
 - [ ] 24/72-hour soak tests
 - [ ] optional code signing
