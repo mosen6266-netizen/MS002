@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-alpha.11 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-alpha.12 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -67,3 +67,11 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 该版本连接现有 Cloudflare Worker `signal-scheduler-license` 的 `/api/license/activate` 和 `/api/license/check`。在原生「授权设置」中可输入已有或新卡密、在线验证类型与到期日期。卡密和稳定设备标识使用 Windows DPAPI（当前用户）加密保存在 LocalAppData；6 小时以内离线租约通过 P-256 ECDSA 验签与首次激活公钥锁定验证，后台禁用和设备限制以服务器为准。程序不生成新卡、不修改云端数据库、不保存管理员凭证。
 
 **当前仅实现 V8 激活/校验与资料持久化；既有 V7 本地设备绑定标识尚未自动迁移。旧卡如超过设备上限，需要在既有后台合法解绑并重新激活。真实 Signal 发送仍禁用，所以当前授权功能不等于完整的生产级反破解能力。**
+
+## V8 alpha.12 · 真实发送测试（严格限制）
+
+用户可以在左侧「实发测试」打开专用对话框，选择已经勾选的**专用测试群**与属于该群的在线账号，勾选同意并二次确认后发送**单条**带测试编号的真实 Signal 消息。此功能不读取剧本，也不触发任何其他群。
+
+使用已有 Cloudflare 卡密进行**在线**校验。每次发送创建独立 SQLite 任务和发送日志，调用 `signal-cli JSON-RPC send`，检查响应 JSON-RPC 请求 ID 和 `timestamp`。只有确认收到有效回执才将任务标记 Completed。断网、超时、服务重启、RPC 错误及不完整回复都视为结果不明：暂停并记录在恢复中心，**不自动重试**。一次只允许一条，至少间隔 90 秒，禁止绕过未知发送记录；不允许在非勾选群组发送。
+
+**alpha.12 尚不能自动执行真实多账号/多群剧本。** 预演任务仍严格不调用 Signal。要完成全功能验收，还需用户在自己的专用测试群执行端到端检查和负载验证；CI 的虚拟 RPC 响应不能证明真实群已收到消息。
