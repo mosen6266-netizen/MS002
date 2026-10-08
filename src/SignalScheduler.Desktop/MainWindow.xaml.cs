@@ -57,6 +57,12 @@ public partial class MainWindow : Window
 
     async void RefreshButton_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
 
+    void RecoveryCenter_Click(object sender,RoutedEventArgs e)
+    {
+        var window=new RecoveryCenterWindow{Owner=this};
+        window.Show();
+    }
+
     async void LinkAccount_Click(object sender,RoutedEventArgs e)
     {
         var dialog=new LinkAccountWindow{Owner=this};
@@ -206,14 +212,15 @@ public partial class MainWindow : Window
         });
     }
 
-    internal static async Task<string?> SendAsync(string command,int timeoutMs)
+    internal static async Task<string?> SendAsync(string command,int timeoutMs,object? payload=null)
     {
         using var cts=new CancellationTokenSource(timeoutMs);
         await using var pipe=new NamedPipeClientStream(".","SignalScheduler.V8.Control",PipeDirection.InOut,PipeOptions.Asynchronous);
         await pipe.ConnectAsync(timeoutMs,cts.Token);
         using var reader=new StreamReader(pipe,leaveOpen:true);
         using var writer=new StreamWriter(pipe,leaveOpen:true){AutoFlush=true};
-        await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(command)));
+        await writer.WriteLineAsync(JsonSerializer.Serialize(new ControlRequest(
+            command,payload is null?null:JsonSerializer.SerializeToElement(payload))));
         return await reader.ReadLineAsync(cts.Token);
     }
 }
