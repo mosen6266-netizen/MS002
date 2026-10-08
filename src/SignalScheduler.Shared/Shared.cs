@@ -188,6 +188,14 @@ public sealed record LiveBatchMediaInspection(
     IReadOnlyList<LiveBatchMediaIssue> Issues);
 public sealed record LiveBatchStartResult(IReadOnlyList<string> JobIds,int GroupCount,int MessageCount);
 public sealed record LiveBatchControlRequest(string JobId,string Action);
+public sealed record LiveBatchHistoryDetailRequest(string JobId);
+public sealed record LiveBatchHistoryMessage(
+    int Position,string AccountLabel,string Content,
+    string State,string Detail,string SentAt);
+public sealed record LiveBatchHistoryDetail(
+    string JobId,string ScriptName,string GroupName,string State,
+    long Cursor,int TotalSteps,IReadOnlyList<LiveBatchHistoryMessage> Messages);
+
 public sealed record LiveBatchItem(
     string JobId,string ScriptName,string GroupId,string GroupName,
     string State,long Cursor,int TotalSteps,long NextDueMs,string Detail,long EstimatedRemainingMs=0);
@@ -239,5 +247,6 @@ public static class ControlCommands
     public const string LiveBatchStart="live-batch-start";
     public const string LiveBatchInspect="live-batch-inspect";
     public const string LiveBatchList="live-batch-list";
+    public const string LiveBatchHistoryDetail="live-batch-history-detail";
     public const string LiveBatchControl="live-batch-control";
 }
