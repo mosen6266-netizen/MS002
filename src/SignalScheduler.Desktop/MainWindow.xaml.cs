@@ -38,8 +38,11 @@ public partial class MainWindow : Window
         NotificationsList.ItemsSource=_notifications;
         Loaded+=async(_,_)=>
         {
-            Navigate("home");
+            // Launch the Engine before the home page fetches scripts/groups.
+            // Otherwise the first data request races Engine initialization
+            // and displays an empty catalog until a manual refresh.
             await EnsureEngineAsync();
+            Navigate("home");
             await RefreshAsync();
             _timer.Start();
         };
@@ -145,7 +148,18 @@ public partial class MainWindow : Window
                 UseShellExecute=false,CreateNoWindow=true,
                 WindowStyle=ProcessWindowStyle.Hidden
             });
-            await Task.Delay(1400);
+            // The Engine also migrates V7 metadata and opens signal-cli.
+            // Give its local control pipe a short bounded readiness period.
+            for(var i=0;i<12;i++)
+            {
+                await Task.Delay(450);
+                try
+                {
+                    if(await SendAsync(ControlCommands.Ping,500) is not null)
+                        break;
+                }
+                catch { }
+            }
         }
         catch(Exception ex)
         {
