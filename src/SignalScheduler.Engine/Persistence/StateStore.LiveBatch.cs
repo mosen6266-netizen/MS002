@@ -303,6 +303,83 @@ public sealed partial class StateStore
         return rows;
     }
 
+    public async Task<LiveBatchHistoryDetail> GetLiveBatchHistoryDetailAsync(
+        string jobId,CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(jobId) || jobId.Length>128)
+            throw new ArgumentException("无效的历史任务编号。");
+        await using var c=Open();
+        string scriptName,groupName,state,json;
+        long cursor;
+        int total;
+        await using(var q=c.CreateCommand())
+        {
+            q.CommandText="""
+                SELECT b.script_name,b.group_name,j.state,j.cursor,
+                       b.total_steps,b.steps_json
+                FROM v8_live_batch_jobs b JOIN v8_jobs j ON j.job_id=b.job_id
+                WHERE b.job_id=$job LIMIT 1;
+                """;
+            q.Parameters.AddWithValue("$job",jobId);
+            await using var r=await q.ExecuteReaderAsync(ct);
+            if(!await r.ReadAsync(ct))
+                throw new InvalidOperationException("历史记录不存在。");
+            scriptName=r.GetString(0);
+            groupName=r.GetString(1);
+            state=r.GetString(2);
+            cursor=r.GetInt64(3);
+            total=r.GetInt32(4);
+            json=r.GetString(5);
+        }
+        var steps=JsonSerializer.Deserialize<ScriptEditorStep[]>(json)
+            ??throw new InvalidDataException("历史消息快照损坏。");
+        var entries=new Dictionary<long,(string State,string Detail,long UpdatedAt)>();
+        await using(var q=c.CreateCommand())
+        {
+            q.CommandText="""
+                SELECT cursor,state,COALESCE(detail,''),updated_at
+                FROM v8_dispatch_journal WHERE job_id=$job
+                ORDER BY updated_at ASC,dispatch_key ASC;
+                """;
+            q.Parameters.AddWithValue("$job",jobId);
+            await using var r=await q.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                entries[r.GetInt64(0)]=(r.GetString(1),r.GetString(2),r.GetInt64(3));
+        }
+        var labels=new Dictionary<string,string>(StringComparer.Ordinal);
+        await using(var q=c.CreateCommand())
+        {
+            q.CommandText="SELECT account,label FROM v8_account_settings;";
+            await using var r=await q.ExecuteReaderAsync(ct);
+            while(await r.ReadAsync(ct))
+                labels[r.GetString(0)]=r.GetString(1);
+        }
+        var messages=new List<LiveBatchHistoryMessage>(steps.Length);
+        for(var i=0;i<steps.Length;i++)
+        {
+            var step=steps[i];
+            entries.TryGetValue(i,out var info);
+            var status=info.State switch
+            {
+                "Confirmed" or "Completed" or "ManuallyConfirmed"=>"发送成功",
+                "RecoveryRequired" or "Ambiguous"=>"结果待核对",
+                "Sending"=>"正在发送","Reserved"=>"等待发送",
+                "Failed"=>"发送失败",null=>"未执行",
+                _=>info.State
+            };
+            messages.Add(new LiveBatchHistoryMessage(i+1,
+                labels.GetValueOrDefault(step.Account,"未备注账号"),
+                string.IsNullOrWhiteSpace(step.Message)
+                    ?(string.IsNullOrWhiteSpace(step.Attachment)?"（空消息）":"（图片）")
+                    :step.Message,
+                status,info.Detail??"",
+                info.UpdatedAt>0?DateTimeOffset.FromUnixTimeSeconds(info.UpdatedAt)
+                    .ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"):"—"));
+        }
+        return new LiveBatchHistoryDetail(jobId,scriptName,groupName,
+            state,cursor,total,messages);
+    }
+
     public async Task<IReadOnlyList<DueLiveBatch>> FindDueLiveBatchAsync(
         long nowMs,int limit,CancellationToken ct)
     {
