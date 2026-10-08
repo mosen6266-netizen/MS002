@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Data;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
@@ -56,6 +57,31 @@ public partial class LiveBatchWindow : UserControl
         }
     }
 
+    const int GroupsPerPage=10;
+    int _groupPage;
+    ICollectionView? _groupsView;
+    void RefreshGroupPage()
+    {
+        if(GroupsGrid is null)return;
+        var pages=Math.Max(1,(_groups.Count+GroupsPerPage-1)/GroupsPerPage);
+        _groupPage=Math.Clamp(_groupPage,0,pages-1);
+        _groupsView?.Refresh();
+        if(GroupsPageLabel is not null)
+            GroupsPageLabel.Text=$"第 {_groupPage+1} / {pages} 页 · 共 {_groups.Count} 个群";
+        if(PreviousGroupsPage is not null)PreviousGroupsPage.IsEnabled=_groupPage>0;
+        if(NextGroupsPage is not null)NextGroupsPage.IsEnabled=_groupPage<pages-1;
+    }
+    void PreviousGroupsPage_Click(object sender,RoutedEventArgs e)
+    {
+        _groupPage--;
+        RefreshGroupPage();
+    }
+    void NextGroupsPage_Click(object sender,RoutedEventArgs e)
+    {
+        _groupPage++;
+        RefreshGroupPage();
+    }
+
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
@@ -68,7 +94,10 @@ public partial class LiveBatchWindow : UserControl
     {
         InitializeComponent();
         RestoreReadOptions();
-        GroupsGrid.ItemsSource=_groups;
+        _groupsView=CollectionViewSource.GetDefaultView(_groups);
+        _groupsView.Filter=o=>o is BatchGroupRow row &&
+            _groups.IndexOf(row)/GroupsPerPage==_groupPage;
+        GroupsGrid.ItemsSource=_groupsView;
         JobsGrid.ItemsSource=_jobs;
         SelectedGroupTags.ItemsSource=_selectedTags;
         Loaded+=async(_,_)=>{
@@ -127,6 +156,7 @@ public partial class LiveBatchWindow : UserControl
                 _groups.Add(row);
             }
             RefreshSelectedTags();
+            RefreshGroupPage();
             StatusText.Text=$"已读取 {scripts.Count} 个剧本与 {_groups.Count} 个 Signal 群。"+
                 "直接勾选本次群组即可，草稿空白气泡不会发送。";
         }
