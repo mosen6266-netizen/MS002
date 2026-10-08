@@ -44,6 +44,13 @@ public sealed class ScriptEditorTests
             reopened.SaveEditorScriptAsync(new ScriptSaveRequest(
                 copy.ScriptId,"旧版本覆盖","group-1",copy.Revision,steps),
                 CancellationToken.None));
+        var versions=await reopened.ListScriptVersionsAsync(copy.ScriptId,CancellationToken.None);
+        Assert.Single(versions);
+        Assert.Equal(1,versions[0].Revision);
+        var original=await reopened.ReadScriptVersionAsync(
+            new ScriptVersionRequest(copy.ScriptId,1),CancellationToken.None);
+        Assert.Equal("测试剧本",original.Name);
+        Assert.Equal("第一条消息",original.Steps[0].Message);
         Assert.Equal("更名后",
             (await reopened.ReadEditorScriptAsync(copy.ScriptId,CancellationToken.None)).Name);
     }
