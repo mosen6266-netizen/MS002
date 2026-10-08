@@ -480,6 +480,22 @@ public partial class ScriptEditorWindow : UserControl
         }
         try
         {
+            // Imported V7 scripts can still contain local file paths instead of
+            // V8 content-addressed references. Safely import a surviving source
+            // on first preview without changing the original backup.
+            if(!row.Attachment.StartsWith("img:",StringComparison.Ordinal))
+            {
+                if(!File.Exists(row.Attachment))
+                    throw new FileNotFoundException(
+                        "旧版图片原路径不存在。请右键选择“替换图片”，从本机重新选择。",
+                        row.Attachment);
+                var migrated=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
+                    ControlCommands.ImageImport,25000,
+                    new ImageImportRequest(row.Attachment)));
+                row.Attachment=migrated.Reference;
+                _dirty=true;
+                StatusText.Text="已恢复旧版图片，请保存剧本以保留新的附件引用。";
+            }
             var info=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
                 ControlCommands.ImageLookup,15000,
                 new ImageLookupRequest(row.Attachment)));
