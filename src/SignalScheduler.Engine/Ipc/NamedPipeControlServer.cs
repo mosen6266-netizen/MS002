@@ -105,6 +105,19 @@ public sealed class NamedPipeControlServer : BackgroundService
                         response=new ControlResponse(true,
                             Data:await _store.ListLiveBatchAsync(ct));
                         break;
+                    case ControlCommands.LiveBatchInspect:
+                        try
+                        {
+                            var media=ParsePayload<LiveBatchMediaInspectionRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.InspectLiveBatchMediaAsync(media,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or
+                            InvalidOperationException or IOException or UnauthorizedAccessException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.LiveBatchStart:
                         try
                         {
@@ -324,6 +337,19 @@ public sealed class NamedPipeControlServer : BackgroundService
                                 Data:await _store.ReadEditorScriptAsync(read.ScriptId,ct));
                         }
                         catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.ScriptDelete:
+                        try
+                        {
+                            var deletion=ParsePayload<ScriptDeleteRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.DeleteEditorScriptAsync(deletion,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or
+                            InvalidOperationException or KeyNotFoundException)
                         {
                             response=new ControlResponse(false,Error:ex.Message);
                         }

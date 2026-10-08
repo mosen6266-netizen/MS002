@@ -34,7 +34,7 @@ A per-user engine is used instead of a LocalSystem Windows Service so existing S
 
 If delivery becomes ambiguous after entering the irreversible send window, V8 stops at that message and requires recovery. It never auto-retries an ambiguous send and never silently advances the cursor.
 
-Current stage: **8.0.0-beta.3 durable dispatch safety and Guardian restart barrier**.
+Current stage: **8.0.0-beta.4 durable dispatch safety and Guardian restart barrier**.
 
 Alpha.4 also adds a fully Simplified-Chinese installer and a safe in-place upgrade handshake. Running/in-flight work blocks upgrade; supported builds are never force-killed after a failed safe-shutdown handshake. Real message sending remains intentionally disabled until the durable send transaction, in-flight recovery semantics and two-phase Guardian restart handshake are migrated from the V7 contract.
 
@@ -115,3 +115,14 @@ Alpha.8 adds real account remark/enable management and Signal-group-ID-based sel
 - 多群任务每行独立暂停/继续/停止；后台每2秒刷新任务状态时保留滚动位置及行对象，避免频繁清空导致列表跳动。
 - 使用用户上传的 Signal SVG，在 Windows 构建中生成多分辨率ICO与PNG，并设置程序、窗口、安装器及快捷方式图标。
 - 只改 UI/展示层与打包，不修改用户现有剧本、账号、卡密和发送数据。
+
+
+## V8 beta.4 · 整体工作台改版及历史图片兼容
+
+- 首页改为可整页滚动的分区界面；账号健康状况仅显示总数、可用数和异常数。剧本与群组列表宽度均衡，较长列表分别滚动；选中群以可直接移除的标签呈现。
+- 移除启动前重复的勾选确认；仍保留真正发送前的明确确认对话框，防止误发。
+- 原 V7 附件路径如果在本机仍存在，启动预检查自动导入到V8用户目录的SHA256安全附件库，不改变原剧本；缺失时列出原始消息序号、保留文字或跳过无效图片的后果，且必须额外人工确认才能忽略后启动。
+- 允许删除V8可编辑剧本，带版本验证及运行任务保护；删除V7迁移副本不删除V7原件，也不会在重启后自动重新导入。
+- 切换剧本前比较实际字段快照，不把只选中表格中的某一行视为未保存修改；下拉列表统一高对比显示，剧本选中行加明显左侧强调条。
+- 扫码登录界面新增账号备注输入框，成功扫码后将备注持久保存到账户管理。
+- 主窗体使用可调整大小的深色自定义标题栏和系统窗体按钮；旧设置、卡密及历史任务不做破坏性迁移。

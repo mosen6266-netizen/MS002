@@ -41,6 +41,84 @@ public sealed partial class StateStore
         await q.ExecuteNonQueryAsync(ct);
     }
 
+    private sealed record PreparedLiveBatchMedia(
+        ScriptEditorStep[] Steps,IReadOnlyList<LiveBatchMediaIssue> Issues);
+
+    public async Task<LiveBatchMediaInspection> InspectLiveBatchMediaAsync(
+        LiveBatchMediaInspectionRequest request,CancellationToken ct)
+    {
+        if(request is null || string.IsNullOrWhiteSpace(request.ScriptId))
+            throw new ArgumentException("请先选择剧本。");
+        var script=await ReadEditorScriptAsync(request.ScriptId,ct);
+        var media=await PrepareLiveBatchMediaAsync(script,true,ct);
+        return new LiveBatchMediaInspection(
+            script.Name,script.Steps.Count,media.Steps.Length,media.Issues);
+    }
+
+    // The old V7 scripts stored arbitrary local paths, while V8 requires
+    // content-addressed img: references. If an old image is still reachable
+    // on THIS computer, safely import it into the user-owned V8 attachments
+    // directory; do not rewrite the source script.
+    private async Task<PreparedLiveBatchMedia> PrepareLiveBatchMediaAsync(
+        ScriptEditorDocument script,bool skipUnavailable,CancellationToken ct)
+    {
+        var steps=new List<ScriptEditorStep>();
+        var issues=new List<LiveBatchMediaIssue>();
+        foreach(var step in script.Steps)
+        {
+            if((step.Message?.Length??0)>16000)
+                throw new ArgumentException(
+                    $"剧本「{script.Name}」第 {step.Position+1} 条文字过长。");
+            if(string.IsNullOrWhiteSpace(step.Message) &&
+               string.IsNullOrWhiteSpace(step.Attachment))continue;
+            if(string.IsNullOrWhiteSpace(step.Attachment))
+            {
+                steps.Add(step);
+                continue;
+            }
+
+            try
+            {
+                string reference;
+                if(step.Attachment.StartsWith("img:",StringComparison.Ordinal))
+                {
+                    var valid=await LookupImageAsync(
+                        new ImageLookupRequest(step.Attachment),ct);
+                    reference=valid.Reference;
+                }
+                else
+                {
+                    // Import accepts only an existing, fully-qualified image
+                    // file and validates extension, signature, and SHA-256.
+                    var imported=await ImportImageAsync(
+                        new ImageImportRequest(step.Attachment),ct);
+                    reference=imported.Reference;
+                }
+                steps.Add(step with {Attachment=reference});
+            }
+            catch(Exception ex) when(ex is ArgumentException or IOException or
+                UnauthorizedAccessException or NotSupportedException)
+            {
+                var hasText=!string.IsNullOrWhiteSpace(step.Message);
+                var action=hasText
+                    ?"不发送旧图片，保留本条文字"
+                    :"跳过仅含失效图片的这一条";
+                issues.Add(new LiveBatchMediaIssue(step.Position+1,
+                    $"第 {step.Position+1} 条图片不可用：{ex.Message}",action));
+                if(!skipUnavailable)
+                    throw new ArgumentException(
+                        $"剧本「{script.Name}」第 {step.Position+1} 条图片不可用，"+
+                        "请先查看运行前检查结果并确认如何处理。",ex);
+                if(hasText)
+                    steps.Add(step with {Attachment=""});
+            }
+        }
+        if(steps.Count==0)
+            throw new ArgumentException(
+                $"剧本「{script.Name}」没有可发送的文字或有效图片，请先修复剧本。");
+        return new PreparedLiveBatchMedia(steps.ToArray(),issues);
+    }
+
     public async Task<LiveBatchStartResult> StartLiveBatchAsync(
         LiveBatchStartRequest request,CancellationToken ct)
     {
@@ -57,30 +135,9 @@ public sealed partial class StateStore
 
         // Empty editor bubbles are draft placeholders, not sendable messages.
         // Skip them only in a frozen task snapshot; never rewrite the draft.
-        var sendable=script.Steps
-            .Where(step=>!string.IsNullOrWhiteSpace(step.Message) ||
-                         !string.IsNullOrWhiteSpace(step.Attachment))
-            .ToArray();
-        if(sendable.Length==0)
-            throw new ArgumentException(
-                $"剧本「{script.Name}」没有可发送的内容。请先填写至少一条文字或导入图片。");
-        foreach(var step in sendable)
-        {
-            if((step.Message?.Length??0)>16000)
-                throw new ArgumentException(
-                    $"剧本「{script.Name}」第 {step.Position+1} 条超过 16000 字符，请缩短后重试。");
-            if(!string.IsNullOrWhiteSpace(step.Attachment))
-            {
-                try { await LookupImageAsync(
-                    new ImageLookupRequest(step.Attachment),ct); }
-                catch(Exception ex) when(ex is ArgumentException or IOException
-                    or FileNotFoundException)
-                {
-                    throw new ArgumentException(
-                        $"剧本「{script.Name}」第 {step.Position+1} 条的图片无法使用：{ex.Message}",ex);
-                }
-            }
-        }
+        var resolved=await PrepareLiveBatchMediaAsync(
+            script,request.SkipUnavailableImages,ct);
+        var sendable=resolved.Steps;
 
         await InitializeLiveBatchAsync(ct);
         await InitializeAccountManagementAsync(ct);

@@ -12,11 +12,23 @@ public partial class LinkAccountWindow : Window
 {
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(1)};
     bool _starting;
+    bool _saving;
+    bool _linkComplete;
+    string _linkedAccount="";
+    readonly HashSet<string> _beforeAccounts=new(StringComparer.Ordinal);
 
     public LinkAccountWindow()
     {
         InitializeComponent();
         Loaded+=async(_,_)=>{
+            try
+            {
+                var raw=await MainWindow.SendAsync(
+                    ControlCommands.AccountGroupCatalog,3500);
+                foreach(var item in UnwrapCatalog(raw).Accounts)
+                    _beforeAccounts.Add(item.Account);
+            }
+            catch { /* Catalog may not be ready until after link. */ }
             await StartLinkAsync();
             _timer.Tick+=async(_,_)=>await PollAsync();
             _timer.Start();
@@ -28,12 +40,16 @@ public partial class LinkAccountWindow : Window
     }
 
     async void Regenerate_Click(object sender,RoutedEventArgs e)=>await StartLinkAsync();
+    async void Finish_Click(object sender,RoutedEventArgs e)=>await SaveRemarkAndFinishAsync();
     void Close_Click(object sender,RoutedEventArgs e)=>Close();
 
     async Task StartLinkAsync()
     {
         if(_starting) return;
         _starting=true;
+        _linkComplete=false;
+        _linkedAccount="";
+        FinishButton.IsEnabled=false;
         try
         {
             StatusText.Text="正在创建二维码…";
@@ -66,15 +82,79 @@ public partial class LinkAccountWindow : Window
             if(snap.State=="complete")
             {
                 _timer.Stop();
-                await Task.Delay(500);
-                MessageBox.Show(this,
-                    string.IsNullOrWhiteSpace(snap.Account)?"Signal 账号已连接。":$"Signal 账号已连接：\n{snap.Account}",
-                    "连接成功",MessageBoxButton.OK,MessageBoxImage.Information);
-                DialogResult=true;
-                Close();
+                _linkComplete=true;
+                _linkedAccount=snap.Account;
+                FinishButton.IsEnabled=true;
+                StatusText.Text="✓ 已扫码连接成功";
+                DetailText.Text="请确认上方备注，点击「保存备注并完成」。";
             }
         }
         catch { }
+    }
+
+    static AccountGroupOverview UnwrapCatalog(string? raw)
+    {
+        if(string.IsNullOrWhiteSpace(raw))
+            throw new IOException("账户列表暂未就绪。");
+        using var doc=JsonDocument.Parse(raw);
+        var root=doc.RootElement;
+        if(!root.GetProperty("Ok").GetBoolean())
+            throw new IOException("后台尚未同步新账号。");
+        return JsonSerializer.Deserialize<AccountGroupOverview>(
+            root.GetProperty("Data").GetRawText())
+            ??throw new IOException("账号列表数据不完整。");
+    }
+
+    async Task SaveRemarkAndFinishAsync()
+    {
+        if(!_linkComplete || _saving)return;
+        _saving=true;
+        FinishButton.IsEnabled=false;
+        try
+        {
+            var note=RemarkBox.Text.Trim();
+            if(note.Length>0)
+            {
+                ManagedAccount? account=null;
+                // Guardian will publish the new account, then catalog sync
+                // persists it. Give sync a bounded window to finish.
+                for(var i=0;i<25;i++)
+                {
+                    var raw=await MainWindow.SendAsync(
+                        ControlCommands.AccountGroupCatalog,4500);
+                    var overview=UnwrapCatalog(raw);
+                    account=overview.Accounts.FirstOrDefault(x=>
+                        x.Account==_linkedAccount && !string.IsNullOrWhiteSpace(_linkedAccount));
+                    account??=overview.Accounts.FirstOrDefault(x=>
+                        !_beforeAccounts.Contains(x.Account) && x.Online);
+                    if(account is not null)break;
+                    StatusText.Text="连接成功，正在同步新账号并保存备注…";
+                    await Task.Delay(800);
+                }
+                if(account is null)
+                    throw new IOException(
+                        "Signal 已连接，但新账号尚未进入列表。请稍后点击保存，或在账号管理中设置备注。");
+                var response=await MainWindow.SendAsync(
+                    ControlCommands.UpdateAccount,11000,
+                    new UpdateManagedAccount(account.Account,note,
+                        account.Enabled,account.Revision));
+                using var doc=JsonDocument.Parse(response
+                    ??throw new IOException("后台尚未响应"));
+                if(!doc.RootElement.GetProperty("Ok").GetBoolean())
+                    throw new IOException(
+                        doc.RootElement.TryGetProperty("Error",out var err)
+                        ?err.GetString():"备注未能保存。");
+            }
+            DialogResult=true;
+            Close();
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="账号连接成功，但备注还没有保存";
+            DetailText.Text=ex.Message;
+            FinishButton.IsEnabled=true;
+        }
+        finally{_saving=false;}
     }
 
     void Render(SignalLinkSnapshot snap)

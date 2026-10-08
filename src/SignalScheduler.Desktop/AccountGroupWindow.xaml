@@ -32,13 +32,13 @@
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="14"/>
-   <RowDefinition Height="*"/>
+   <RowDefinition Height="Auto"/>
    <RowDefinition Height="12"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <DockPanel Grid.Row="0" LastChildFill="False">
    <StackPanel DockPanel.Dock="Left">
-    <TextBlock Text="账号与群组管理" FontSize="26" FontWeight="Bold"/>
+    <TextBlock Text="账号与群组" FontSize="26" FontWeight="Bold"/>
     <TextBlock Text="账号备注和群组勾选会保存到本地数据库，更新软件后仍保留。"
                Margin="0,6,0,0" Foreground="#A2B9CD"/>
    </StackPanel>
@@ -48,7 +48,7 @@
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
-  <TabControl Grid.Row="2" x:Name="ManagementTabs" Background="#0C1C2E"
+  <TabControl Grid.Row="2" x:Name="ManagementTabs" Height="635" Background="#0C1C2E"
               Foreground="#EDF5FF" BorderBrush="#2D4660">
    <TabItem Header="账号管理" Padding="12,8">
     <Grid Margin="14">
@@ -58,6 +58,7 @@
       <ColumnDefinition Width="2*"/>
      </Grid.ColumnDefinitions>
      <DataGrid x:Name="AccountGrid" IsReadOnly="True" AlternationCount="2"
+       ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="48"
        SelectionMode="Single" SelectionChanged="AccountGrid_SelectionChanged">
       <DataGrid.Columns>
        <DataGridTextColumn Header="账号" Binding="{Binding Account}" Width="2*"/>
@@ -102,16 +103,22 @@
       <Button Content="保存群组选择" DockPanel.Dock="Right"
               Background="#147747" Click="SaveGroups_Click"/>
      </DockPanel>
-     <DataGrid x:Name="GroupGrid" Grid.Row="1" AlternationCount="2">
+     <DataGrid x:Name="GroupGrid" Grid.Row="1" AlternationCount="2"
+      ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="48">
       <DataGrid.Columns>
-       <DataGridCheckBoxColumn Header="勾选" Width="85"
-         Binding="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
+       <DataGridTemplateColumn Header="选择" Width="75">
+        <DataGridTemplateColumn.CellTemplate>
+         <DataTemplate>
+          <CheckBox Style="{StaticResource LargeRowCheckBox}"
+           IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"/>
+         </DataTemplate>
+        </DataGridTemplateColumn.CellTemplate>
+       </DataGridTemplateColumn>
        <DataGridTextColumn Header="群名" Width="3*" IsReadOnly="True"
          Binding="{Binding Name}"/>
        <DataGridTextColumn Header="所在账号数" Width="110" IsReadOnly="True"
          Binding="{Binding MemberAccounts}"/>
-       <DataGridTextColumn Header="唯一群组 ID" Width="3*" IsReadOnly="True"
-         Binding="{Binding GroupId}"/>
+       
       </DataGrid.Columns>
      </DataGrid>
      <TextBlock Grid.Row="2"

@@ -13,7 +13,7 @@ public partial class LiveBatchWindow : UserControl
 {
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
-    readonly ObservableCollection<AccountHealthChip> _accounts=new();
+    readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
     readonly HashSet<string> _alerted=new(StringComparer.Ordinal);
     bool _busy;
@@ -24,7 +24,7 @@ public partial class LiveBatchWindow : UserControl
         InitializeComponent();
         GroupsGrid.ItemsSource=_groups;
         JobsGrid.ItemsSource=_jobs;
-        AccountCards.ItemsSource=_accounts;
+        SelectedGroupTags.ItemsSource=_selectedTags;
         Loaded+=async(_,_)=>{
             await LoadCatalogAsync();
             await LoadJobsAsync();
@@ -58,26 +58,12 @@ public partial class LiveBatchWindow : UserControl
                 MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,8000));
             var scripts=Unwrap<List<ScriptEditorSummary>>(results[0]);
             var overview=Unwrap<AccountGroupOverview>(results[1]);
-            _accounts.Clear();
-            var healthy=0;
-            foreach(var account in overview.Accounts
-                .OrderBy(x=>x.Online && x.Enabled)
-                .ThenBy(x=>x.Label,StringComparer.CurrentCulture))
-            {
-                var available=account.Enabled && account.Online;
-                if(available)healthy++;
-                var note=!string.IsNullOrWhiteSpace(account.Label) &&
-                         account.Label!=account.Account
-                    ?account.Label
-                    :"账号 · "+account.Account[^Math.Min(4,account.Account.Length)..];
-                var state=!account.Enabled?"已停用":account.Online?"在线 · 正常":"离线 · 需要检查";
-                _accounts.Add(new AccountHealthChip(note,state,
-                    available?"#72E3B2":"#FFBA80",
-                    note+" | "+state+" | "+account.Account));
-            }
-            AccountsSummary.Text=$"{healthy}/{overview.Accounts.Count} 个可用"+
-                (healthy==overview.Accounts.Count?" · 全部正常":" · 有账号需要处理");
-            AccountsSummary.Foreground=healthy==overview.Accounts.Count
+            var count=overview.Accounts.Count;
+            var healthy=overview.Accounts.Count(x=>x.Enabled&&x.Online);
+            var offline=count-healthy;
+            AccountsSummary.Text=$"共 {count} 个账号 · 正常 {healthy} 个"+
+                (offline>0?$" · 需处理 {offline} 个":" · 全部正常");
+            AccountsSummary.Foreground=offline==0
                 ?System.Windows.Media.Brushes.LightGreen
                 :System.Windows.Media.Brushes.Gold;
             ScriptBox.ItemsSource=scripts;
@@ -87,9 +73,14 @@ public partial class LiveBatchWindow : UserControl
             foreach(var group in overview.Groups.Where(g=>g.MemberAccounts>0))
             {
                 var row=new BatchGroupRow(group);
-                row.PropertyChanged+=(_,_)=>UpdateButtons();
+                row.PropertyChanged+=(_,e)=>
+                {
+                    if(e.PropertyName==nameof(BatchGroupRow.Selected))
+                        RefreshSelectedTags();
+                };
                 _groups.Add(row);
             }
+            RefreshSelectedTags();
             StatusText.Text=$"已读取 {scripts.Count} 个剧本与 {_groups.Count} 个 Signal 群。"+
                 "直接勾选本次群组即可，草稿空白气泡不会发送。";
         }
@@ -160,33 +151,58 @@ public partial class LiveBatchWindow : UserControl
 
     void SelectAll_Click(object sender,RoutedEventArgs e)
     {
-        foreach(var group in _groups) group.Selected=true;
-        UpdateButtons();
+        // Do not silently select more groups than the configured per-run limit.
+        foreach(var (group,index) in _groups.Select((value,index)=>(value,index)))
+            group.Selected=index<20;
+        RefreshSelectedTags();
     }
 
     void ClearAll_Click(object sender,RoutedEventArgs e)
     {
         foreach(var group in _groups) group.Selected=false;
+        RefreshSelectedTags();
+    }
+
+    void RefreshSelectedTags()
+    {
+        if(SelectedGroupTags is null)return;
+        _selectedTags.Clear();
+        foreach(var item in _groups.Where(x=>x.Selected))
+            _selectedTags.Add(new BatchGroupTag(item.GroupId,item.Name));
+        SelectedGroupCount.Text=$"已选 {_selectedTags.Count} / 20 个";
         UpdateButtons();
     }
 
+    void RemoveGroupTag_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is Button {Tag:string id})
+        {
+            var row=_groups.FirstOrDefault(x=>x.GroupId==id);
+            if(row is not null)row.Selected=false;
+            RefreshSelectedTags();
+        }
+    }
+
+    void AccountsOpen_Click(object sender,RoutedEventArgs e)=>
+        (Window.GetWindow(this) as MainWindow)?.NavigateTo("accounts");
+
     void ScriptBox_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
     void GroupsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
-    void Consent_Changed(object sender,RoutedEventArgs e)=>UpdateButtons();
+
     void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
 
     void UpdateButtons()
     {
         if(StartButton is null)return;
-        StartButton.IsEnabled=!_busy && ConsentBox.IsChecked==true &&
+        StartButton.IsEnabled=!_busy &&
             ScriptBox.SelectedItem is ScriptEditorSummary &&
-            _groups.Any(x=>x.Selected);
+            _groups.Any(x=>x.Selected) && _groups.Count(x=>x.Selected)<=20;
 
     }
 
     async void Start_Click(object sender,RoutedEventArgs e)
     {
-        if(_busy || ConsentBox.IsChecked!=true ||
+        if(_busy ||
            ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
         GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
         GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
@@ -196,12 +212,35 @@ public partial class LiveBatchWindow : UserControl
             StatusText.Text="一次请勾选 1～20 个群组。";
             return;
         }
-        var preview=$"确定开始真正发送？\n\n剧本：{script.Name}\n"+
-            $"剧本气泡：{script.StepCount} 个（空白草稿行自动忽略）\n群组：{ids.Length} 个\n\n"+
-            "所有群会在后台分别运行。发送的文字和图片将真实出现在 Signal 群内。"+
-            "关闭此窗口不会停止任务；发生异常会暂停并提醒。\n\n"+
-            "只有你管理且允许这样发送的群组可以启动。";
-        if(MessageBox.Show(Window.GetWindow(this),preview,"确认多群真实运行",
+        // Inspect all old V7 image references before any irreversible send.
+        // If unavailable attachments would be omitted, require separate
+        // explicit approval and show their original message indices.
+        LiveBatchMediaInspection media;
+        try
+        {
+            var inspection=await MainWindow.SendAsync(ControlCommands.LiveBatchInspect,30000,
+                new LiveBatchMediaInspectionRequest(script.ScriptId));
+            media=Unwrap<LiveBatchMediaInspection>(inspection);
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="无法检查剧本附件："+ex.Message;
+            return;
+        }
+        var mediaProblems=media.Issues.Count>0;
+        var warning=mediaProblems
+            ?"\n\n检测到旧图片无法使用：\n"+
+             string.Join("\n",media.Issues.Take(8)
+                .Select(x=>$"第 {x.Position} 条：{x.Action}"))+
+             (media.Issues.Count>8?$"\n另有 {media.Issues.Count-8} 条":"")+
+             "\n\n继续运行将按上述方式忽略失效图片，但不修改原剧本。"
+            :"";
+        var preview=$"剧本：{script.Name}\n"+
+            $"实际可发送：{media.SendableRows} 条 / 原有 {media.TotalRows} 条\n"+
+            $"选中群组：{ids.Length} 个\n"+
+            "这些内容将真实发送到选定群组，确定开始？"+warning;
+        if(MessageBox.Show(Window.GetWindow(this),preview,
+            mediaProblems?"确认旧图片缺失处理与真实发送":"确认真实发送",
             MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
             return;
 
@@ -209,7 +248,7 @@ public partial class LiveBatchWindow : UserControl
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchStart,
-                60000,new LiveBatchStartRequest(script.ScriptId,ids,true));
+                60000,new LiveBatchStartRequest(script.ScriptId,ids,true,mediaProblems));
             var started=Unwrap<LiveBatchStartResult>(raw);
             StatusText.Text=$"已启动 {started.GroupCount} 个真实群组任务，"+
                 $"每群 {started.MessageCount} 条。可在下表逐群暂停、继续或停止。";
@@ -219,7 +258,6 @@ public partial class LiveBatchWindow : UserControl
         finally
         {
             _busy=false;
-            ConsentBox.IsChecked=false;
             UpdateButtons();
         }
     }
@@ -321,8 +359,7 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     }
 }
 
-public sealed record AccountHealthChip(
-    string Label,string Status,string Color,string Detail);
+public sealed record BatchGroupTag(string GroupId,string Name);
 
 public sealed class BatchGroupRow : INotifyPropertyChanged
 {

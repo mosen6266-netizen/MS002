@@ -40,6 +40,27 @@ jobs:
       - name: Publish engine
         run: dotnet publish src/SignalScheduler.Engine/SignalScheduler.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Engine
 
+      - name: WPF main window startup smoke test
+        shell: powershell
+        run: |
+          # Catch runtime XAML parsing/template errors that dotnet build alone
+          # cannot catch. This launch is on an isolated CI machine without
+          # Signal accounts and sends no messages.
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
+          if (-not (Test-Path $exe)) { throw 'Published desktop EXE missing' }
+          $app = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $app.Refresh()
+            if ($app.HasExited) {
+              throw "WPF desktop exited during startup: $($app.ExitCode)"
+            }
+          } finally {
+            $app.Refresh()
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+          }
+
       - name: Bundle pinned Java 25 and signal-cli
         shell: powershell
         env:

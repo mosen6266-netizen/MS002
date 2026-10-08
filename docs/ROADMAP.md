@@ -95,3 +95,11 @@
 - [x] Consistent dark headers and larger target group checkboxes
 - [x] Windows EXE, titlebar, Start menu and desktop custom SVG-derived icon
 - [ ] Manual screen-level DPI/keyboard/accessibility testing on users' Windows machines
+
+
+### beta.4 Desktop acceptance
+- [x] Whole-workspace scroll, group selection chips and no redundant start checkbox
+- [x] Historical image migration/preflight approval and durable script deletion
+- [x] QR account notes and false dirty selection warning fix
+- [x] Dark WPF chrome, selected row and combobox contrast
+- [ ] Manual testing at different DPI/resolutions with actual users

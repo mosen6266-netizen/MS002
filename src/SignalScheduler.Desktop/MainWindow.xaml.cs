@@ -67,6 +67,19 @@ public partial class MainWindow : Window
     }
 
     public void NavigateHome()=>Navigate("home");
+    public void NavigateTo(string page)=>Navigate(page);
+    void Minimize_Click(object sender,RoutedEventArgs e)=>
+        WindowState=WindowState.Minimized;
+
+    void Maximize_Click(object sender,RoutedEventArgs e)
+    {
+        WindowState=WindowState==WindowState.Maximized
+            ?WindowState.Normal:WindowState.Maximized;
+        MaximizeButton.Content=WindowState==WindowState.Maximized?"❐":"□";
+    }
+
+    void WindowClose_Click(object sender,RoutedEventArgs e)=>Close();
+
 
     void Nav_Click(object sender,RoutedEventArgs e)
     {
