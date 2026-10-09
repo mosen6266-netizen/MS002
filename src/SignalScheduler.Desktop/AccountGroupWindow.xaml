@@ -37,7 +37,7 @@
    <Setter Property="BorderBrush" Value="#2C4660"/>
    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
    <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
-   <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+   <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
   </Style>
   <Style TargetType="DataGridRow">
    <Setter Property="Foreground" Value="#EAF2FF"/>
@@ -81,12 +81,12 @@
      </Grid.ColumnDefinitions>
      <DataGrid x:Name="AccountGrid" IsReadOnly="True" AlternationCount="2"
        HeadersVisibility="Column" EnableColumnVirtualization="False"
-       HorizontalAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+       HorizontalAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
        ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="48"
        SelectionMode="Single" SelectionChanged="AccountGrid_SelectionChanged">
       <DataGrid.Columns>
-       <DataGridTextColumn Header="账号" Binding="{Binding Account}" Width="215" MinWidth="160"/>
-       <DataGridTextColumn Header="备注" Binding="{Binding Label}" Width="205" MinWidth="140"/>
+       <DataGridTextColumn Header="账号" Binding="{Binding Account}" Width="2*" MinWidth="110"/>
+       <DataGridTextColumn Header="备注" Binding="{Binding Label}" Width="2*" MinWidth="95"/>
        <DataGridCheckBoxColumn Header="已启用" Binding="{Binding Enabled}" Width="85"/>
        <DataGridCheckBoxColumn Header="在线" Binding="{Binding Online}" Width="80"/>
       </DataGrid.Columns>
@@ -140,7 +140,7 @@
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
        </DataGridTemplateColumn>
-       <DataGridTextColumn Header="群名" Width="640" MinWidth="260" IsReadOnly="True"
+       <DataGridTextColumn Header="群名" Width="*" MinWidth="150" IsReadOnly="True"
          Binding="{Binding Name}"/>
        <DataGridTextColumn Header="所在账号数" Width="110" IsReadOnly="True"
          Binding="{Binding MemberAccounts}"/>

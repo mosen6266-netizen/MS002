@@ -38,7 +38,7 @@ internal static class UiLayoutSmoke
                 new ManagedAccount("+10000000002","另一账号",true,false,1)
             };
             CheckPage(account,"账号管理",account.AccountGrid,
-                new[]{160d,150d,60d,60d},report);
+                new[]{110d,95d,60d,60d},report);
 
             var groups=new AccountGroupWindow();
             groups.ManagementTabs.SelectedIndex=1;
@@ -48,7 +48,7 @@ internal static class UiLayoutSmoke
                 new GroupSelectionRow(new ManagedGroup("g-2","其他群组",1,false))
             };
             CheckPage(groups,"群组管理",groups.GroupGrid,
-                new[]{60d,420d,80d},report);
+                new[]{60d,150d,80d},report);
 
             var scripts=new ScriptEditorWindow();
             scripts.StepsGrid.ItemsSource=new[]
@@ -58,10 +58,9 @@ internal static class UiLayoutSmoke
                 new ScriptStepRow(new ScriptEditorStep(
                     1,"","第二条示例消息", "",false,"",5,5))
             };
-            // The editor intentionally scrolls horizontally, but its message
-            // column must still have a substantial non-zero width.
+            // The editor fits its essential columns without horizontal scrolling.
             CheckPage(scripts,"剧本消息表格",scripts.StepsGrid,
-                new[]{45d,105d,145d,270d},report);
+                new[]{45d,105d,130d,170d},report);
 
             report.AppendLine("PASS: all measured columns exceed their minimum widths.");
             File.WriteAllText(path,report.ToString());

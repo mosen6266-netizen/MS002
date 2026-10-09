@@ -110,11 +110,11 @@
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="8"/>
-    <RowDefinition Height="0"/>
+    <RowDefinition Height="Auto"/>
     <RowDefinition Height="8"/>
     <RowDefinition Height="*"/>
     <RowDefinition Height="12"/>
-    <RowDefinition Height="140"/>
+    <RowDefinition Height="192"/>
     <RowDefinition Height="10"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
@@ -132,7 +132,7 @@
       Click="Close_Click" Margin="0,0,7,5"/>
     </WrapPanel>
    </StackPanel>
-   <Border Grid.Row="2" Visibility="Collapsed" Background="#11273C" BorderBrush="#304D67"
+   <Border Grid.Row="2" Background="#11273C" BorderBrush="#304D67"
     BorderThickness="1" CornerRadius="8" Padding="12">
     <Grid>
      <Grid.ColumnDefinitions>
@@ -174,6 +174,7 @@
      </WrapPanel>
     </StackPanel>
     <DataGrid x:Name="StepsGrid" Grid.Row="2" MinHeight="120"
+     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
      HeadersVisibility="Column" EnableColumnVirtualization="False"
      MinColumnWidth="46" ScrollViewer.VerticalScrollBarVisibility="Auto"
      AutoGenerateColumns="False" CanUserAddRows="False"
@@ -183,7 +184,6 @@
      SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding" PreviewMouseLeftButtonUp="StepsGrid_PreviewMouseLeftButtonUp"
      BorderBrush="#3B5871" Background="#112438" Foreground="#EFF6FD"
      RowBackground="#132D44" AlternatingRowBackground="#1A354C"
-     ScrollViewer.HorizontalScrollBarVisibility="Auto"
      EnableRowVirtualization="True">
      <DataGrid.RowStyle>
       <Style TargetType="DataGridRow">
@@ -197,131 +197,97 @@
       </Style>
      </DataGrid.RowStyle>
      <DataGrid.Columns>
-      <DataGridTextColumn Header="序号" Width="49"
-       Binding="{Binding PositionLabel}" IsReadOnly="True"
-       ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTemplateColumn Header="插入 / 删除" Width="126">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-          <Button Content="↑＋" ToolTip="上方插入" Tag="{Binding}"
-           Click="InsertAbove_Click" Style="{StaticResource SmallRowButton}"/>
-          <Button Content="↓＋" ToolTip="下方插入" Tag="{Binding}"
-           Click="InsertBelow_Click" Style="{StaticResource SmallRowButton}"/>
-          <Button Content="×" ToolTip="删除此句" Tag="{Binding}"
-           Click="DeleteStep_Click" Style="{StaticResource SmallRowButton}"/>
-         </StackPanel>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
+      <DataGridTextColumn Header="#" Width="48" Binding="{Binding PositionLabel}"
+       IsReadOnly="True" ElementStyle="{StaticResource TruncatedGridText}"/>
+      <DataGridTemplateColumn Header="插入 / 删除" Width="120">
+       <DataGridTemplateColumn.CellTemplate><DataTemplate>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <Button Content="↑＋" ToolTip="上方插入" Tag="{Binding}" Click="InsertAbove_Click" Style="{StaticResource SmallRowButton}"/>
+         <Button Content="↓＋" ToolTip="下方插入" Tag="{Binding}" Click="InsertBelow_Click" Style="{StaticResource SmallRowButton}"/>
+         <Button Content="×" ToolTip="删除此句" Tag="{Binding}" Click="DeleteStep_Click" Style="{StaticResource SmallRowButton}"/>
+        </StackPanel>
+       </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="发送账号备注" Width="175">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <TextBlock Text="{Binding AccountLabel}" Foreground="#E6F2FE"
-          TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"
-          VerticalAlignment="Center" Margin="8,0"
-          ToolTip="{Binding AccountLabel}"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
-       <DataGridTemplateColumn.CellEditingTemplate>
-        <DataTemplate>
-         <ComboBox
-          ItemsSource="{Binding AccountOptions,RelativeSource={RelativeSource AncestorType=UserControl}}"
-          SelectedValue="{Binding Account,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-          SelectedValuePath="Account" DisplayMemberPath="Label"
-          Background="#17354C" Foreground="White" MinHeight="36"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellEditingTemplate>
+      <DataGridTextColumn Header="发送账号" Width="145" IsReadOnly="True"
+       Binding="{Binding AccountLabel}" ElementStyle="{StaticResource TruncatedGridText}"/>
+      <DataGridTemplateColumn Header="消息内容（选中后在下方编辑）" Width="*" MinWidth="170">
+       <DataGridTemplateColumn.CellTemplate><DataTemplate>
+        <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis"
+         TextWrapping="NoWrap" ToolTip="{Binding Message}" Foreground="#EFF6FD"
+         Margin="8,0" VerticalAlignment="Center"/>
+       </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="消息内容（下方可编辑全文）" Width="350" MinWidth="280">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis"
-          TextWrapping="NoWrap" VerticalAlignment="Center" Margin="8,0"
-          ToolTip="{Binding Message}" Foreground="#F0F6FD"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
-       <DataGridTemplateColumn.CellEditingTemplate>
-        <DataTemplate>
-         <TextBox Text="{Binding Message,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-          AcceptsReturn="False" TextWrapping="NoWrap"
-          HorizontalScrollBarVisibility="Auto" VerticalContentAlignment="Center"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellEditingTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTextColumn Header="间隔(秒)" Width="86"
-       Binding="{Binding DelayText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"
-       ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTextColumn Header="输入(秒)" Width="86"
-       Binding="{Binding TypingText,Mode=TwoWay,UpdateSourceTrigger=LostFocus}"
-       ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTemplateColumn Header="提醒" Width="62">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <CheckBox IsChecked="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-          Style="{StaticResource LargeRowCheckBox}"
-          ToolTip="此句发送后暂停并提醒"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="提醒内容" Width="145">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <TextBlock Text="{Binding ReminderText}" TextTrimming="CharacterEllipsis"
-          TextWrapping="NoWrap" Foreground="#EEF5FD"
-          ToolTip="{Binding ReminderText}" VerticalAlignment="Center" Margin="8,0"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
-       <DataGridTemplateColumn.CellEditingTemplate>
-        <DataTemplate>
-         <TextBox Text="{Binding ReminderText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-          TextWrapping="NoWrap" HorizontalScrollBarVisibility="Auto"/>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellEditingTemplate>
-      </DataGridTemplateColumn>
-      <DataGridTemplateColumn Header="附件" Width="108">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <Button Content="{Binding AttachmentLabel}" Click="AttachmentQuickPreview_Click"
-          Tag="{Binding}" Style="{StaticResource SmallRowButton}" MinWidth="85"
-          Margin="4,0" Padding="7,2" Background="#20445C" Foreground="#D6EDFF"
-          ToolTip="{Binding AttachmentHint}">
-          <Button.ContextMenu>
-           <ContextMenu DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}">
-            <MenuItem Header="预览图片" Click="AttachmentPreview_Click"
-             IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
-            <MenuItem Header="添加 / 替换图片" Click="AttachmentReplace_Click"
-             CommandParameter="{Binding}"/>
-            <Separator/>
-            <MenuItem Header="移除图片" Click="AttachmentRemove_Click"
-             IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
-           </ContextMenu>
-          </Button.ContextMenu>
-         </Button>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
+      <DataGridTemplateColumn Header="图片" Width="104">
+       <DataGridTemplateColumn.CellTemplate><DataTemplate>
+        <Button Content="{Binding AttachmentLabel}" Click="AttachmentQuickPreview_Click"
+         Tag="{Binding}" Style="{StaticResource SmallRowButton}"
+         Margin="3,0" Padding="5,2" ToolTip="{Binding AttachmentHint}">
+         <Button.ContextMenu>
+          <ContextMenu DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}">
+           <MenuItem Header="预览图片" Click="AttachmentPreview_Click"
+            IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
+           <MenuItem Header="添加 / 替换图片" Click="AttachmentReplace_Click" CommandParameter="{Binding}"/>
+           <Separator/>
+           <MenuItem Header="移除图片" Click="AttachmentRemove_Click"
+            IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
+          </ContextMenu>
+         </Button.ContextMenu>
+        </Button>
+       </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
      </DataGrid.Columns>
     </DataGrid>
    </Grid>
    <Border Grid.Row="6" Background="#11283E" BorderBrush="#3E5C74"
-    BorderThickness="1" CornerRadius="8" Padding="12">
+    BorderThickness="1" CornerRadius="8" Padding="10">
     <Grid DataContext="{Binding SelectedItem,ElementName=StepsGrid}">
-     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
-     <DockPanel Grid.Row="0" Margin="0,0,0,7">
-      <StackPanel Orientation="Horizontal">
-       <TextBlock Text="所选消息 · 完整内容" FontWeight="SemiBold"
-        Foreground="#D1E4F3"/>
-       <TextBlock Text="{Binding PositionLabel,StringFormat=第{0}句}"
-        Foreground="#7DD4FF" Margin="10,0,0,0" FontWeight="SemiBold"/>
+     <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="8"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="8"/>
+      <RowDefinition Height="*"/>
+     </Grid.RowDefinitions>
+     <TextBlock Text="选中消息：编辑发送账号、间隔、输入时长及提醒" FontWeight="SemiBold"
+      Foreground="#D1E4F3"/>
+     <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+       <ColumnDefinition Width="3*"/>
+       <ColumnDefinition Width="9"/>
+       <ColumnDefinition Width="73"/>
+       <ColumnDefinition Width="9"/>
+       <ColumnDefinition Width="73"/>
+       <ColumnDefinition Width="9"/>
+       <ColumnDefinition Width="2*"/>
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+       <TextBlock Text="发送账号" FontSize="11" Foreground="#AAC5DD"/>
+       <ComboBox MinHeight="31" Margin="0,2,0,0"
+        ItemsSource="{Binding AccountOptions,RelativeSource={RelativeSource AncestorType=UserControl}}"
+        SelectedValue="{Binding Account,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+        SelectedValuePath="Account" DisplayMemberPath="Label"/>
       </StackPanel>
-      <TextBlock DockPanel.Dock="Right" Text="可滚动阅读或直接编辑，列表行高保持不变"
-       Foreground="#8FA9C2" FontSize="11"/>
-     </DockPanel>
-     <TextBox Grid.Row="1" Text="{Binding Message,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+      <StackPanel Grid.Column="2">
+       <TextBlock Text="间隔秒" FontSize="11" Foreground="#AAC5DD"/>
+       <TextBox Text="{Binding DelayText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+        Margin="0,2,0,0" Padding="4"/>
+      </StackPanel>
+      <StackPanel Grid.Column="4">
+       <TextBlock Text="输入秒" FontSize="11" Foreground="#AAC5DD"/>
+       <TextBox Text="{Binding TypingText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+        Margin="0,2,0,0" Padding="4"/>
+      </StackPanel>
+      <StackPanel Grid.Column="6">
+       <CheckBox Content="发送后提醒" IsChecked="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+        VerticalAlignment="Center" Foreground="#EAF5FD"/>
+       <TextBox Text="{Binding ReminderText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
+        ToolTip="提醒文字" Margin="0,3,0,0" Padding="4"/>
+      </StackPanel>
+     </Grid>
+     <TextBox Grid.Row="4" Text="{Binding Message,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
       AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-      HorizontalScrollBarVisibility="Auto" MinHeight="74" FontSize="13"
-      ToolTip="点击消息行选中，长文本在这里完整查看和编辑"/>
+      HorizontalScrollBarVisibility="Disabled" FontSize="13" Padding="8,5"
+      ToolTip="选择消息后在此编辑全文"/>
     </Grid>
    </Border>
    <TextBlock Grid.Row="8" x:Name="StatusText"
