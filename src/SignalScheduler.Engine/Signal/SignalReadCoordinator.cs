@@ -212,23 +212,36 @@ public sealed class SignalReadCoordinator : BackgroundService
         // Both raw daemon SSE envelopes and wrapped JSON-RPC receive
         // notifications are supported, including manual subscription format.
         var p=root;
-        if(root.TryGetProperty("params",out var wrapped))p=wrapped;
+        JsonElement notification=default;
+        if(root.TryGetProperty("params",out var wrapped) &&
+           wrapped.ValueKind==JsonValueKind.Object)
+        {
+            notification=wrapped;
+            p=wrapped;
+        }
         if(p.ValueKind!=JsonValueKind.Object)return false;
         if(p.TryGetProperty("result",out var result))p=result;
         if(p.ValueKind!=JsonValueKind.Object)return false;
-        account=String(p,"account")??String(root,"account")??"";
+        // Events may carry account at root, params or result level.
+        account=String(p,"account")??String(notification,"account")??
+            String(root,"account")??"";
         if(!p.TryGetProperty("envelope",out var envelope) ||
-           !envelope.TryGetProperty("dataMessage",out var msg))return false;
-        if(!msg.TryGetProperty("groupInfo",out var groupInfo) &&
-           !msg.TryGetProperty("groupV2",out groupInfo))return false;
-        group=String(groupInfo,"groupId")??String(groupInfo,"id")??"";
+           envelope.ValueKind!=JsonValueKind.Object ||
+           !envelope.TryGetProperty("dataMessage",out var msg) ||
+           msg.ValueKind!=JsonValueKind.Object)return false;
+        // Direct messages have no groupInfo. Use an empty group routing key;
+        // the sendReceipt RPC still targets the original author.
+        if(msg.TryGetProperty("groupInfo",out var groupInfo) ||
+           msg.TryGetProperty("groupV2",out groupInfo))
+            group=String(groupInfo,"groupId")??String(groupInfo,"id")??"";
+        else group="";
         author=String(envelope,"sourceUuid")??String(envelope,"sourceNumber")
             ??String(envelope,"source")??"";
         if(msg.TryGetProperty("timestamp",out var ts)&&ts.TryGetInt64(out var value))
             timestamp=value;
         else if(envelope.TryGetProperty("timestamp",out ts)&&ts.TryGetInt64(out value))
             timestamp=value;
-        return account.Length>0 && group.Length>0 && author.Length>0 && timestamp>0;
+        return account.Length>0 && author.Length>0 && timestamp>0;
     }
 
     async Task SaveEventAsync(string payload,CancellationToken ct)
