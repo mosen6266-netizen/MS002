@@ -38,6 +38,13 @@ public static class LiveBatchTiming
         if(item.State!="Running")
             return new(StatusLabels.Task(item.State),"—","—","—","—");
 
+        // Real worker semaphore contention is not an estimate from due_ms.
+        // It is only an ephemeral advisory: the next network send is not
+        // scheduled until the shared account has been released.
+        if(item.RuntimePhase=="WaitingAccount")
+            return new("等待账号","账号正被其他任务使用",
+                "等待账号后重算","—","—");
+
         // The journal has a stronger claim about actual delivery stage than
         // the scheduler due clock. In flight, no duration can be guaranteed.
         if(item.DispatchState=="Sending")
