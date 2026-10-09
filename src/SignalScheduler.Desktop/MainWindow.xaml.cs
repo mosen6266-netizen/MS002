@@ -41,6 +41,7 @@ public partial class MainWindow : Window
             PageHost.Height=Math.Max(320,WorkspaceScroll.ActualHeight);
         };
         Application.Current.MainWindow=this;
+        SetRunningTaskBadge(null);
         NotificationsList.ItemsSource=_notifications;
         Loaded+=(_,_)=>FitStartupWindowToWorkArea();
         Loaded+=(_,_)=>ShowNextCritical();
@@ -90,7 +91,7 @@ public partial class MainWindow : Window
         HomeNav.Content=compact?"⌂   首页":"⌂   首页 · 快速开始";
         AccountNav.Content=compact?"◉   账号群组":"◉   账号与群组";
         ScriptNav.Content="✎   剧本管理";
-        TaskNav.Content="◷   运行任务";
+        TaskNavLabel.Text=compact?"◷   当前任务":"◷   当前运行任务";
         RecoveryNav.Content=compact?"⚠   恢复":"⚠   异常恢复";
         HistoryNav.Content="◷   历史记录";
         LicenseNav.Content=compact?"⚙   授权":"⚙   授权设置";
@@ -203,8 +204,8 @@ public partial class MainWindow : Window
                 "管理账号备注、可用状态与 Signal 群组，不再打开新窗口。"),
             "scripts"=>("剧本管理",
                 "编辑消息、图片、发送间隔和提醒；修改保存在本地。"),
-            "tasks"=>("运行任务",
-                "按群监控消息阶段、等待时间与进度；异常发送请在恢复中心核对。"),
+            "tasks"=>("当前运行任务",
+                "每个群组任务单独查看、暂停、手动继续或停止。角标只计算正在运行的任务。"),
             "history"=>("历史记录","查看已结束任务及其每条消息的发送结果。"),
             "recovery"=>("异常恢复",
                 "核对真实发送回执、暂停异常任务，避免未知结果被重复发送。"),
@@ -219,6 +220,22 @@ public partial class MainWindow : Window
                 ?new SolidColorBrush(Color.FromRgb(34,73,111))
                 :Brushes.Transparent;
     }
+
+    // Visible independent task badge. A failed IPC read is unknown, never
+    // silently displayed as the previous (possibly stale) running count.
+    void SetRunningTaskBadge(int? running)
+    {
+        TaskNavBadgeCount.Text=running?.ToString()??"?";
+        TaskNavBadge.Background=new SolidColorBrush(
+            running is null?Color.FromRgb(133,91,40):
+            running>0?Color.FromRgb(16,123,87):
+            Color.FromRgb(62,83,104));
+        TaskNav.ToolTip=running is null
+            ?"后台任务状态未能确认，请打开当前运行任务页刷新"
+            :$"当前正在运行 {running.Value} 个群组任务（暂停、结束任务不计入）";
+    }
+
+    internal Task RefreshTaskBadgeAsync()=>RefreshLiveJobsAsync();
 
     void MainWindow_Closing(object sender,CancelEventArgs e)
     {
@@ -360,6 +377,7 @@ public partial class MainWindow : Window
         }
         catch(Exception ex)
         {
+            SetRunningTaskBadge(null);
             EngineBadge.Text="● 后台未连接";
             EngineBadge.Foreground=Brushes.IndianRed;
             ScanButton.IsEnabled=false;
@@ -388,7 +406,9 @@ public partial class MainWindow : Window
         {
             var response=await SendAsync(ControlCommands.LiveBatchList,4000);
             var jobs=Unwrap<List<LiveBatchItem>>(response);
-            _hasLiveJobs=jobs.Any(x=>x.State=="Running");
+            var runningCount=jobs.Count(x=>x.State=="Running");
+            _hasLiveJobs=runningCount>0;
+            SetRunningTaskBadge(runningCount);
             var current=new HashSet<string>(StringComparer.Ordinal);
             foreach(var job in jobs)
             {
@@ -415,7 +435,11 @@ public partial class MainWindow : Window
             }
             _batchAlerts.IntersectWith(current);
         }
-        catch { /* Connection diagnostic is handled by dashboard. */ }
+        catch
+        {
+            SetRunningTaskBadge(null);
+            // Dashboard connectivity reports the underlying error.
+        }
     }
 
     static T Unwrap<T>(string? raw)

@@ -31,8 +31,6 @@
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="8"/>
    <RowDefinition Height="*"/>
-   <RowDefinition Height="9"/>
-   <RowDefinition x:Name="JobSummaryRow" Height="106"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <Grid Grid.Row="0">
@@ -181,61 +179,7 @@
     </Grid>
    </Border>
   </Grid>
-  <Border x:Name="JobSummaryPanel" Grid.Row="4" Background="#10273C" BorderBrush="#34526D"
-   BorderThickness="1" CornerRadius="8" Padding="8">
-   <Grid>
-    <Grid.RowDefinitions>
-     <RowDefinition Height="Auto"/>
-     <RowDefinition Height="*"/>
-    </Grid.RowDefinitions>
-    <Grid>
-     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-     <TextBlock Text="当前运行任务（完整详情在左侧「运行任务」）"
-      FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-     <StackPanel Grid.Column="1" Orientation="Horizontal">
-      <Button x:Name="PreviousJobsPage" Content="上一页" Click="PreviousJobsPage_Click"
-       Style="{StaticResource QuietAction}" MinHeight="27" Padding="8,2" Margin="0,0,5,0"/>
-      <TextBlock x:Name="JobsPageLabel" Text="第1页" VerticalAlignment="Center"
-       FontSize="11" Foreground="#AAC9DD" Margin="0,0,5,0"/>
-      <Button x:Name="NextJobsPage" Content="下一页" Click="NextJobsPage_Click"
-       Style="{StaticResource QuietAction}" MinHeight="27" Padding="8,2"/>
-     </StackPanel>
-    </Grid>
-    <DataGrid x:Name="JobsGrid" Grid.Row="1" AutoGenerateColumns="False"
-     IsReadOnly="True" CanUserAddRows="False" RowHeaderWidth="0"
-     RowHeight="30" ColumnHeaderHeight="26" EnableColumnVirtualization="False"
-     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-     ScrollViewer.VerticalScrollBarVisibility="Disabled"
-     Background="#11263A" Foreground="White"
-     SelectionChanged="JobsGrid_SelectionChanged">
-     <DataGrid.Columns>
-      <DataGridTextColumn Header="群组" Width="2*" MinWidth="110"
-       Binding="{Binding GroupName}" ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTextColumn Header="状态" Width="115"
-       Binding="{Binding StateDisplay}" ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTextColumn Header="进度" Width="82"
-       Binding="{Binding Progress}" ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTextColumn Header="下句等待" Width="110"
-       Binding="{Binding NextCountdown}" ElementStyle="{StaticResource TruncatedGridText}"/>
-      <DataGridTemplateColumn Header="操作" Width="186">
-       <DataGridTemplateColumn.CellTemplate>
-        <DataTemplate>
-         <StackPanel Orientation="Horizontal">
-          <Button Content="暂停" Style="{StaticResource SmallJobAction}"
-           Tag="{Binding}" Click="JobPause_Click" IsEnabled="{Binding CanPause}"/>
-          <Button Content="继续" Style="{StaticResource SmallJobAction}"
-           Tag="{Binding}" Click="JobResume_Click" IsEnabled="{Binding CanResume}"/>
-          <Button Content="停止" Style="{StaticResource SmallJobAction}"
-           Tag="{Binding}" Click="JobStop_Click" IsEnabled="{Binding CanStop}"/>
-         </StackPanel>
-        </DataTemplate>
-       </DataGridTemplateColumn.CellTemplate>
-      </DataGridTemplateColumn>
-     </DataGrid.Columns>
-    </DataGrid>
-   </Grid>
-  </Border>
-  <TextBlock x:Name="StatusText" Grid.Row="5" Text="正在读取本地账号、群组和剧本…"
+  <TextBlock x:Name="StatusText" Grid.Row="3" Text="正在读取本地账号、群组和剧本…"
    TextTrimming="CharacterEllipsis" Foreground="#B7D1E5" FontSize="11" Margin="2,4,2,0"/>
  </Grid>
 </UserControl>

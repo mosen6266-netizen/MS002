@@ -29,8 +29,8 @@
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <StackPanel Grid.Row="0" Margin="0,0,0,7">
-   <TextBlock Text="运行任务监控" FontSize="25" FontWeight="SemiBold"/>
-   <TextBlock Text="查看各群任务的真实状态、下一句等待时间和发送结果；不会自动恢复已暂停的任务。"
+   <TextBlock Text="当前运行任务" FontSize="25" FontWeight="SemiBold"/>
+   <TextBlock Text="运行中的群组任务集中管理；已暂停的任务也可在此查看和手动继续。"
     Foreground="#ADC4D9" TextWrapping="Wrap" Margin="0,6,0,0"/>
   </StackPanel>
   <Border Grid.Row="1" Background="#122A40" BorderBrush="#31536F" BorderThickness="1"

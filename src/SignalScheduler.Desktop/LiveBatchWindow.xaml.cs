@@ -125,32 +125,8 @@ public partial class LiveBatchWindow : UserControl
     }
 
     readonly ObservableCollection<BatchGroupRow> _groups=new();
-    readonly ObservableCollection<BatchJobRow> _jobs=new();
-    const int JobsPerPage=1;
-    int _jobsPage;
-    ICollectionView? _jobsView;
-    void RefreshJobsPage()
-    {
-        if(JobsGrid is null)return;
-        var pages=Math.Max(1,(_jobs.Count+JobsPerPage-1)/JobsPerPage);
-        _jobsPage=Math.Clamp(_jobsPage,0,pages-1);
-        _jobsView?.Refresh();
-        if(JobsPageLabel is not null)
-            JobsPageLabel.Text=$"第 {_jobsPage+1} / {pages} 页 · 共 {_jobs.Count} 条";
-        if(PreviousJobsPage is not null)PreviousJobsPage.IsEnabled=_jobsPage>0;
-        if(NextJobsPage is not null)NextJobsPage.IsEnabled=_jobsPage<pages-1;
-    }
-    void PreviousJobsPage_Click(object sender,RoutedEventArgs e)
-    {_jobsPage--;RefreshJobsPage();}
-    void NextJobsPage_Click(object sender,RoutedEventArgs e)
-    {_jobsPage++;RefreshJobsPage();}
-
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
-    readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(2)};
-    readonly DispatcherTimer _countdownTimer=new(){Interval=TimeSpan.FromSeconds(1)};
-    readonly HashSet<string> _alerted=new(StringComparer.Ordinal);
     bool _busy;
-    bool _refreshing;
 
     public LiveBatchWindow()
     {
@@ -160,30 +136,13 @@ public partial class LiveBatchWindow : UserControl
         _groupsView.Filter=o=>o is BatchGroupRow row &&
             _visibleGroupIds.Contains(row.GroupId);
         GroupsGrid.ItemsSource=_groupsView;
-        _jobsView=CollectionViewSource.GetDefaultView(_jobs);
-        _jobsView.Filter=o=>o is BatchJobRow row &&
-            _jobs.IndexOf(row)/JobsPerPage==_jobsPage;
-        JobsGrid.ItemsSource=_jobsView;
         SelectedGroupTags.ItemsSource=_selectedTags;
-        Loaded+=async(_,_)=>{
-            await LoadCatalogAsync();
-            await LoadJobsAsync();
-            _timer.Start();
-            _countdownTimer.Start();
-        };
-        _timer.Tick+=async(_,_)=>{await LoadJobsAsync();foreach(var job in _jobs)job.RefreshCountdown();};
-        Unloaded+=(_,_)=>{_timer.Stop();_countdownTimer.Stop();};
-        _countdownTimer.Tick+=(_,_)=>{foreach(var job in _jobs)job.RefreshCountdown();};
+        Loaded+=async(_,_)=>await LoadCatalogAsync();
         SizeChanged+=(_,_)=> {
             if(GroupsGrid is null)return;
             var compact=ActualHeight<650;
             GroupsGrid.RowHeight=compact?22:29;
             GroupsGrid.ColumnHeaderHeight=compact?28:31;
-            // Keep all ten paged groups visible even at laptop-height
-            // viewports. Tasks remain accessible from the dedicated page.
-            var hideSummary=ActualHeight<640;
-            JobSummaryPanel.Visibility=hideSummary?Visibility.Collapsed:Visibility.Visible;
-            JobSummaryRow.Height=new GridLength(hideSummary?0:106);
         };
         UpdateButtons();
     }
@@ -248,67 +207,11 @@ public partial class LiveBatchWindow : UserControl
         UpdateButtons();
     }
 
-    async Task LoadJobsAsync()
-    {
-        if(_refreshing)return;
-        _refreshing=true;
-        try
-        {
-            var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchList,10000);
-            var jobs=Unwrap<List<LiveBatchItem>>(raw);
-            // Update existing observable rows without clearing the DataGrid.
-            // This keeps scrolling, keyboard focus and per-job buttons stable
-            // across the 2-second status refresh.
-            var keys=new HashSet<string>(StringComparer.Ordinal);
-            var byId=_jobs.ToDictionary(x=>x.JobId,StringComparer.Ordinal);
-            var position=0;
-            foreach(var item in jobs)
-            {
-                keys.Add(item.JobId);
-                byId.TryGetValue(item.JobId,out var existing);
-                if(existing is null)
-                {
-                    existing=new BatchJobRow(item);
-                    _jobs.Insert(Math.Min(position,_jobs.Count),existing);
-                }
-                else
-                {
-                    existing.Update(item);
-                    var oldPosition=_jobs.IndexOf(existing);
-                    if(oldPosition!=position)_jobs.Move(oldPosition,position);
-                }
-                position++;
-                if(item.State=="RecoveryRequired" ||
-                   (item.State=="Paused" &&
-                    (item.Detail.Contains("提醒",StringComparison.Ordinal) ||
-                     item.Detail.Contains("异常",StringComparison.Ordinal) ||
-                     item.Detail.Contains("断开",StringComparison.Ordinal) ||
-                     item.Detail.Contains("授权",StringComparison.Ordinal) ||
-                     item.Detail.Contains("失败",StringComparison.Ordinal))))
-                {
-                    var key=$"{item.JobId}:{item.State}:{item.Cursor}";
-                    if(_alerted.Add(key))
-                        MainWindow.ShowCriticalAlert(
-                            $"剧本任务已中断，需要人工处理。\n\n"+
-                            $"剧本：{item.ScriptName}\n群：{item.GroupName}\n"+
-                            $"进度：{item.Cursor}/{item.TotalSteps}\n"+
-                            $"状态：{item.State}\n详情：{item.Detail}\n\n"+
-                            "如发送结果未知，请在恢复中心核对后再操作。");
-                }
-            }
-            for(var i=_jobs.Count-1;i>=0;i--)
-                if(!keys.Contains(_jobs[i].JobId))_jobs.RemoveAt(i);
-            RefreshJobsPage();
-            UpdateButtons();
-        }
-        catch(Exception ex){StatusText.Text=$"刷新运行任务失败：{ex.Message}";}
-        finally{_refreshing=false;}
-    }
-
     async void Refresh_Click(object sender,RoutedEventArgs e)
     {
         await LoadCatalogAsync();
-        await LoadJobsAsync();
+        if(Window.GetWindow(this) is MainWindow shell)
+            await shell.RefreshTaskBadgeAsync();
     }
 
     void SelectAll_Click(object sender,RoutedEventArgs e)
@@ -356,8 +259,6 @@ public partial class LiveBatchWindow : UserControl
 
     void ScriptBox_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
     void GroupsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
-
-    void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>UpdateButtons();
 
     void UpdateButtons()
     {
@@ -481,9 +382,10 @@ public partial class LiveBatchWindow : UserControl
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchStart,
                 60000,new LiveBatchStartRequest(script.ScriptId,ids,true,mediaProblems));
             var started=Unwrap<LiveBatchStartResult>(raw);
-            StatusText.Text=$"已启动 {started.GroupCount} 个真实群组任务，"+
-                $"每群 {started.MessageCount} 条。可在下表逐群暂停、继续或停止。";
-            await LoadJobsAsync();
+            StatusText.Text=$"已启动 {started.GroupCount} 个群组任务，每群 "+
+                $"{started.MessageCount} 条。请在左侧「当前运行任务」页面查看和管理。";
+            if(Window.GetWindow(this) is MainWindow shell)
+                await shell.RefreshTaskBadgeAsync();
         }
         catch(Exception ex)
         {
@@ -493,46 +395,7 @@ public partial class LiveBatchWindow : UserControl
         finally{_busy=false;UpdateButtons();}
     }
 
-    async Task ControlAsync(string action,BatchJobRow? selected)
-    {
-        if(_busy || selected is null)return;
-        _busy=true;UpdateButtons();
-        try
-        {
-        if(action is "resume" or "stop")
-        {
-            var msg=action=="resume"
-                ?"将从已保存的下一条继续真实发送。请确认没有待核对的消息。"
-                :"停止这个群组任务后，不能直接从相同位置重新开始。确定停止吗？";
-            if(MessageBox.Show(Window.GetWindow(this),msg,"确认任务操作",
-                MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
-                return;
-        }
-            var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchControl,
-                15000,new LiveBatchControlRequest(selected.JobId,action));
-            var result=Unwrap<LiveBatchItem>(raw);
-            StatusText.Text=$"群「{result.GroupName}」当前状态：{result.State}。{result.Detail}";
-            await LoadJobsAsync();
-        }
-        catch(Exception ex){StatusText.Text=$"操作结果不确定：{ex.Message}。请先到恢复中心核对，勿重复操作。";}
-        finally{_busy=false;UpdateButtons();}
-    }
 
-    async void JobPause_Click(object sender,RoutedEventArgs e)
-    {
-        if(sender is Button {Tag:BatchJobRow row})
-            await ControlAsync("pause",row);
-    }
-    async void JobResume_Click(object sender,RoutedEventArgs e)
-    {
-        if(sender is Button {Tag:BatchJobRow row})
-            await ControlAsync("resume",row);
-    }
-    async void JobStop_Click(object sender,RoutedEventArgs e)
-    {
-        if(sender is Button {Tag:BatchJobRow row})
-            await ControlAsync("stop",row);
-    }
 }
 
 public sealed class BatchJobRow : INotifyPropertyChanged

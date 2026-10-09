@@ -129,7 +129,7 @@ public partial class RunningTasksWindow : UserControl
             _lastSuccessfulRefreshMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _snapshotFresh=true;
             AllCountText.Text=$"任务总数：{_jobs.Count}";
-            RunningCountText.Text=$"运行：{_jobs.Count(x=>x.State=="Running")}";
+            RunningCountText.Text=$"正在运行：{_jobs.Count(x=>x.State=="Running")}";
             PausedCountText.Text=$"暂停：{_jobs.Count(x=>x.State=="Paused")}";
             AttentionCountText.Text=$"需处理：{_jobs.Count(x=>
                 LiveTaskMonitor.NeedsAttention(x.Snapshot))}";
