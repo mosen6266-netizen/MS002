@@ -227,11 +227,43 @@ jobs:
           # Restart Manager prompt or a force-kill on safe-protocol builds.
           $engineExe = Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"
           $engineProc = Start-Process -FilePath $engineExe -ArgumentList @("--background") -PassThru -WindowStyle Hidden
-          Start-Sleep -Seconds 5
-          if ($engineProc.HasExited) { throw "Engine exited before upgrade smoke test" }
+          # Startup may hold the single-instance mutex before IPC becomes ready,
+          # especially while the bundled Java daemon initializes. Require an
+          # actual pipe response instead of assuming that five seconds suffice.
+          $ready = $false
+          for ($probe = 1; $probe -le 24; $probe++) {
+            if ($engineProc.HasExited) { throw "Engine exited before upgrade smoke test" }
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut)
+            try {
+              $pipe.Connect(800)
+              $pipe.ReadTimeout = 2000
+              $writer = [System.IO.StreamWriter]::new($pipe)
+              $writer.AutoFlush = $true
+              $reader = [System.IO.StreamReader]::new($pipe)
+              $writer.WriteLine('{"Command":"ping"}')
+              $reply = $reader.ReadLine()
+              if ($reply -and ((ConvertFrom-Json -InputObject $reply).Ok -eq $true)) {
+                $ready = $true
+                break
+              }
+            }
+            catch {
+              if ($probe -eq 24) { Write-Warning "Engine ping failed: $($_.Exception.GetType().Name)" }
+            }
+            finally { $pipe.Dispose() }
+            Start-Sleep -Milliseconds 500
+          }
+          if (-not $ready) { throw "Engine IPC did not become ready for safe upgrade" }
 
-          $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
-          if ($upgrade.ExitCode -ne 0) { throw "In-place upgrade exited with $($upgrade.ExitCode)" }
+          $upgradeLog = Join-Path $env:RUNNER_TEMP "ms002-upgrade-setup.log"
+          $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon","/LOG=$upgradeLog") -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) {
+            if (Test-Path $upgradeLog) {
+              Write-Host "Installer preparation failure diagnostics:"
+              Get-Content -LiteralPath $upgradeLog -Tail 70
+            }
+            throw "In-place upgrade exited with $($upgrade.ExitCode)"
+          }
           Start-Sleep -Seconds 2
 
           if (Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue) { throw "Engine still running after safe upgrade handshake" }
