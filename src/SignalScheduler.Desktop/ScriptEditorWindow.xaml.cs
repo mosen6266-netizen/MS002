@@ -1045,6 +1045,153 @@ public partial class ScriptEditorWindow : UserControl
         }
     }
 
+    bool _bundleBusy;
+
+    async void ExportBundle_Click(object sender,RoutedEventArgs e)
+    {
+        if(_bundleBusy)return;
+        if(_dirty && (_savedSignature is null ||
+           ComputeDraftSignature()!=_savedSignature))
+        {
+            if(MessageBox.Show(Window.GetWindow(this),
+                "批量备份只包含正式保存的剧本，不包含当前未保存的编辑内容。是否继续？",
+                "确认批量备份范围",MessageBoxButton.YesNo,
+                MessageBoxImage.Information)!=MessageBoxResult.Yes)return;
+        }
+        var picker=new SaveFileDialog
+        {
+            Title="备份全部已保存剧本及图片",
+            FileName="Signal-剧本图片完整备份.zip",
+            Filter="ZIP 备份 (*.zip)|*.zip",
+            AddExtension=true
+        };
+        if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+        _bundleBusy=true;
+        try
+        {
+            StatusText.Text="正在读取已保存剧本及验证附件…";
+            var catalog=ReadData<List<ScriptEditorSummary>>(
+                await MainWindow.SendAsync(ControlCommands.ScriptList,10000));
+            if(catalog.Count is <1 or >ScriptBundleArchive.MaxScripts)
+                throw new InvalidDataException("剧本数量超出完整备份支持范围（1～500）。");
+            var scripts=new List<ScriptSaveRequest>();
+            foreach(var item in catalog)
+            {
+                var doc=ReadData<ScriptEditorDocument>(
+                    await MainWindow.SendAsync(ControlCommands.ScriptRead,10000,
+                        new ScriptReadRequest(item.ScriptId)));
+                scripts.Add(new ScriptSaveRequest(null,doc.Name,doc.TargetGroupId,
+                    0,doc.Steps));
+            }
+            var imagePaths=new Dictionary<string,string>(StringComparer.Ordinal);
+            foreach(var reference in scripts.SelectMany(x=>x.Steps)
+                .Select(x=>x.Attachment)
+                .Where(x=>!string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.Ordinal))
+            {
+                if(reference.StartsWith("img:",StringComparison.Ordinal))
+                {
+                    var info=ReadData<ImageAttachmentInfo>(
+                        await MainWindow.SendAsync(ControlCommands.ImageLookup,
+                            15000,new ImageLookupRequest(reference)));
+                    if(info.Reference!=reference)
+                        throw new IOException("图片引用校验不一致，备份已停止。");
+                    imagePaths[reference]=info.AbsolutePath;
+                }
+                else
+                {
+                    // Legacy V7 paths must exist locally to make this backup
+                    // portable. Never silently omit a missing attachment.
+                    if(!File.Exists(reference))
+                        throw new FileNotFoundException(
+                            "旧版图片已缺失，请先修复或移除后重试备份。",reference);
+                    imagePaths[reference]=reference;
+                }
+            }
+            ScriptBundleArchive.Create(picker.FileName,scripts,imagePaths);
+            StatusText.Text=$"完整备份成功：{scripts.Count} 个剧本、{imagePaths.Count} 张图片。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="完整备份失败："+ex.Message;
+            MessageBox.Show(Window.GetWindow(this),ex.Message,
+                "无法创建完整备份",MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+        finally{_bundleBusy=false;}
+    }
+
+    async void ImportBundle_Click(object sender,RoutedEventArgs e)
+    {
+        if(_bundleBusy)return;
+        var picker=new OpenFileDialog
+        {
+            Title="从 ZIP 恢复剧本及图片",
+            Filter="ZIP 备份 (*.zip)|*.zip",
+            CheckFileExists=true
+        };
+        if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+        _bundleBusy=true;
+        var staging=Path.Combine(Path.GetTempPath(),
+            "ms002-bundle-"+Guid.NewGuid().ToString("N"));
+        var completed=0;
+        try
+        {
+            StatusText.Text="正在检查完整备份及图片哈希…";
+            var data=ScriptBundleArchive.ExtractValidated(picker.FileName,staging);
+            var answer=MessageBox.Show(Window.GetWindow(this),
+                $"备份包含 {data.Scripts.Length} 个剧本、{data.ImportedImagePaths.Count} 张图片。"+
+                "\n将作为新剧本导入，不覆盖现有剧本。原账号和群组仍需在本机检查。确定恢复？",
+                "确认完整备份恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning);
+            if(answer!=MessageBoxResult.Yes)return;
+
+            var imported=new Dictionary<string,string>(StringComparer.Ordinal);
+            foreach(var item in data.ImportedImagePaths)
+            {
+                var info=ReadData<ImageAttachmentInfo>(
+                    await MainWindow.SendAsync(ControlCommands.ImageImport,30000,
+                        new ImageImportRequest(item.Value)));
+                if(!info.Reference.StartsWith("img:",StringComparison.Ordinal))
+                    throw new IOException("图片导入未返回有效的引用。");
+                imported[item.Key]=info.Reference;
+            }
+            foreach(var script in data.Scripts)
+            {
+                var steps=script.Steps.Select((step,i)=>step with
+                {
+                    Position=i,
+                    Attachment=string.IsNullOrWhiteSpace(step.Attachment)
+                        ?""
+                        :imported[step.Attachment]
+                }).ToArray();
+                // Account IDs and group IDs may differ on another installation.
+                // Keep script content and author choices; operator must review.
+                var request=new ScriptSaveRequest(null,script.Name,
+                    script.TargetGroupId,0,steps);
+                ReadData<ScriptEditorDocument>(await MainWindow.SendAsync(
+                    ControlCommands.ScriptSave,30000,request));
+                completed++;
+                StatusText.Text=$"正在恢复剧本：{completed}/{data.Scripts.Length}";
+            }
+            await ReloadScriptsAsync();
+            StatusText.Text=$"已恢复 {completed} 个新剧本及 {imported.Count} 张图片。" +
+                " 请核对本机账号、群组及附件后再运行。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text=$"恢复失败：{ex.Message}。"+
+                $"已成功导入 {completed} 个剧本；可在剧本库查看，避免再次重复导入。";
+            MessageBox.Show(Window.GetWindow(this),StatusText.Text,
+                "备份恢复未完全成功",MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _bundleBusy=false;
+            try{if(Directory.Exists(staging))Directory.Delete(staging,true);}
+            catch(IOException){ }
+            catch(UnauthorizedAccessException){ }
+        }
+    }
+
     void Export_Click(object sender,RoutedEventArgs e)
     {
         try

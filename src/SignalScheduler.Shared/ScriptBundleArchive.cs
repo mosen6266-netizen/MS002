@@ -15,7 +15,7 @@ public static class ScriptBundleArchive
     public const int MaxScripts=500;
     public const int MaxStepsPerScript=1500;
     public const int MaxImages=3000;
-    public const int MaxImageBytes=20*1024*1024;
+    public const int MaxImageBytes=15*1024*1024;
     public const long MaxArchiveBytes=512L*1024*1024;
     const int MaxManifestBytes=12*1024*1024;
     static readonly JsonSerializerOptions JsonOptions=new()

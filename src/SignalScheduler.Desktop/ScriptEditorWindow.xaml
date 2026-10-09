@@ -87,6 +87,10 @@
      <StackPanel Margin="0,9,0,0">
       <Button Content="导入 JSON" Click="Import_Click"
        Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <Button Content="完整备份全部剧本＋图片 ZIP" Click="ExportBundle_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
+      <Button Content="从 ZIP 批量恢复剧本和图片" Click="ImportBundle_Click"
+       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
       <Button Content="检查当前剧本图片" Click="CheckImages_Click"
        Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
       <Button Content="查看 / 恢复旧版本" Click="RestoreVersion_Click"
