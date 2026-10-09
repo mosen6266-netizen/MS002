@@ -63,6 +63,32 @@ public sealed class CriticalAlertQueueTests
     }
 
     [Fact]
+    public void CriticalDialogBodyUsesRealLineBreaksRatherThanLiteralBackslashes()
+    {
+        var body=CriticalAlertQueue.DialogText("群 A 发送异常");
+        Assert.Contains("\n\n",body);
+        Assert.DoesNotContain(@"\n",body);
+        Assert.EndsWith("群 A 发送异常",body);
+    }
+
+    [Fact]
+    public void LargeAlertBurstRetainsFifoOrderAndAccuratePendingCount()
+    {
+        var queue=new CriticalAlertQueue();
+        for(var n=0;n<250;n++)queue.Enqueue($"任务 {n}");
+        Assert.Equal(250,queue.PendingCount);
+        for(var n=0;n<250;n++)
+        {
+            Assert.True(queue.TryBegin(out var next));
+            Assert.Equal($"任务 {n}",next);
+            Assert.Equal(250-n,queue.PendingCount);
+            Assert.True(queue.CompleteCurrent());
+        }
+        Assert.Equal(0,queue.PendingCount);
+        Assert.False(queue.TryBegin(out _));
+    }
+
+    [Fact]
     public void DistinctEventsWithIdenticalDescriptionsRemainDistinct()
     {
         var queue=new CriticalAlertQueue();
