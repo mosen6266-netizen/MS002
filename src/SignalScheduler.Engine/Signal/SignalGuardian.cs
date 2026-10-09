@@ -267,7 +267,7 @@ public sealed class SignalGuardian : BackgroundService
         {
             SetSnapshot("fault",
                 "后台 Java 进程未确认完全退出："+ex.GetType().Name,
-                Snapshot.InstalledVersion,true,Snapshot.LiveAccounts);
+                Snapshot.SignalCliVersion,true,Snapshot.LiveAccounts);
             // The installer independently checks that bundled runtime files
             // are unlocked, and must fail closed if the process survives.
         }
