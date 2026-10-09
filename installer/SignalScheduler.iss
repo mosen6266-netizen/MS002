@@ -105,6 +105,8 @@ var
   EnginePath: String;
   MarkerPath: String;
   ResultCode: Integer;
+  Attempt: Integer;
+  HandshakeAccepted: Boolean;
 begin
   Result := '';
 
@@ -118,10 +120,25 @@ begin
   if ShowInstallStatus then
     WizardForm.StatusLabel.Caption := CustomMessage('SafeClosingOldVersion');
 
-  { alpha.4+ understands this command. alpha.1-alpha.3 will simply exit the
-    second Engine instance because the real Engine already owns the mutex. }
-  if FileExists(EnginePath) then
+  { The Engine can own its mutex before the control pipe is listening,
+    especially on a first launch with Java initialization. A transient
+    handshake failure must not make a normal safe upgrade fail immediately.
+    NEVER retry a true safety refusal (20) or force-kill an unknown process. }
+  if not FileExists(EnginePath) then
   begin
+    Result := CustomMessage('HandshakeFailed');
+    Exit;
+  end;
+
+  HandshakeAccepted := False;
+  for Attempt := 1 to 5 do
+  begin
+    if not IsEngineRunning() then
+    begin
+      HandshakeAccepted := True;
+      Break;
+    end;
+    ResultCode := 31;
     if Exec(
          EnginePath,
          '--prepare-update',
@@ -136,19 +153,18 @@ begin
         Result := CustomMessage('SafeUpdateBlocked');
         Exit;
       end;
-      if ResultCode <> 0 then
+      if ResultCode = 0 then
       begin
-        Result := CustomMessage('HandshakeFailed');
-        Exit;
+        HandshakeAccepted := True;
+        Break;
       end;
-    end
-    else
-    begin
-      Result := CustomMessage('HandshakeFailed');
-      Exit;
     end;
-  end
-  else
+    { Only transient IPC errors retry; a live task refusal always blocks. }
+    if Attempt < 5 then
+      Sleep(1250);
+  end;
+
+  if not HandshakeAccepted then
   begin
     Result := CustomMessage('HandshakeFailed');
     Exit;
@@ -157,7 +173,9 @@ begin
   if ShowInstallStatus then
     WizardForm.StatusLabel.Caption := CustomMessage('WaitingForBackground');
 
-  if WaitForEngineStop(15000) then
+  { Shutdown includes the owned Java daemon and database flush.
+    Allow sufficient time on slow Windows hosts and high DPI CI runners. }
+  if WaitForEngineStop(45000) then
     Exit;
 
   { A marker means the installed build supports safe-update. Never force-kill
