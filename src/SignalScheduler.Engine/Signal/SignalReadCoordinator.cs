@@ -264,6 +264,61 @@ public sealed class SignalReadCoordinator : BackgroundService
         finally{_databaseGate.Release();}
     }
 
+    async Task RecordStreamTransitionAsync(
+        bool connected,string failureType,CancellationToken ct)
+    {
+        var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        // Only a sanitized exception type or a fixed failure code is stored.
+        // Never persist exception.ToString(), URLs, message bodies or tokens.
+        if(connected)
+        {
+            _streamState="已连接";
+            _lastError="";
+            Interlocked.Exchange(ref _lastConnectedMs,now);
+        }
+        else
+        {
+            _streamState="连接中断";
+            _lastError=failureType;
+            Interlocked.Exchange(ref _lastFailureMs,now);
+            _lastFailureType=failureType;
+        }
+        try
+        {
+            await _databaseGate.WaitAsync(ct);
+            try
+            {
+                await using var db=Open();
+                await using var command=db.CreateCommand();
+                command.CommandText=connected
+                    ?"""
+                        UPDATE v8_read_stream_status SET
+                            state='已连接',last_error='',
+                            last_connected_ms=$now,updated_ms=$now
+                        WHERE id=1;
+                        """
+                    :"""
+                        UPDATE v8_read_stream_status SET
+                            state='连接中断',last_error=$reason,
+                            last_failure_ms=$now,last_failure_type=$reason,
+                            updated_ms=$now
+                        WHERE id=1;
+                        """;
+                command.Parameters.AddWithValue("$now",now);
+                command.Parameters.AddWithValue("$reason",failureType);
+                await command.ExecuteNonQueryAsync(ct);
+            }
+            finally{_databaseGate.Release();}
+        }
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){}
+        catch(Exception ex)
+        {
+            // Metadata persistence is best-effort and must never break the
+            // stream subscriber or scheduled outgoing Signal messages.
+            _logger.LogWarning(ex,"Read stream state persistence failed");
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try{await InitializeAsync(ct);}
@@ -283,9 +338,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                 using var response=await _http.SendAsync(request,
                     HttpCompletionOption.ResponseHeadersRead,ct);
                 response.EnsureSuccessStatusCode();
-                _streamState="已连接";
-                _lastError="";
-                Interlocked.Exchange(ref _lastConnectedMs,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                await RecordStreamTransitionAsync(true,"",ct);
                 _logger.LogInformation("Signal read event stream connected");
                 await using var stream=await response.Content.ReadAsStreamAsync(ct);
                 using var reader=new StreamReader(stream);
@@ -307,15 +360,15 @@ public sealed class SignalReadCoordinator : BackgroundService
                 }
                 if(!ct.IsCancellationRequested)
                 {
-                    _streamState="连接中断";
-                    _lastError="事件流正常关闭，正在重新连接";
+                    await RecordStreamTransitionAsync(false,"StreamEnded",ct);
                 }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
             catch(Exception ex)
             {
-                _streamState="连接中断";
-                _lastError=ex.GetType().Name;
+                var reason=ex.GetType().Name;
+                if(_streamState!="连接中断" || _lastError!=reason)
+                    await RecordStreamTransitionAsync(false,reason,ct);
                 // Avoid flooding logs while the daemon is temporarily offline.
                 var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                 if(now-Interlocked.Read(ref _lastStreamWarningMs)>30000)
