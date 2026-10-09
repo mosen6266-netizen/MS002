@@ -515,8 +515,10 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     public BatchJobRow(LiveBatchItem item)
     {
         JobId=item.JobId;
+        _snapshot=item;
         Update(item);
     }
+
     public string JobId {get;}
     public string ScriptName {get;private set;}="";
     public string GroupName {get;private set;}="";
@@ -524,31 +526,45 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     public long Cursor {get;private set;}
     public int TotalSteps {get;private set;}
     public string Detail {get;private set;}="";
+    public string Phase {get;private set;}="—";
     public string NextSend {get;private set;}="—";
     public string NextCountdown {get;private set;}="—";
     public string RemainingEstimate {get;private set;}="—";
-    long _nextDueMs;
-    long _estimatedRemainingMs;
+    public string EarliestFinish {get;private set;}="—";
+    LiveBatchItem _snapshot;
     long _estimateSampleMs;
+
     public void RefreshCountdown()
     {
         var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var seconds=Math.Max(0,(_nextDueMs-now+999)/1000);
-        var remaining=Math.Max(0,(_estimatedRemainingMs-(now-_estimateSampleMs)+999)/1000);
-        var newCountdown=State=="Running"?seconds+" 秒":"—";
-        var newRemaining=State=="Running" && _estimatedRemainingMs>0
-            ?"约 "+TimeSpan.FromSeconds(remaining).ToString(@"hh\:mm\:ss"):"—";
-        if(newCountdown!=NextCountdown)
+        var timing=LiveBatchTiming.Format(_snapshot,_estimateSampleMs,now);
+        if(Phase!=timing.Phase)
         {
-            NextCountdown=newCountdown;
+            Phase=timing.Phase;
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(Phase)));
+        }
+        if(NextCountdown!=timing.NextCountdown)
+        {
+            NextCountdown=timing.NextCountdown;
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(NextCountdown)));
         }
-        if(newRemaining!=RemainingEstimate)
+        if(RemainingEstimate!=timing.RemainingEstimate)
         {
-            RemainingEstimate=newRemaining;
+            RemainingEstimate=timing.RemainingEstimate;
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(RemainingEstimate)));
         }
+        if(EarliestFinish!=timing.EarliestFinish)
+        {
+            EarliestFinish=timing.EarliestFinish;
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(EarliestFinish)));
+        }
+        if(NextSend!=timing.NextSend)
+        {
+            NextSend=timing.NextSend;
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(NextSend)));
+        }
     }
+
     public string Progress=>$"{Cursor}/{TotalSteps}";
     public string StateDisplay=>StatusLabels.Task(State);
     public bool CanPause=>State=="Running";
@@ -558,30 +574,26 @@ public sealed class BatchJobRow : INotifyPropertyChanged
 
     public void Update(LiveBatchItem item)
     {
-        // Avoid raising events if the displayed row has not changed.
-        var nextSend=item.NextDueMs>0&&item.State=="Running"
-            ?DateTimeOffset.FromUnixTimeMilliseconds(item.NextDueMs)
-                .ToLocalTime().ToString("HH:mm:ss")
-            :"—";
-        _nextDueMs=item.NextDueMs;
-        _estimatedRemainingMs=item.EstimatedRemainingMs;
+        // Store the new state BEFORE calculating timing. Otherwise a newly
+        // resumed or paused job can show the previous timer for one UI tick.
+        var changed=ScriptName!=item.ScriptName ||
+            GroupName!=item.GroupName || State!=item.State ||
+            Cursor!=item.Cursor || TotalSteps!=item.TotalSteps ||
+            Detail!=item.Detail;
+        _snapshot=item;
         _estimateSampleMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        RefreshCountdown();
-        if(ScriptName==item.ScriptName && GroupName==item.GroupName &&
-           State==item.State && Cursor==item.Cursor &&
-           TotalSteps==item.TotalSteps && Detail==item.Detail &&
-           NextSend==nextSend)return;
         ScriptName=item.ScriptName;
         GroupName=item.GroupName;
         State=item.State;
         Cursor=item.Cursor;
         TotalSteps=item.TotalSteps;
         Detail=item.Detail;
-        NextSend=nextSend;
+        RefreshCountdown();
+        if(!changed)return;
         foreach(var name in new[]{
             nameof(ScriptName),nameof(GroupName),nameof(State),
             nameof(StateDisplay),nameof(Cursor),nameof(TotalSteps),
-            nameof(Progress),nameof(Detail),nameof(NextSend),
+            nameof(Progress),nameof(Detail),
             nameof(CanPause),nameof(CanResume),nameof(CanStop)})
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(name));
     }
