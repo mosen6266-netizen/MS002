@@ -232,7 +232,7 @@ public sealed record LiveBatchHistoryDetail(
 public sealed record LiveBatchItem(
     string JobId,string ScriptName,string GroupId,string GroupName,
     string State,long Cursor,int TotalSteps,long NextDueMs,string Detail,
-    long EstimatedRemainingMs=0,string DispatchState="");
+    long EstimatedRemainingMs=0,string DispatchState="",string RuntimePhase="");
 /// <summary>Internal, not a UI-supplied raw file path.</summary>
 public sealed record SignalMessagePayload(string Message,string? AttachmentPath);
 
