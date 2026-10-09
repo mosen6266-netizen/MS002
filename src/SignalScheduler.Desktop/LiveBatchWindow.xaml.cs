@@ -532,6 +532,7 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     public string RemainingEstimate {get;private set;}="—";
     public string EarliestFinish {get;private set;}="—";
     LiveBatchItem _snapshot;
+    public LiveBatchItem Snapshot=>_snapshot;
     long _estimateSampleMs;
 
     public void RefreshCountdown()
