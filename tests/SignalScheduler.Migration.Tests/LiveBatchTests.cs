@@ -971,6 +971,66 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_dispatch_journal"));
     }
 
+    [Fact]
+    public async Task AmbiguousDeliveryAfterRestartCannotReplayAndOtherGroupNeedsManualResume()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"授权群公告")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        var uncertain=due.Single(x=>x.Dispatch.GroupId=="g1");
+        var healthy=due.Single(x=>x.Dispatch.GroupId=="g2");
+        var sendCalls=0;
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>{
+            sendCalls++;
+            return Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"RPC timeout"));
+        }));
+        await engine.DispatchAsync(uncertain.Dispatch,"test",Ct);
+        Assert.Equal(1,sendCalls);
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        var jobs=await restarted.ListLiveBatchAsync(Ct);
+        Assert.Equal("RecoveryRequired",
+            jobs.Single(x=>x.JobId==uncertain.Dispatch.JobId).State);
+        Assert.Equal("Paused",
+            jobs.Single(x=>x.JobId==healthy.Dispatch.JobId).State);
+        Assert.All(jobs,x=>Assert.Equal(0,x.Cursor));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+
+        var replayAttempts=0;
+        var retryEngine=new DurableTaskEngine(restarted,
+            new StubTransport((d,p,ct)=>{
+                replayAttempts++;
+                return Task.FromResult(new SignalSendResult(
+                    SignalDeliveryOutcome.Confirmed,"unsafe-replay","ACK"));
+            }));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            retryEngine.DispatchAsync(uncertain.Dispatch,"test",Ct));
+        Assert.Equal(0,replayAttempts);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            restarted.ControlLiveBatchAsync(
+                new(uncertain.Dispatch.JobId,"resume"),Ct));
+
+        await restarted.ControlLiveBatchAsync(
+            new(healthy.Dispatch.JobId,"resume"),Ct);
+        var eligible=await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.Single(eligible);
+        Assert.Equal(healthy.Dispatch.JobId,eligible[0].Dispatch.JobId);
+        Assert.Equal("RecoveryRequired",
+            (await restarted.ListLiveBatchAsync(Ct))
+                .Single(x=>x.JobId==uncertain.Dispatch.JobId).State);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='RecoveryRequired'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
