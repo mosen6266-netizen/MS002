@@ -566,7 +566,9 @@ public partial class MainWindow : Window
                 Number(read,"LastEventMs"),
                 File.Exists(db),
                 dashboard.HasValue,
-                read.HasValue));
+                read.HasValue,
+                Count(read,"Failed"),
+                Count(read,"WaitingRetry")));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
