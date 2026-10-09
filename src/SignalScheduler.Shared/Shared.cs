@@ -99,9 +99,18 @@ public static class StatusLabels
 }
 
 public sealed record RecoveryJobItem(
-    string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview)
+    string JobId,string Name,string State,long Cursor,bool IsLegacy,bool NeedsReview,
+    string Detail="")
 {
     public string StateDisplay=>StatusLabels.Task(State);
+    public bool NeedsAttention=>NeedsReview ||
+        State is "RecoveryRequired" or "Running" or "WaitingSignal" or "Stopping" ||
+        (State=="Paused" && (
+            Detail.Contains("异常",StringComparison.Ordinal) ||
+            Detail.Contains("重启",StringComparison.Ordinal) ||
+            Detail.Contains("断开",StringComparison.Ordinal) ||
+            Detail.Contains("核对",StringComparison.Ordinal) ||
+            Detail.Contains("失败",StringComparison.Ordinal)));
 }
 public sealed record RecoveryDispatchItem(
     string DispatchKey,string JobId,long Cursor,string GroupId,string AccountId,
