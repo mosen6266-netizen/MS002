@@ -28,6 +28,12 @@ public partial class RecoveryCenterWindow : UserControl
     {
         if(_refreshing) return;
         _refreshing=true;
+        // Never permit an irreversible action against a snapshot while its
+        // replacement is still being fetched from the Engine.
+        _snapshotFresh=false;
+        PauseButton.IsEnabled=false;
+        MarkSeenButton.IsEnabled=false;
+        MarkNotSentButton.IsEnabled=false;
         var previous=(JobsGrid.SelectedItem as RecoveryJobItem)?.JobId;
         try
         {
@@ -62,7 +68,9 @@ public partial class RecoveryCenterWindow : UserControl
 
     void TasksFilterChanged(object sender,RoutedEventArgs e)
     {
-        if(_overview is not null)
+        // A cached list may still be displayed after an IPC failure, but
+        // changing its filter must not clear the stale-snapshot warning.
+        if(_overview is not null && _snapshotFresh && !_refreshing)
             ApplyJobsFilter((JobsGrid?.SelectedItem as RecoveryJobItem)?.JobId);
     }
 
