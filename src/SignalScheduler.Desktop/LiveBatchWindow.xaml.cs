@@ -323,7 +323,66 @@ public partial class LiveBatchWindow : UserControl
         StartButton.IsEnabled=!_busy &&
             ScriptBox.SelectedItem is ScriptEditorSummary &&
             _groups.Any(x=>x.Selected) && _groups.Count(x=>x.Selected)<=20;
+        if(PreflightButton is not null)
+            PreflightButton.IsEnabled=StartButton.IsEnabled;
 
+    }
+
+    async Task<LiveBatchPreflightResult> ReadPreflightAsync(
+        string scriptId,string[] groupIds)
+    {
+        var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchPreflight,
+            30000,new LiveBatchPreflightRequest(scriptId,groupIds));
+        return Unwrap<LiveBatchPreflightResult>(raw);
+    }
+
+    static string FormatPreflight(LiveBatchPreflightResult result)
+    {
+        var details=result.Issues.Take(20)
+            .Select(i=>$"【{i.Level}】{i.Message}").ToArray();
+        return $"剧本：{result.ScriptName}\n群组：{result.SelectedGroups} 个"+
+               $"\n可用消息：约 {result.SendableRows} 条"+
+               $"\n运行条件：{(result.CanStart?"可启动":"存在阻止启动的问题")}"+
+               (details.Length==0?"\n所有已检查条件通过。":
+                   "\n\n"+string.Join("\n",details))+
+               (result.Issues.Count>details.Length
+                   ?$"\n另有 {result.Issues.Count-details.Length} 条，请逐项处理。":"")+
+               "\n\n此检查不会发送消息；实际启动前仍会重新验证。";
+    }
+
+    async void Preflight_Click(object sender,RoutedEventArgs e)
+    {
+        if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
+        GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
+        GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
+        var ids=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
+        if(ids.Length is <1 or >20)
+        {
+            StatusText.Text="请先选择 1～20 个群组。";
+            return;
+        }
+        _busy=true;
+        UpdateButtons();
+        try
+        {
+            StatusText.Text="正在检查运行条件，此过程不会发送消息…";
+            var result=await ReadPreflightAsync(script.ScriptId,ids);
+            StatusText.Text=result.CanStart
+                ?$"运行条件检查通过，含 {result.Issues.Count} 条提醒。"
+                :$"运行条件检查发现 {result.Issues.Count(x=>x.Level=="错误")} 个阻止启动的问题。";
+            MessageBox.Show(Window.GetWindow(this),FormatPreflight(result),
+                "运行前健康检查",MessageBoxButton.OK,
+                result.CanStart?MessageBoxImage.Information:MessageBoxImage.Warning);
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="运行前检查失败："+ex.Message;
+        }
+        finally
+        {
+            _busy=false;
+            UpdateButtons();
+        }
     }
 
     async void Start_Click(object sender,RoutedEventArgs e)
@@ -338,6 +397,26 @@ public partial class LiveBatchWindow : UserControl
             StatusText.Text="一次请勾选 1～20 个群组。";
             return;
         }
+        // Preflight is read-only. The transactional start remains the final
+        // authority if online status or membership changes after this check.
+        LiveBatchPreflightResult readiness;
+        try
+        {
+            readiness=await ReadPreflightAsync(script.ScriptId,ids);
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="启动前检查失败："+ex.Message;
+            return;
+        }
+        if(!readiness.CanStart)
+        {
+            StatusText.Text="启动已阻止，请先解决运行条件检查中的错误。";
+            MessageBox.Show(Window.GetWindow(this),FormatPreflight(readiness),
+                "无法启动任务",MessageBoxButton.OK,MessageBoxImage.Warning);
+            return;
+        }
+
         // Inspect all old V7 image references before any irreversible send.
         // If unavailable attachments would be omitted, require separate
         // explicit approval and show their original message indices.
