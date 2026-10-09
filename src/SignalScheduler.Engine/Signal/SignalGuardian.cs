@@ -58,9 +58,20 @@ public sealed class SignalGuardian : BackgroundService
     {
         try
         {
-        if(!File.Exists(_paths.JavaExe) || !Directory.Exists(_paths.SignalCliHome))
+        // Antivirus quarantine can leave a directory intact while removing
+        // executable or library files. Detect that case before starting Java.
+        var libDir=Path.Combine(_paths.SignalCliHome,"lib");
+        var javaPresent=File.Exists(_paths.JavaExe);
+        var jarsPresent=Directory.Exists(libDir) &&
+            Directory.EnumerateFiles(libDir,"*.jar",SearchOption.TopDirectoryOnly).Any();
+        if(!javaPresent || !jarsPresent)
         {
-            SetSnapshot("missing-runtime","缺少内置 Java / signal-cli Runtime","",false,Array.Empty<string>());
+            var missing=!javaPresent && !jarsPresent
+                ?"Java 与 signal-cli 库文件"
+                :!javaPresent?"Java 可执行文件":"signal-cli 库文件";
+            SetSnapshot("missing-runtime",
+                "安装文件检查失败：缺少"+missing+"；请使用受信任安装包修复安装，用户数据不应删除。",
+                "",false,Array.Empty<string>());
             return;
         }
 
