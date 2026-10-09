@@ -133,6 +133,37 @@ public sealed class LiveBatchRunner : BackgroundService
 
             await SimulateTypingAsync(due,ct);
 
+            // Typing can last several minutes. A healthy Signal connection or
+            // authorization at the start of that delay is not permission to
+            // dispatch after it expires or disconnects.
+            if(!string.Equals(_guardian.Snapshot.State,"healthy",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                await _store.PauseLiveBatchForSafetyAsync(jobId,
+                    "输入等待期间 Signal 已断开或不健康，未发送下一条；请手动核对后继续。",
+                    CancellationToken.None);
+                return;
+            }
+            try
+            {
+                license=await _license.CheckAsync(ct);
+            }
+            catch(Exception ex)
+            {
+                await _store.PauseLiveBatchForSafetyAsync(jobId,
+                    $"发送前授权复核异常：{ex.GetType().Name}，未发送下一条。",
+                    CancellationToken.None);
+                return;
+            }
+            if(license.State!="active" || !license.ServerReachable ||
+               license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            {
+                await _store.PauseLiveBatchForSafetyAsync(jobId,
+                    "输入等待期间在线授权已失效或服务器不可用，未发送下一条。",
+                    CancellationToken.None);
+                return;
+            }
+
             // Important: Pause during typing is checked in MarkSendingAsync,
             // inside the same SQLite transaction as the Sending transition.
             var wire="signal-structured:"+JsonSerializer.Serialize(
