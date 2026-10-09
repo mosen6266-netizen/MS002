@@ -75,8 +75,58 @@ chinesesimplified.StartingApp=正在启动 Signal 调度台…
 chinesesimplified.CloseDesktopFirst=检测到 Signal 调度台窗口仍在运行。请先关闭该窗口，再重新运行安装程序。
 chinesesimplified.HandshakeFailed=无法确认旧版后台是否已安全停止。为了保护账号与任务数据，安装已取消。请先关闭旧版软件，必要时重新启动电脑后重试。
 chinesesimplified.LegacyManualStop=检测到 V8 早期测试版后台仍在运行。请先正常退出旧版程序，或重新启动电脑后在不打开旧程序的情况下安装；本安装器不会强行结束未知 Java 进程。
+chinesesimplified.RuntimeFileLocked=旧版内置 Java 运行环境文件仍被占用，尚未确认退出。为避免覆盖损坏，本次安装已停止。请确认所有 Signal 任务均已安全停止，关闭旧版程序后重试，必要时重启电脑；安装器不会强制结束不属于本程序的 Java 进程。
 
 [Code]
+function CreateFileW(FileName: string; DesiredAccess, ShareMode: Cardinal;
+  SecurityAttributes: Integer; CreationDisposition, Flags: Cardinal;
+  TemplateFile: Integer): THandle;
+  external 'CreateFileW@kernel32.dll stdcall';
+
+function CloseHandle(Handle: THandle): Boolean;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+function CanReplaceRuntimeFile(Path: String): Boolean;
+var
+  Handle: THandle;
+begin
+  if not FileExists(Path) then
+  begin
+    Result := True;
+    Exit;
+  end;
+  { Exclusive write access fails while Java maps the DLL as an executable
+    image. Never rename/delete/rewrite the live runtime as a probe. }
+  Handle := CreateFileW(Path, $40000000, 0, 0, 3, 128, 0);
+  Result := Handle <> THandle(-1);
+  if Result then
+    CloseHandle(Handle);
+end;
+
+function RuntimeFilesUnlocked(): Boolean;
+var
+  RuntimeRoot: String;
+begin
+  RuntimeRoot := ExpandConstant('{app}\Runtime\signal-stack-v1\jre\bin\');
+  Result :=
+    CanReplaceRuntimeFile(RuntimeRoot + 'java.dll') and
+    CanReplaceRuntimeFile(RuntimeRoot + 'server\jvm.dll') and
+    CanReplaceRuntimeFile(RuntimeRoot + 'java.exe');
+end;
+
+function WaitForRuntimeUnlock(MaxWaitMs: Integer): Boolean;
+var
+  Elapsed: Integer;
+begin
+  Elapsed := 0;
+  while not RuntimeFilesUnlocked() and (Elapsed < MaxWaitMs) do
+  begin
+    Sleep(300);
+    Elapsed := Elapsed + 300;
+  end;
+  Result := RuntimeFilesUnlocked();
+end;
+
 function IsEngineRunning(): Boolean;
 begin
   Result := CheckForMutexes('Local\SignalScheduler.V8.Engine');
@@ -113,9 +163,14 @@ begin
   EnginePath := ExpandConstant('{app}\Engine\SignalScheduler.Engine.exe');
   MarkerPath := ExpandConstant('{app}\update-protocol-v1.marker');
 
-  { Nothing is running, so do not launch an old Engine merely to ask it to stop. }
+  { The Engine mutex can disappear before the owned Java daemon has
+    released java.dll. Never assume an absent Engine means files are safe. }
   if not IsEngineRunning() then
+  begin
+    if not WaitForRuntimeUnlock(45000) then
+      Result := CustomMessage('RuntimeFileLocked');
     Exit;
+  end;
 
   if ShowInstallStatus then
     WizardForm.StatusLabel.Caption := CustomMessage('SafeClosingOldVersion');
@@ -176,7 +231,11 @@ begin
   { Shutdown includes the owned Java daemon and database flush.
     Allow sufficient time on slow Windows hosts and high DPI CI runners. }
   if WaitForEngineStop(45000) then
+  begin
+    if not WaitForRuntimeUnlock(45000) then
+      Result := CustomMessage('RuntimeFileLocked');
     Exit;
+  end;
 
   { A marker means the installed build supports safe-update. Never force-kill
     such a build after a failed handshake because it may have active/in-flight work. }
