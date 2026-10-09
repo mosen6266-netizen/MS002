@@ -55,7 +55,7 @@ public sealed class FailureDiagnosticTests
     public void RuntimePresenceCheckReportsMissingFilesWithoutChangingAnything()
     {
         var root=Path.Combine(Path.GetTempPath(),"ms002-runtime-"+Guid.NewGuid().ToString("N"));
-        var desktop=Path.Combine(root,"Desktop");
+        var desktop=root;
         var java=Path.Combine(root,"Runtime","signal-stack-v1","jre","bin","java.exe");
         var lib=Path.Combine(root,"Runtime","signal-stack-v1","signal-cli","lib");
         Directory.CreateDirectory(desktop);
