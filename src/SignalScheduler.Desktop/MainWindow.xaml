@@ -150,6 +150,8 @@
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
      <Button x:Name="LicenseNav" Content="⚙   授权设置" Tag="license"
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
+     <Button x:Name="UpdateNav" Content="↻   检查更新" Tag="update"
+       Style="{StaticResource NavButton}" Click="Nav_Click"/>
     </StackPanel>
     <Border Grid.Row="4" Background="#10273C" CornerRadius="8" Padding="12">
      <StackPanel>

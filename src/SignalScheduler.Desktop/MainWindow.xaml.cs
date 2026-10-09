@@ -95,6 +95,7 @@ public partial class MainWindow : Window
         RecoveryNav.Content=compact?"⚠   恢复":"⚠   异常恢复";
         HistoryNav.Content="◷   历史记录";
         LicenseNav.Content=compact?"⚙   授权":"⚙   授权设置";
+        UpdateNav.Content="↻   检查更新";
         // Keep an escape route for unusually small screens, rather than
         // clipping content silently. Normal widths never gain a scrollbar.
         WorkspaceScroll.HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled;
@@ -155,6 +156,7 @@ public partial class MainWindow : Window
             "recovery"=>new RecoveryCenterWindow(),
             "history"=>new HistoryWindow(),
             "license"=>new LicenseWindow(),
+            "update"=>new UpdateCenterWindow(),
             _=>throw new ArgumentException("未知的导航位置。")
         };
         _pages.Add(key,page);
@@ -211,11 +213,13 @@ public partial class MainWindow : Window
                 "核对真实发送回执、暂停异常任务，避免未知结果被重复发送。"),
             "license"=>("卡密与授权",
                 "激活或核验现有卡密；本机资料继续保存在用户目录。"),
+            "update"=>("检查更新",
+                "自动查找 GitHub 最新成功构建，并提供官方安装包下载入口。"),
             _=>("Signal 调度台","")
         };
         PageTitle.Text=heading;
         PageSubtitle.Text=subtitle;
-        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,RecoveryNav,HistoryNav,LicenseNav})
+        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,RecoveryNav,HistoryNav,LicenseNav,UpdateNav})
             b.Background=Equals(b.Tag,key)
                 ?new SolidColorBrush(Color.FromRgb(34,73,111))
                 :Brushes.Transparent;

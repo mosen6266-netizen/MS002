@@ -46,6 +46,19 @@ jobs:
       - name: Publish engine
         run: dotnet publish src/SignalScheduler.Engine/SignalScheduler.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Engine
 
+      - name: Stamp installed GitHub build number
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $info = @{
+            version = '8.0.0-beta.5'
+            build = [int]${{ github.run_number }}
+            sourceSha = '${{ github.sha }}'
+          } | ConvertTo-Json -Compress
+          $target = Join-Path $pwd 'artifacts/publish/Desktop/build-info.json'
+          [System.IO.File]::WriteAllText($target, $info, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "Packaged update metadata: $info"
+
       - name: WPF main window startup smoke test
         shell: powershell
         run: |
