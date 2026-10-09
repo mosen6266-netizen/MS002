@@ -175,7 +175,7 @@
     </StackPanel>
     <DataGrid x:Name="StepsGrid" Grid.Row="2" MinHeight="120"
      HeadersVisibility="Column" EnableColumnVirtualization="False"
-     MinColumnWidth="46" VerticalScrollBarVisibility="Auto"
+     MinColumnWidth="46" ScrollViewer.VerticalScrollBarVisibility="Auto"
      AutoGenerateColumns="False" CanUserAddRows="False"
      IsReadOnly="False" RowHeight="48" ColumnHeaderHeight="42"
      ColumnHeaderStyle="{StaticResource DarkGridHeader}"
