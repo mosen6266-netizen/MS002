@@ -63,6 +63,76 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task ReviewedSentStepCanBeManuallyResumedWithoutReplayingOriginal()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        var start=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var first=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"timeout"))));
+        await engine.DispatchAsync(first.Dispatch,"test",Ct);
+        Assert.Equal("RecoveryRequired",
+            Assert.Single(await store.ListLiveBatchAsync(Ct)).State);
+
+        var reviewed=await store.ReviewAmbiguousDispatchAsync(
+            new(start.JobIds[0],first.Dispatch.DispatchKey,"seen",
+                "已在 Signal 群中核实这条消息存在"),Ct);
+        Assert.Equal("ManuallyConfirmed",reviewed.JournalState);
+        Assert.Equal("Paused",reviewed.JobState);
+        Assert.Equal(1,reviewed.Cursor);
+        Assert.Empty(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ReviewAmbiguousDispatchAsync(
+                new(start.JobIds[0],first.Dispatch.DispatchKey,"seen",
+                    "再次尝试核实同一条消息"),Ct));
+
+        await store.ControlLiveBatchAsync(new(start.JobIds[0],"resume"),Ct);
+        var next=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal(1,next.Dispatch.Cursor);
+        Assert.NotEqual(first.Dispatch.DispatchKey,next.Dispatch.DispatchKey);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='manual_confirmed_sent'"));
+        Assert.Equal("ManuallyConfirmed",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+    }
+
+    [Fact]
+    public async Task ReviewedUnsentStepRequiresManualResumeAtSameCursor()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"第一条")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1"},true),Ct);
+        var first=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"timeout"))));
+        await engine.DispatchAsync(first.Dispatch,"test",Ct);
+        var reviewed=await store.ReviewAmbiguousDispatchAsync(
+            new(first.Dispatch.JobId,first.Dispatch.DispatchKey,"not_seen",
+                "已在 Signal 群记录中确认该消息不存在"),Ct);
+        Assert.Equal("Paused",reviewed.JobState);
+        Assert.Equal(0,reviewed.Cursor);
+        Assert.Empty(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        await store.ControlLiveBatchAsync(new(first.Dispatch.JobId,"resume"),Ct);
+        var next=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal(0,next.Dispatch.Cursor);
+        Assert.Equal("DefinitelyNotSent",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+    }
+
+    [Fact]
     public async Task AmbiguousResultStopsOnlyItsGroupAndRestartPreservesRecovery()
     {
         var (store,db)=await NewStoreAsync();
