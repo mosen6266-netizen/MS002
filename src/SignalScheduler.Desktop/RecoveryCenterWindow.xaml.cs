@@ -141,7 +141,8 @@ public partial class RecoveryCenterWindow : UserControl
     async void Pause_Click(object sender,RoutedEventArgs e)
     {
         if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress ||
-           JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy) return;
+           JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy ||
+           job.State is not ("Running" or "WaitingSignal" or "Stopping")) return;
         var answer=MessageBox.Show(Window.GetWindow(this),
             $"确认暂停任务「{job.Name}」？\n\n如果已有消息进入发送阶段，暂停不会撤回这条消息，必须核对发送记录。",
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
@@ -190,9 +191,9 @@ public partial class RecoveryCenterWindow : UserControl
            message.State!="RecoveryRequired" || message.Cursor!=job.Cursor)return;
 
         var evidence=EvidenceBox.Text.Trim();
-        if(evidence.Length<8)
+        if(evidence.Length is <8 or >500)
         {
-            StatusText.Text="请填写至少 8 个字符的实际核对依据，例如所查看的群消息和时间。";
+            StatusText.Text="请填写 8～500 个字符的实际核对依据，例如所查看的群消息和时间。";
             return;
         }
         var seen=decision=="seen";
