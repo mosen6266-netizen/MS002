@@ -753,10 +753,8 @@ public partial class ScriptEditorWindow : UserControl
         }
         catch(Exception ex)
         {
-            // Preserve the original attachment when import or verification fails.
-            if(_steps.Contains(row) && Equals(scriptAtStart,_scriptId) &&
-               row.Attachment==originalAttachment && !string.IsNullOrWhiteSpace(originalAttachment))
-                row.SetImageHealth("invalid","替换失败，原图片引用已保留");
+            // The original reference and its previous health status are
+            // intentionally unchanged when importing the replacement fails.
             StatusText.Text=$"图片导入或校验失败，原附件未改变：{ex.Message}";
             MessageBox.Show(Window.GetWindow(this),ex.Message,"图片导入失败",
                 MessageBoxButton.OK,MessageBoxImage.Warning);
@@ -801,12 +799,18 @@ public partial class ScriptEditorWindow : UserControl
             bitmap.UriSource=new Uri(info.AbsolutePath,UriKind.Absolute);
             bitmap.EndInit();
             bitmap.Freeze();
+            // Keep the preview dialog inside the visible desktop work area
+            // on smaller displays and high-DPI Windows installations.
+            var workArea=SystemParameters.WorkArea;
+            var previewWidth=Math.Min(850,Math.Max(320,workArea.Width-70));
+            var previewHeight=Math.Min(670,Math.Max(270,workArea.Height-70));
             var window=new Window
             {
                 Owner=Window.GetWindow(this),
                 Title=$"预览图片 - {info.OriginalName}",
-                Width=850,Height=670,
-                MinWidth=500,MinHeight=380,
+                Width=previewWidth,Height=previewHeight,
+                MinWidth=Math.Min(500,previewWidth),
+                MinHeight=Math.Min(380,previewHeight),
                 WindowStartupLocation=WindowStartupLocation.CenterOwner,
                 Background=Brushes.Black,
                 Content=new Border
