@@ -38,6 +38,12 @@ public static class LiveBatchTiming
         if(item.State!="Running")
             return new(StatusLabels.Task(item.State),"—","—","—","—");
 
+        // A disconnected engine may leave the desktop showing a previously
+        // running task. Old timer samples must not keep counting down forever.
+        if(nowMs-receivedAtMs>15000)
+            return new("状态等待刷新","状态已过期",
+                "重新连接后估算","—","—");
+
         // Real worker semaphore contention is not an estimate from due_ms.
         // It is only an ephemeral advisory: the next network send is not
         // scheduled until the shared account has been released.
@@ -58,12 +64,6 @@ public static class LiveBatchTiming
                 "等待进度更新","—","—");
         if(item.DispatchState is "Unknown" or "RecoveryRequired")
             return new("发送结果待核对","禁止自动续发","暂停估算","—","—");
-
-        // A disconnected engine may leave the desktop showing a previously
-        // running task. Old timer samples must not keep counting down forever.
-        if(nowMs-receivedAtMs>15000)
-            return new("状态等待刷新","状态已过期",
-                "重新连接后估算","—","—");
 
         var waitMs=item.NextDueMs-nowMs;
         var waiting=item.NextDueMs>0 && waitMs>0;
