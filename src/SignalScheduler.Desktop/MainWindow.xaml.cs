@@ -21,7 +21,6 @@ public partial class MainWindow : Window
     readonly DispatcherTimer _timer=new(){Interval=TimeSpan.FromSeconds(5)};
     readonly Dictionary<string,UserControl> _pages=new(StringComparer.Ordinal);
     readonly ObservableCollection<string> _notifications=new();
-    readonly HashSet<string> _seenNotifications=new(StringComparer.Ordinal);
     readonly HashSet<string> _unresolvedJobs=new(StringComparer.Ordinal);
     readonly HashSet<string> _batchAlerts=new(StringComparer.Ordinal);
     bool _refreshing;
@@ -46,6 +45,9 @@ public partial class MainWindow : Window
         NotificationsList.ItemsSource=_notifications;
         Loaded+=(_,_)=>FitStartupWindowToWorkArea();
         Loaded+=(_,_)=>ShowNextCritical();
+        // A temporarily unavailable modal can be presented again when the
+        // operator reactivates this window. TryBegin prevents overlapping dialogs.
+        Activated+=(_,_)=>ShowNextCritical();
         Loaded+=async(_,_)=>
         {
             // Launch the Engine before the home page fetches scripts/groups.
@@ -228,12 +230,17 @@ public partial class MainWindow : Window
             e.Cancel=true;
             return;
         }
-        if(_hasLiveJobs)
+        if(_hasLiveJobs || _criticalQueue.PendingCount>0)
         {
+            var warning="";
+            if(_hasLiveJobs)
+                warning+="仍有正在运行的真实群组任务。\n"+
+                    "关闭界面不等于停止后台发送，请先在运行任务页面核对。\n\n";
+            if(_criticalQueue.PendingCount>0)
+                warning+=$"还有 {_criticalQueue.PendingCount} 条重要异常提醒尚未确认。\n"+
+                    "关闭此界面后，未确认的弹窗将无法继续显示。\n\n";
             var result=MessageBox.Show(this,
-                "仍有正在运行的真实群组任务。\n\n"+
-                "关闭界面不等于停止后台发送。要停止，请先到首页暂停对应任务。\n\n"+
-                "仍要关闭这个窗口、让后台继续运行吗？",
+                warning+"确认仍要关闭 Signal 调度台吗？",
                 "确认关闭 Signal 调度台",
                 MessageBoxButton.YesNo,MessageBoxImage.Warning);
             if(result!=MessageBoxResult.Yes)e.Cancel=true;
@@ -441,7 +448,10 @@ public partial class MainWindow : Window
         if(string.IsNullOrWhiteSpace(message))return;
         // Critical events are already de-duplicated by job/cursor at the
         // source. A new job with the same error text must still alert.
-        if(!_seenNotifications.Add(message) && !critical)return;
+        // The inbox retains only 100 entries: scan that bounded list rather
+        // than keeping an unbounded lifetime set of every warning text.
+        if(!critical && _notifications.Any(entry=>
+               entry.EndsWith(message,StringComparison.Ordinal)))return;
         _notifications.Insert(0,$"{DateTime.Now:HH:mm:ss}  {message}");
         if(_notifications.Count>100)_notifications.RemoveAt(_notifications.Count-1);
         if(critical)
@@ -484,7 +494,7 @@ public partial class MainWindow : Window
                 Topmost=true;
                 Activate();
                 MessageBox.Show(this,
-                    "发现任务或 Signal 异常，请及时处理。\\n\\n"+message,
+                    CriticalAlertQueue.DialogText(message),
                     "Signal 调度台 - 重要提醒",
                     MessageBoxButton.OK,MessageBoxImage.Warning);
                 acknowledged=true;
@@ -621,7 +631,6 @@ public partial class MainWindow : Window
     void ClearAlerts_Click(object sender,RoutedEventArgs e)
     {
         _notifications.Clear();
-        _seenNotifications.Clear();
         AlertPanel.Visibility=Visibility.Collapsed;
         // Clearing the viewed inbox must not silently dismiss critical
         // alerts that are still waiting for their own acknowledgment.
