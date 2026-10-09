@@ -63,14 +63,14 @@
              HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" Grid.Row="1" Height="320" AlternationCount="2"
              SelectionChanged="JobsGrid_SelectionChanged">
     <DataGrid.Columns>
-     <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="3*"
+     <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="260"
       ElementStyle="{StaticResource TruncatedGridText}"/>
-     <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="2*"/>
+     <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="180"/>
      <DataGridTextColumn Header="当前消息序号" Binding="{Binding Cursor}" Width="100"/>
-     <DataGridTextColumn Header="异常原因 / 任务说明" Binding="{Binding Detail}" Width="2*"
+     <DataGridTextColumn Header="异常原因 / 任务说明" Binding="{Binding Detail}" Width="340"
       ElementStyle="{StaticResource TruncatedGridText}"/>
      <DataGridCheckBoxColumn Header="旧版记录" Binding="{Binding IsLegacy}" Width="82"/>
-     <DataGridCheckBoxColumn Header="需要人工核对" Binding="{Binding NeedsReview}" Width="*"/>
+     <DataGridCheckBoxColumn Header="需要人工核对" Binding="{Binding NeedsReview}" Width="116"/>
     </DataGrid.Columns>
    </DataGrid>
   </Grid>
@@ -95,7 +95,7 @@
      <DataGridTextColumn Header="账号备注" Binding="{Binding AccountDisplay}" Width="140"/>
      <DataGridTextColumn Header="群组" Binding="{Binding GroupDisplay}" Width="160"/>
      <DataGridTextColumn Header="提供方消息 ID" Binding="{Binding ProviderMessageId}" Width="180"/>
-     <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="2*"
+     <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="330"
       ElementStyle="{StaticResource TruncatedGridText}"/>
     </DataGrid.Columns>
    </DataGrid>

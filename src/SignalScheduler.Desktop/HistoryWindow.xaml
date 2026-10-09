@@ -47,10 +47,10 @@
    Background="#132B41" Foreground="#F0F6FD"
    RowBackground="#132B41" AlternatingRowBackground="#1B344A">
    <DataGrid.Columns>
-    <DataGridTextColumn Header="群名" Binding="{Binding GroupName}" Width="2*"/>
-    <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="2*"/>
-    <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="*"/>
-    <DataGridTextColumn Header="已执行进度" Binding="{Binding Progress}" Width="*"/>
+    <DataGridTextColumn Header="群名" Binding="{Binding GroupName}" Width="280"/>
+    <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="260"/>
+    <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="180"/>
+    <DataGridTextColumn Header="已执行进度" Binding="{Binding Progress}" Width="160"/>
    </DataGrid.Columns>
   </DataGrid>
   <TextBlock Grid.Row="4" Text="发送明细 · 消息全文及结果" FontSize="18" FontWeight="SemiBold"/>
@@ -63,9 +63,9 @@
    <DataGrid.Columns>
     <DataGridTextColumn Header="序号" Binding="{Binding Position}" Width="60"/>
     <DataGridTextColumn Header="账号备注" Binding="{Binding AccountLabel}" Width="155"/>
-    <DataGridTextColumn Header="发表内容" Binding="{Binding Content}" Width="3*"/>
+    <DataGridTextColumn Header="发表内容" Binding="{Binding Content}" Width="440"/>
     <DataGridTextColumn Header="发送结果" Binding="{Binding State}" Width="110"/>
-    <DataGridTextColumn Header="详情" Binding="{Binding Detail}" Width="2*"/>
+    <DataGridTextColumn Header="详情" Binding="{Binding Detail}" Width="320"/>
     <DataGridTextColumn Header="发送时间" Binding="{Binding SentAt}" Width="160"/>
    </DataGrid.Columns>
   </DataGrid>
