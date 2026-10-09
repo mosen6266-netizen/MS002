@@ -10,6 +10,9 @@ public sealed class CriticalAlertQueue
     readonly LinkedList<string> _waiting=new();
     string? _presenting;
 
+    public static string DialogText(string message)=>
+        "发现任务或 Signal 异常，请及时处理。\\n\\n"+message;
+
     public int PendingCount=>_waiting.Count+(_presenting is null?0:1);
     public bool IsPresenting=>_presenting is not null;
 
