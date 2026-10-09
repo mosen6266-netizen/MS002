@@ -160,6 +160,10 @@ public partial class RecoveryCenterWindow : UserControl
         }
         catch(Exception ex)
         {
+            // The server may have committed the pause before IPC timed out.
+            // Invalidate the old snapshot until a successful refresh so users
+            // cannot repeat a potentially completed state-changing action.
+            _snapshotFresh=false;
             StatusText.Text=$"无法确认暂停是否成功：{ex.Message}。请刷新任务状态后核对。";
         }
         finally
@@ -219,6 +223,9 @@ public partial class RecoveryCenterWindow : UserControl
         }
         catch(Exception ex)
         {
+            // A timeout is not proof the adjudication failed. Never allow
+            // another irreversible decision using an unverified old snapshot.
+            _snapshotFresh=false;
             StatusText.Text=$"核对结果未确认成功：{ex.Message}。请先刷新，再检查审计记录；不要重复操作。";
         }
         finally
