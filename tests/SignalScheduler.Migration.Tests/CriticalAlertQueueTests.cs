@@ -89,6 +89,32 @@ public sealed class CriticalAlertQueueTests
     }
 
     [Fact]
+    public void RepeatedWindowDeferralsKeepEveryFaultUntilOperatorAcknowledgesIt()
+    {
+        var queue=new CriticalAlertQueue();
+        queue.Enqueue("群一：后台断线");
+        queue.Enqueue("群二：待人工核对");
+        for(var attempt=0;attempt<100;attempt++)
+        {
+            Assert.True(queue.TryBegin(out var first));
+            Assert.Equal("群一：后台断线",first);
+            Assert.False(queue.TryBegin(out _));
+            queue.DeferCurrent();
+            Assert.Equal(2,queue.PendingCount);
+            Assert.False(queue.IsPresenting);
+        }
+
+        Assert.True(queue.TryBegin(out var acknowledged));
+        Assert.Equal("群一：后台断线",acknowledged);
+        Assert.True(queue.CompleteCurrent());
+        Assert.Equal(1,queue.PendingCount);
+        Assert.True(queue.TryBegin(out var second));
+        Assert.Equal("群二：待人工核对",second);
+        Assert.True(queue.CompleteCurrent());
+        Assert.Equal(0,queue.PendingCount);
+    }
+
+    [Fact]
     public void DistinctEventsWithIdenticalDescriptionsRemainDistinct()
     {
         var queue=new CriticalAlertQueue();
