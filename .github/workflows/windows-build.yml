@@ -67,6 +67,20 @@ jobs:
             if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
           }
 
+      - name: WPF table column layout smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
+          $result = Start-Process -FilePath $exe -ArgumentList '--ui-layout-smoke' -Wait -PassThru
+          $report = Join-Path $env:TEMP 'ms002-ui-layout-smoke.txt'
+          if (Test-Path -LiteralPath $report) {
+            Get-Content -LiteralPath $report
+          }
+          if ($result.ExitCode -ne 0) {
+            throw "WPF layout smoke failed; DataGrid column widths collapsed"
+          }
+
       - name: Bundle pinned Java 25 and signal-cli
         shell: powershell
         env:

@@ -9,6 +9,15 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if(e.Args.Contains("--ui-layout-smoke",StringComparer.OrdinalIgnoreCase))
+        {
+            // CI-only WPF rendering diagnostics: never touch Signal credentials
+            // or create a second normal dashboard window.
+            StartupUri=null;
+            base.OnStartup(e);
+            Shutdown(UiLayoutSmoke.Run());
+            return;
+        }
         _mutex=new Mutex(true,@"Local\SignalScheduler.V8.Desktop",out var createdNew);
         if(!createdNew)
         {
