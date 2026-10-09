@@ -26,7 +26,13 @@ public sealed record SafeDiagnosticSnapshot(
     bool DashboardAvailable=true,
     bool ReadHealthAvailable=true,
     int FailedReadReceipts=0,
-    int DeferredReadReceipts=0);
+    int DeferredReadReceipts=0,
+    IReadOnlyList<DiagnosticCategoryCount>? DispatchDiagnostics=null,
+    int ExaminedDispatches=0,
+    bool RecoveryDataAvailable=false,
+    InstalledRuntimeStatus? RuntimeStatus=null);
+
+public sealed record DiagnosticCategoryCount(string Code,int Count);
 
 public static class SafeDiagnosticReport
 {
@@ -91,7 +97,33 @@ public static class SafeDiagnosticReport
         sb.AppendLine($"最终失败回执：{Metric(input.FailedReadReceipts,input.ReadHealthAvailable)}");
         sb.AppendLine($"最近捕获事件：{(input.ReadHealthAvailable?last:"未取得数据")}");
         sb.AppendLine();
-        sb.AppendLine("隐私保护：未收集手机号、账号备注、群名、地址、消息、附件内容、密钥或日志原文。");
+        sb.AppendLine("安装运行文件检查（只读）");
+        static string SafeFileStatus(string? status)=>
+            status is "存在" or "缺失" or "检查失败"?status:"未检查";
+        sb.AppendLine($"Java 主程序：{SafeFileStatus(input.RuntimeStatus?.Java)}");
+        sb.AppendLine($"signal-cli 库文件：{SafeFileStatus(input.RuntimeStatus?.SignalCli)}");
+        sb.AppendLine("说明：只检查文件存在性，不证明文件未损坏，也不代表账号可正常发送。");
+        sb.AppendLine();
+        sb.AppendLine("最近发送异常分类（不含原始 RPC 内容）");
+        if(!input.RecoveryDataAvailable)
+            sb.AppendLine("恢复记录：未取得数据");
+        else
+        {
+            sb.AppendLine($"已检查发送审计记录：{Count(input.ExaminedDispatches)}");
+            var categories=input.DispatchDiagnostics?
+                .Where(x=>x is not null &&
+                   FailureDiagnostics.ExportableCodes.Contains(x.Code,StringComparer.Ordinal))
+                .GroupBy(x=>x.Code,StringComparer.Ordinal)
+                .Select(g=>new DiagnosticCategoryCount(g.Key,
+                    (int)Math.Min(10000000L,g.Sum(x=>(long)Math.Max(0,x.Count)))))
+                .OrderByDescending(x=>x.Count).ThenBy(x=>x.Code,StringComparer.Ordinal)
+                .Take(10).ToArray()??Array.Empty<DiagnosticCategoryCount>();
+            if(categories.Length==0)sb.AppendLine("暂无可归类的异常记录");
+            foreach(var entry in categories)
+                sb.AppendLine($"{entry.Code}：{entry.Count}");
+        }
+        sb.AppendLine();
+        sb.AppendLine("隐私保护：不含手机号、账号备注、群名、地址、消息、附件内容、密钥或原始日志。");
         return sb.ToString();
     }
 }
