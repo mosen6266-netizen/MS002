@@ -828,6 +828,39 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
     }
 
+    [Fact]
+    public async Task SafetyPauseOfOneGroupSurvivesRestartWithoutChangingOtherGroup()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"通知")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var jobs=await store.ListLiveBatchAsync(Ct);
+        var affected=jobs.Single(x=>x.GroupId=="g1");
+        var other=jobs.Single(x=>x.GroupId=="g2");
+
+        await store.PauseLiveBatchForSafetyAsync(affected.JobId,
+            "Signal 服务断开，等待人工继续。",Ct);
+        jobs=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal("Paused",jobs.Single(x=>x.JobId==affected.JobId).State);
+        Assert.Equal("Running",jobs.Single(x=>x.JobId==other.JobId).State);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        jobs=await restarted.ListLiveBatchAsync(Ct);
+        Assert.All(jobs,x=>Assert.Equal("Paused",x.State));
+        Assert.Contains("Signal 服务断开",
+            jobs.Single(x=>x.JobId==affected.JobId).Detail);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
