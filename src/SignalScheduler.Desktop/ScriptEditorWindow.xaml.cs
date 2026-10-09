@@ -955,8 +955,30 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
         ?? (string.IsNullOrWhiteSpace(Account)?"默认账号":("账号 "+Account[^Math.Min(4,Account.Length)..]));
     public void RefreshAccountLabel()=>PropertyChanged?.Invoke(
         this,new PropertyChangedEventArgs(nameof(AccountLabel)));
-    public string AttachmentLabel=>string.IsNullOrWhiteSpace(Attachment)?"—":"预览图片";
+    string _attachmentHealth="";
+    string _attachmentHealthDetail="";
+    public string AttachmentLabel=>!HasAttachment?"添加图片":
+        _attachmentHealth switch
+        {
+            "ok"=>"预览图片",
+            "missing"=>"图片缺失",
+            "invalid"=>"图片损坏",
+            "legacy"=>"旧版图片",
+            _=>"预览图片"
+        };
     public bool HasAttachment=>!string.IsNullOrWhiteSpace(Attachment);
+    public string AttachmentHint=>!HasAttachment
+        ?"点击选择要添加的图片；右键可添加或替换图片。"
+        :string.IsNullOrWhiteSpace(_attachmentHealthDetail)
+            ?"左键预览图片，右键可替换或移除。"
+            :_attachmentHealthDetail+"；右键可替换或移除。";
+    public void SetImageHealth(string status,string detail)
+    {
+        _attachmentHealth=status;
+        _attachmentHealthDetail=detail;
+        PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
+        PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentHint)));
+    }
     public string Account
     {
         get=>_account;
@@ -972,8 +994,12 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
         get=>_attachment;
         set
         {
-            Set(ref _attachment,value);
+            if(_attachment==value)return;
+            Set(ref _attachment,value??"");
+            _attachmentHealth="";
+            _attachmentHealthDetail="";
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentHint)));
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(HasAttachment)));
         }
     }
