@@ -43,7 +43,8 @@
    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
    SelectionChanged="HistoryGrid_SelectionChanged"
    AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
-   RowHeight="43" ColumnHeaderHeight="40"
+   RowHeight="38" ColumnHeaderHeight="36"
+   EnableRowVirtualization="True"
    Background="#132B41" Foreground="#F0F6FD"
    RowBackground="#132B41" AlternatingRowBackground="#1B344A">
    <DataGrid.Columns>
@@ -58,7 +59,8 @@
    EnableColumnVirtualization="False" HeadersVisibility="Column"
    ScrollViewer.HorizontalScrollBarVisibility="Auto"
    AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
-   RowHeight="42" ColumnHeaderHeight="36" Background="#10263A"
+   RowHeight="40" ColumnHeaderHeight="36"
+   EnableRowVirtualization="True" Background="#10263A"
    Foreground="#EDF5FD" RowBackground="#132B41" AlternatingRowBackground="#1B344A">
    <DataGrid.Columns>
     <DataGridTextColumn Header="序号" Binding="{Binding Position}" Width="50"/>

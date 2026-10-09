@@ -319,6 +319,53 @@ public sealed class SignalReadCoordinator : BackgroundService
         }
     }
 
+    // Drain receipts independently of outgoing script sends. Previously the
+    // queued incoming messages were never processed when no group was sending.
+    // A single lightweight worker processes due receipts for up to 12 groups.
+    async Task DrainReadReceiptsAsync(CancellationToken ct)
+    {
+        while(!ct.IsCancellationRequested)
+        {
+            try
+            {
+                if(ReadReceiptsEnabled())
+                {
+                    var dueGroups=new List<(string Account,string Group)>();
+                    await _databaseGate.WaitAsync(ct);
+                    try
+                    {
+                        await using var db=Open();
+                        await using var q=db.CreateCommand();
+                        q.CommandText="""
+                            SELECT account,group_id FROM v8_read_events
+                            WHERE state='pending' AND attempts<$max
+                              AND next_retry_ms<=$now
+                            GROUP BY account,group_id
+                            ORDER BY MIN(timestamp_ms) LIMIT 12;
+                            """;
+                        q.Parameters.AddWithValue("$max",ReadReceiptRetryPolicy.MaxAttempts);
+                        q.Parameters.AddWithValue("$now",
+                            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                        await using var rows=await q.ExecuteReaderAsync(ct);
+                        while(await rows.ReadAsync(ct))
+                            dueGroups.Add((rows.GetString(0),rows.GetString(1)));
+                    }
+                    finally{_databaseGate.Release();}
+                    foreach(var (account,group) in dueGroups)
+                        await TrySendForGroupAsync(account,group,ct);
+                }
+            }
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
+            catch(Exception ex)
+            {
+                _logger.LogWarning("Read receipt queue processing failed: {Type}",
+                    ex.GetType().Name);
+            }
+            try{await Task.Delay(TimeSpan.FromSeconds(5),ct);}
+            catch(OperationCanceledException){break;}
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try{await InitializeAsync(ct);}
@@ -327,6 +374,7 @@ public sealed class SignalReadCoordinator : BackgroundService
             _logger.LogError(ex,"Read event persistence initialization failed");
             return;
         }
+        var readQueueWorker=DrainReadReceiptsAsync(ct);
         while(!ct.IsCancellationRequested)
         {
             try
@@ -467,7 +515,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                         jsonrpc="2.0",method="sendReceipt",id,
                         @params=new{
                             account,recipient=item.Author,
-                            targetTimestamp=item.Timestamp,type="read"
+                            targetTimestamps=new[]{item.Timestamp},type="read"
                         }
                     },timeout.Token);
                     var raw=await response.Content.ReadAsStringAsync(timeout.Token);

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
@@ -15,11 +16,17 @@ public partial class HistoryWindow : UserControl
     bool _pendingRefresh;
     bool _exporting;
     int _requestId;
+    int _detailGeneration;
+    readonly DispatcherTimer _detailDebounce=new()
+        {Interval=TimeSpan.FromMilliseconds(150)};
+    readonly Dictionary<string,LiveBatchHistoryDetail> _detailCache=new(StringComparer.Ordinal);
     public HistoryWindow()
     {
         InitializeComponent();
         HistoryStateBox.SelectedIndex=0;
+        _detailDebounce.Tick+=LoadDebouncedDetail;
         Loaded+=async(_,_)=>await RefreshAsync();
+        Unloaded+=(_,_)=>_detailDebounce.Stop();
     }
 
     static T Unwrap<T>(string? raw)
@@ -60,6 +67,8 @@ public partial class HistoryWindow : UserControl
                 return;
             }
             HistoryGrid.ItemsSource=result.Jobs.Select(x=>new BatchJobRow(x)).ToList();
+            ++_detailGeneration;
+            _detailDebounce.Stop();
             MessagesGrid.ItemsSource=null;
             HistoryPageLabel.Text=$"第 {_page+1} / {_pages} 页 · 共 {result.Total} 条";
             HistoryPrevButton.IsEnabled=_page>0;
@@ -95,23 +104,53 @@ public partial class HistoryWindow : UserControl
     async void NextPage_Click(object sender,RoutedEventArgs e)
     {if(_page+1<_pages){_page++; ++_requestId; await RefreshAsync();}}
 
-    async void HistoryGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)
+    void HistoryGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
+        _detailDebounce.Stop();
+        ++_detailGeneration;
+        if(HistoryGrid.SelectedItem is not BatchJobRow row)
+        {
+            MessagesGrid.ItemsSource=null;
+            return;
+        }
+        if(_detailCache.TryGetValue(row.JobId,out var cached))
+        {
+            ShowDetail(cached);
+            return;
+        }
+        StatusText.Text="正在读取「"+row.GroupName+"」的发送明细…";
+        _detailDebounce.Start();
+    }
+
+    void ShowDetail(LiveBatchHistoryDetail detail)
+    {
+        // Finite-height grid keeps virtualization active even for long scripts.
+        MessagesGrid.ItemsSource=detail.Messages;
+        StatusText.Text=$"群组：{detail.GroupName} · 剧本：{detail.ScriptName} · "+
+            $"已执行 {detail.Cursor}/{detail.TotalSteps} 条。发送结果以后台日志为准。";
+    }
+
+    async void LoadDebouncedDetail(object? sender,EventArgs e)
+    {
+        _detailDebounce.Stop();
         if(HistoryGrid.SelectedItem is not BatchJobRow row)return;
+        var generation=++_detailGeneration;
         try
         {
-            StatusText.Text="正在读取「"+row.GroupName+"」的发送明细…";
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchHistoryDetail,
-                10000,new LiveBatchHistoryDetailRequest(row.JobId));
+                15000,new LiveBatchHistoryDetailRequest(row.JobId));
+            if(generation!=_detailGeneration ||
+               (HistoryGrid.SelectedItem as BatchJobRow)?.JobId!=row.JobId)return;
             var detail=Unwrap<LiveBatchHistoryDetail>(raw);
-            if(HistoryGrid.SelectedItem is not BatchJobRow selected ||
-               selected.JobId!=detail.JobId)return;
-            MessagesGrid.ItemsSource=detail.Messages;
-            StatusText.Text=$"群组：{detail.GroupName} · 剧本：{detail.ScriptName} · "+
-                $"已执行 {detail.Cursor}/{detail.TotalSteps} 条。发送结果以后台日志为准。";
+            if(detail.JobId!=row.JobId)
+                throw new IOException("历史明细编号与当前选择不一致。");
+            if(_detailCache.Count>=20)_detailCache.Clear();
+            _detailCache[detail.JobId]=detail;
+            ShowDetail(detail);
         }
         catch(Exception ex)
         {
+            if(generation!=_detailGeneration)return;
             MessagesGrid.ItemsSource=null;
             StatusText.Text="读取发送明细失败："+ex.Message;
         }
