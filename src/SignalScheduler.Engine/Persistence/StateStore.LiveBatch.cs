@@ -724,9 +724,12 @@ public sealed partial class StateStore
             checkpoint.CommandText="""
                 SELECT 1 FROM v8_dispatch_journal d
                 JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
-                WHERE d.job_id=$job AND d.cursor=$previous AND d.state='Confirmed'
-                  AND e.event_type IN
-                   ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                WHERE d.job_id=$job AND d.cursor=$previous AND (
+                    (d.state='Confirmed' AND e.event_type IN
+                        ('batch_step_confirmed','batch_reminder_pause','batch_completed'))
+                    OR (d.state='ManuallyConfirmed' AND
+                        e.event_type='manual_confirmed_sent')
+                )
                 LIMIT 1;
                 """;
             checkpoint.Parameters.AddWithValue("$job",request.JobId);
