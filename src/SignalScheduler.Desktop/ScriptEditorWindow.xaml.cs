@@ -1329,6 +1329,8 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
             _=>"预览图片"
         };
     public bool HasAttachment=>!string.IsNullOrWhiteSpace(Attachment);
+    public bool IsAttachmentBroken=>HasAttachment &&
+        (_attachmentHealth=="missing" || _attachmentHealth=="invalid");
     public string AttachmentHint=>!HasAttachment
         ?"点击选择要添加的图片；右键可添加或替换图片。"
         :string.IsNullOrWhiteSpace(_attachmentHealthDetail)
@@ -1340,6 +1342,7 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
         _attachmentHealthDetail=detail;
         PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
         PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentHint)));
+        PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(IsAttachmentBroken)));
     }
     public string Account
     {
@@ -1363,6 +1366,7 @@ public sealed class ScriptStepRow : INotifyPropertyChanged
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentLabel)));
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(AttachmentHint)));
             PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(HasAttachment)));
+            PropertyChanged?.Invoke(this,new PropertyChangedEventArgs(nameof(IsAttachmentBroken)));
         }
     }
     public string ReminderText{get=>_reminder;set=>Set(ref _reminder,value);}

@@ -20,19 +20,21 @@ public sealed class LiveBatchRunner : BackgroundService
     readonly SignalGuardian _guardian;
     readonly DurableTaskEngine _engine;
     readonly ISignalTypingTransport _typing;
+    readonly SignalReadCoordinator _read;
     readonly LiveBatchQueueTelemetry _queueTelemetry;
     readonly ConcurrentDictionary<string,SemaphoreSlim> _accountLocks=new();
     readonly SemaphoreSlim _slots=new(4,4);
 
     public LiveBatchRunner(StateStore store,LicenseManager license,
         SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing,
-        LiveBatchQueueTelemetry queueTelemetry)
+        SignalReadCoordinator read,LiveBatchQueueTelemetry queueTelemetry)
     {
         _store=store;
         _license=license;
         _guardian=guardian;
         _engine=engine;
         _typing=typing;
+        _read=read;
         _queueTelemetry=queueTelemetry;
     }
 
@@ -123,6 +125,17 @@ public sealed class LiveBatchRunner : BackgroundService
                     return;
                 }
             }
+
+            // Only the account that is about to speak reads the selected
+            // group's queued messages. Other accounts/groups stay unread.
+            // A receipt failure must never cause a duplicate message send.
+            try
+            {
+                await _read.TrySendForGroupAsync(
+                    due.Dispatch.AccountId,due.Dispatch.GroupId,ct);
+            }
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+            catch(Exception){ /* Receipt is best effort; dispatch remains independent. */ }
 
             await SimulateTypingAsync(due,ct);
 

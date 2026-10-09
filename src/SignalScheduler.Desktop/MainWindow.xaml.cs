@@ -181,10 +181,10 @@ public partial class MainWindow : Window
         if(sender is Button {Tag:string key})Navigate(key);
     }
 
-    void Navigate(string key)
+    void Navigate(string key,bool forCriticalAlert=false)
     {
         if(key==_currentPage && PageHost.Content is not null)return;
-        if(_currentPage=="scripts" &&
+        if(!forCriticalAlert && _currentPage=="scripts" &&
            _pages.TryGetValue("scripts",out var old) &&
            old is ScriptEditorWindow editor &&
            !editor.CanLeave())return;
@@ -518,6 +518,9 @@ public partial class MainWindow : Window
                 if(WindowState==WindowState.Minimized)
                     WindowState=WindowState.Normal;
                 Show();
+                // Force a display-only navigation. The script editor control
+                // remains cached, so uncommitted edits are not discarded.
+                Navigate("tasks",forCriticalAlert:true);
                 Topmost=true;
                 Activate();
                 MessageBox.Show(this,

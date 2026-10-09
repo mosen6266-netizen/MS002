@@ -157,16 +157,16 @@
        FontWeight="SemiBold" Foreground="#8FE4BD" VerticalAlignment="Center"/>
      </Grid>
      <CheckBox x:Name="ReadReceiptToggle" Grid.Row="6"
-      Content="全部账号自动已读（新消息）" IsChecked="True"
+      Content="发言前仅当前账号已读群消息" IsChecked="True"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
       Foreground="#EAF5FE" FontSize="13"
-      ToolTip="对所有已登录账号独立处理新收到的消息，不受剧本、群组选择或发言顺序影响；不代表历史未读清零"/>
+      ToolTip="启用后仅当剧本轮到某账号发送时，由该账号尝试已读当前群的待处理消息；其他账号保持未读"/>
      <CheckBox x:Name="LinkedReadSyncToggle" Visibility="Collapsed"
       IsChecked="False" IsEnabled="False" Grid.Row="7"/>
      <StackPanel Grid.Row="7" VerticalAlignment="Center">
       <Button Content="检查已读状态" Style="{StaticResource QuietAction}"
        HorizontalAlignment="Left" Click="CheckReadHealth_Click" Margin="0,0,0,7"/>
-      <TextBlock x:Name="ReadHealthLabel" Text="已读监听状态可在这里检查"
+      <TextBlock x:Name="ReadHealthLabel" Text="已读回执仅在当前账号准备发言前发送"
        TextWrapping="Wrap" Foreground="#A9C8E0" FontSize="11" MaxHeight="70"/>
      </StackPanel>
      <StackPanel Grid.Row="8">

@@ -18,6 +18,29 @@
    <Setter Property="Padding" Value="2,2"/>
    <Setter Property="Margin" Value="0,0,3,0"/>
   </Style>
+  <Style x:Key="ImageAddAction" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+   <Setter Property="Background" Value="#28557D"/>
+   <Setter Property="BorderBrush" Value="#4B91C7"/>
+  </Style>
+  <Style x:Key="ImagePreviewAction" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+   <Setter Property="Background" Value="#177450"/>
+   <Setter Property="BorderBrush" Value="#35AE79"/>
+  </Style>
+  <Style x:Key="ImageRowButton" TargetType="Button" BasedOn="{StaticResource SmallRowButton}">
+   <Setter Property="Background" Value="#244F76"/>
+   <Setter Property="BorderBrush" Value="#529AD0"/>
+   <Style.Triggers>
+    <DataTrigger Binding="{Binding HasAttachment}" Value="True">
+     <Setter Property="Background" Value="#166C4A"/>
+     <Setter Property="BorderBrush" Value="#42A77A"/>
+     <Setter Property="FontWeight" Value="Bold"/>
+    </DataTrigger>
+    <DataTrigger Binding="{Binding IsAttachmentBroken}" Value="True">
+     <Setter Property="Background" Value="#853944"/>
+     <Setter Property="BorderBrush" Value="#DA6971"/>
+    </DataTrigger>
+   </Style.Triggers>
+  </Style>
   <Style x:Key="ScriptListItem" TargetType="ListBoxItem">
    <Setter Property="Padding" Value="8,9"/>
    <Setter Property="Margin" Value="0,1"/>
@@ -163,9 +186,9 @@
      <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
       <Button Content="＋ 加一句" Click="Append_Click" Style="{StaticResource ActionButton}"
        Margin="0,0,6,5"/>
-      <Button Content="导入图片" Click="ImportImage_Click" Style="{StaticResource ActionButton}"
+      <Button Content="添加／替换图片" Click="ImportImage_Click" Style="{StaticResource ImageAddAction}"
        Margin="0,0,6,5"/>
-      <Button Content="预览图片" Click="PreviewImage_Click" Style="{StaticResource ActionButton}"
+      <Button Content="预览图片" Click="PreviewImage_Click" Style="{StaticResource ImagePreviewAction}"
        Margin="0,0,6,5"/>
       <Button Content="向上移动" Click="MoveUp_Click" Style="{StaticResource ActionButton}"
        Margin="0,0,6,5"/>
@@ -220,7 +243,7 @@
       <DataGridTemplateColumn Header="图片" Width="104">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
         <Button Content="{Binding AttachmentLabel}" Click="AttachmentQuickPreview_Click"
-         Tag="{Binding}" Style="{StaticResource SmallRowButton}"
+         Tag="{Binding}" Style="{StaticResource ImageRowButton}"
          Margin="3,0" Padding="5,2" ToolTip="{Binding AttachmentHint}">
          <Button.ContextMenu>
           <ContextMenu DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}">

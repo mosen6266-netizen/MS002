@@ -62,7 +62,7 @@ public partial class LiveBatchWindow : UserControl
                 $"结果未知：{health.Unknown} · 上次监听故障：{lastFailure}"+
                 (string.IsNullOrWhiteSpace(health.LastFailureType)?""
                     :$"（{health.LastFailureType}）")+
-                "。以上均不代表其他设备未读数已清零。";
+                "。只在轮到相应账号发言时发送回执，不会提前将所有账号已读。";
         }
         catch(Exception ex){ReadHealthLabel.Text="已读状态检查失败："+ex.Message;}
     }

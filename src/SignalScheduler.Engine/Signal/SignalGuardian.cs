@@ -186,7 +186,7 @@ public sealed class SignalGuardian : BackgroundService
         {
             FileName=_paths.JavaExe,
             WorkingDirectory=_paths.SignalCliHome,
-            Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583{(ReadReceiptsEnabled()?" --send-read-receipts":"")}",
+            Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583",
             UseShellExecute=false,
             CreateNoWindow=true,
             RedirectStandardOutput=true,
