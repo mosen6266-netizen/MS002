@@ -46,8 +46,17 @@ public static class LiveBatchTiming
         if(item.DispatchState=="Prepared")
             return new("准备发送","正在准备",
                 "准备中，时间不确定","—","—");
+        if(item.DispatchState=="Confirmed")
+            return new("已获发送回执","正在记录下一步",
+                "等待进度更新","—","—");
         if(item.DispatchState is "Unknown" or "RecoveryRequired")
             return new("发送结果待核对","禁止自动续发","暂停估算","—","—");
+
+        // A disconnected engine may leave the desktop showing a previously
+        // running task. Old timer samples must not keep counting down forever.
+        if(nowMs-receivedAtMs>15000)
+            return new("状态等待刷新","状态已过期",
+                "重新连接后估算","—","—");
 
         var waitMs=item.NextDueMs-nowMs;
         var waiting=item.NextDueMs>0 && waitMs>0;
