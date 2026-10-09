@@ -14,7 +14,7 @@
    <Setter Property="BorderBrush" Value="#48637D"/>
    <Setter Property="BorderThickness" Value="0,0,1,1"/>
    <Setter Property="Padding" Value="10,10"/>
-   <Setter Property="MinHeight" Value="42"/>
+   <Setter Property="MinHeight" Value="28"/>
    <Setter Property="FontWeight" Value="SemiBold"/>
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
   </Style>
@@ -35,9 +35,9 @@
    <Setter Property="VerticalContentAlignment" Value="Center"/>
   </Style>
   <Style TargetType="DataGridRow">
-   <Setter Property="Height" Value="48"/>
-   <Setter Property="MinHeight" Value="48"/>
-   <Setter Property="MaxHeight" Value="48"/>
+   <!-- Do not force every row to 48 px: ten paged groups must fit on
+        smaller screens, while other grids set their own row height. -->
+   <Setter Property="MinHeight" Value="22"/>
    <Setter Property="Background" Value="#14283E"/>
    <Setter Property="Foreground" Value="#EEF5FD"/>
    <Setter Property="SnapsToDevicePixels" Value="True"/>

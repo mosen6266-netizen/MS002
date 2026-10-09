@@ -32,7 +32,7 @@
    <RowDefinition Height="8"/>
    <RowDefinition Height="*"/>
    <RowDefinition Height="9"/>
-   <RowDefinition Height="115"/>
+   <RowDefinition Height="106"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <Grid Grid.Row="0">
@@ -57,11 +57,11 @@
     <ColumnDefinition Width="45*" MinWidth="260"/>
    </Grid.ColumnDefinitions>
    <Border Grid.Column="0" Background="#12293E" BorderBrush="#34526D"
-    BorderThickness="1" CornerRadius="9" Padding="11">
+    BorderThickness="1" CornerRadius="9" Padding="8">
     <Grid>
      <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
-      <RowDefinition Height="7"/>
+      <RowDefinition Height="4"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="7"/>
       <RowDefinition Height="*"/>
@@ -74,18 +74,19 @@
        VerticalAlignment="Center"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button Content="全选20" Click="SelectAll_Click" Style="{StaticResource QuietAction}"
-        Margin="0,0,5,0"/>
-       <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"/>
+        MinHeight="28" Padding="8,3" Margin="0,0,5,0"/>
+       <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"
+        MinHeight="28" Padding="8,3"/>
       </StackPanel>
      </Grid>
-     <TextBox x:Name="GroupSearchBox" Grid.Row="2" Height="32"
+     <TextBox x:Name="GroupSearchBox" Grid.Row="2" Height="26"
       TextChanged="GroupSearchBox_TextChanged" Background="#1B3A53"
       Foreground="White" CaretBrush="White" Padding="8,4"
       ToolTip="输入群名筛选。切换页码不会清除勾选。"/>
      <DataGrid x:Name="GroupsGrid" Grid.Row="4" AutoGenerateColumns="False"
       CanUserAddRows="False" EnableColumnVirtualization="False"
-      HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="29"
-      ColumnHeaderHeight="31" MinHeight="0"
+      HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="24"
+      ColumnHeaderHeight="28" MinHeight="0"
       ScrollViewer.VerticalScrollBarVisibility="Disabled"
       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
       BorderBrush="#34546F" Background="#11283E" Foreground="White"
@@ -121,9 +122,9 @@
        VerticalAlignment="Center" FontSize="12"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button x:Name="PreviousGroupsPage" Content="上一页" Click="PreviousGroupsPage_Click"
-        Style="{StaticResource QuietAction}" Margin="0,0,6,0"/>
+        Style="{StaticResource QuietAction}" MinHeight="26" Padding="8,3" Margin="0,0,6,0"/>
        <Button x:Name="NextGroupsPage" Content="下一页" Click="NextGroupsPage_Click"
-        Style="{StaticResource QuietAction}"/>
+        Style="{StaticResource QuietAction}" MinHeight="26" Padding="8,3"/>
       </StackPanel>
      </Grid>
     </Grid>

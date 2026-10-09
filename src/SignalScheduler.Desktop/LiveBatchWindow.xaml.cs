@@ -126,7 +126,7 @@ public partial class LiveBatchWindow : UserControl
 
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
-    const int JobsPerPage=2;
+    const int JobsPerPage=1;
     int _jobsPage;
     ICollectionView? _jobsView;
     void RefreshJobsPage()
@@ -174,6 +174,12 @@ public partial class LiveBatchWindow : UserControl
         _timer.Tick+=async(_,_)=>{await LoadJobsAsync();foreach(var job in _jobs)job.RefreshCountdown();};
         Unloaded+=(_,_)=>{_timer.Stop();_countdownTimer.Stop();};
         _countdownTimer.Tick+=(_,_)=>{foreach(var job in _jobs)job.RefreshCountdown();};
+        SizeChanged+=(_,_)=> {
+            if(GroupsGrid is null)return;
+            var compact=ActualHeight<650;
+            GroupsGrid.RowHeight=compact?22:29;
+            GroupsGrid.ColumnHeaderHeight=compact?28:31;
+        };
         UpdateButtons();
     }
 
