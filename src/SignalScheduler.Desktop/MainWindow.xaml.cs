@@ -26,8 +26,7 @@ public partial class MainWindow : Window
     readonly HashSet<string> _batchAlerts=new(StringComparer.Ordinal);
     bool _refreshing;
     bool _engineNotified;
-    readonly Queue<string> _criticalQueue=new();
-    bool _criticalDialogOpen;
+    readonly CriticalAlertQueue _criticalQueue=new();
     bool _hasLiveJobs;
     bool _exportingDiagnostic;
     string? _signalIssue;
@@ -46,6 +45,7 @@ public partial class MainWindow : Window
         Application.Current.MainWindow=this;
         NotificationsList.ItemsSource=_notifications;
         Loaded+=(_,_)=>FitStartupWindowToWorkArea();
+        Loaded+=(_,_)=>ShowNextCritical();
         Loaded+=async(_,_)=>
         {
             // Launch the Engine before the home page fetches scripts/groups.
@@ -444,29 +444,38 @@ public partial class MainWindow : Window
         if(!_seenNotifications.Add(message) && !critical)return;
         _notifications.Insert(0,$"{DateTime.Now:HH:mm:ss}  {message}");
         if(_notifications.Count>100)_notifications.RemoveAt(_notifications.Count-1);
-        AlertStrip.Visibility=Visibility.Visible;
-        AlertSummaryText.Text=$"当前有 {_notifications.Count} 条提示 · 点击查看";
         if(critical)
-        {
             _criticalQueue.Enqueue(message);
-            ShowNextCritical();
-        }
+        UpdateAlertSummary();
+        if(critical)ShowNextCritical();
+    }
+
+    void UpdateAlertSummary()
+    {
+        var pending=_criticalQueue.PendingCount;
+        AlertStrip.Visibility=(_notifications.Count>0 || pending>0)
+            ?Visibility.Visible:Visibility.Collapsed;
+        AlertSummaryText.Text=pending>0
+            ?$"当前有 {_notifications.Count} 条通知 · {pending} 条重要提醒待确认"
+            :$"当前有 {_notifications.Count} 条通知 · 点击查看";
     }
 
     void ShowNextCritical()
     {
-        if(_criticalDialogOpen || _criticalQueue.Count==0)return;
-        _criticalDialogOpen=true;
-        var message=_criticalQueue.Dequeue();
+        if(!IsLoaded || !_criticalQueue.TryBegin(out var message))return;
+        UpdateAlertSummary();
         Dispatcher.BeginInvoke(new Action(()=>
         {
             if(!IsLoaded)
             {
-                _criticalDialogOpen=false;
-                _criticalQueue.Clear();
+                // Do not lose a queued alert when switching or reloading
+                // the window between enqueue and modal presentation.
+                _criticalQueue.DeferCurrent();
+                UpdateAlertSummary();
                 return;
             }
             var originalTopmost=Topmost;
+            var acknowledged=false;
             try
             {
                 if(WindowState==WindowState.Minimized)
@@ -478,12 +487,21 @@ public partial class MainWindow : Window
                     "发现任务或 Signal 异常，请及时处理。\\n\\n"+message,
                     "Signal 调度台 - 重要提醒",
                     MessageBoxButton.OK,MessageBoxImage.Warning);
+                acknowledged=true;
+            }
+            catch(Exception)
+            {
+                // A failed Windows modal is not an acknowledgment. Keep the
+                // original alert for next time this window can display it.
+                AddNotification("重要弹窗暂时无法显示；请查看顶部通知并重新激活程序。",false);
             }
             finally
             {
                 Topmost=originalTopmost;
-                _criticalDialogOpen=false;
-                ShowNextCritical();
+                if(acknowledged)_criticalQueue.CompleteCurrent();
+                else _criticalQueue.DeferCurrent();
+                UpdateAlertSummary();
+                if(acknowledged)ShowNextCritical();
             }
         }),DispatcherPriority.Background);
     }
@@ -605,8 +623,10 @@ public partial class MainWindow : Window
         _notifications.Clear();
         _seenNotifications.Clear();
         AlertPanel.Visibility=Visibility.Collapsed;
-        AlertStrip.Visibility=Visibility.Collapsed;
-        // Do not reset the modal allowance; a flood cannot create new dialogs.
+        // Clearing the viewed inbox must not silently dismiss critical
+        // alerts that are still waiting for their own acknowledgment.
+        UpdateAlertSummary();
+        ShowNextCritical();
     }
 
     internal static async Task<string?> SendAsync(
