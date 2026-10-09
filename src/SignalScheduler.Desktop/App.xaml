@@ -227,7 +227,17 @@
    <Setter Property="Foreground" Value="#EEF5FC"/>
    <Setter Property="BorderBrush" Value="#486782"/>
    <Setter Property="CaretBrush" Value="#FFFFFF"/>
+   <Setter Property="SelectionBrush" Value="#367AB2"/>
    <Setter Property="Padding" Value="7,6"/>
+   <Style.Triggers>
+    <!-- Change color only: changing border width causes the reported editor jitter. -->
+    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+     <Setter Property="BorderBrush" Value="#7DC9FF"/>
+    </Trigger>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Opacity" Value="0.6"/>
+    </Trigger>
+   </Style.Triggers>
   </Style>
   <Style x:Key="LargeRowCheckBox" TargetType="CheckBox">
    <Setter Property="Width" Value="56"/>
