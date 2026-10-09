@@ -99,6 +99,10 @@ public sealed class LiveBatchTimingTests
         Assert.Equal("等待调度或账号",released.Phase);
         Assert.Equal("等待调度",released.NextCountdown);
 
+        var stale=LiveBatchTiming.Format(queued,Now,Now+16000);
+        Assert.Equal("状态等待刷新",stale.Phase);
+        Assert.Equal("状态已过期",stale.NextCountdown);
+
         var paused=LiveBatchTiming.Format(
             queued with {State="Paused"},Now,Now);
         Assert.Equal("已暂停",paused.Phase);
