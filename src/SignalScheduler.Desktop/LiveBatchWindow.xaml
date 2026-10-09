@@ -1,7 +1,7 @@
 <UserControl x:Class="SignalScheduler.Desktop.LiveBatchWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#091827" Foreground="#EAF4FD" MinWidth="780">
+ Background="#091827" Foreground="#EAF4FD" MinWidth="620">
  <UserControl.Resources>
   <Style x:Key="PrimaryAction" TargetType="Button">
    <Setter Property="Background" Value="#2564C9"/>
