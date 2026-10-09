@@ -34,7 +34,7 @@
    <RowDefinition Height="*"/>
   </Grid.RowDefinitions>
   <Grid.ColumnDefinitions>
-   <ColumnDefinition Width="215"/>
+   <ColumnDefinition x:Name="NavigationColumn" Width="215"/>
    <ColumnDefinition Width="*"/>
   </Grid.ColumnDefinitions>
 
