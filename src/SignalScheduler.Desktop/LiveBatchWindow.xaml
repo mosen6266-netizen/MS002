@@ -164,11 +164,11 @@
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
       Margin="0,0,26,0" ToolTip="接收新消息时请求发送已读回执；旧消息未必可以补发"/>
      <CheckBox x:Name="LinkedReadSyncToggle" IsChecked="True"
-      Content="同步其他设备已读（实验）" FontSize="14" Foreground="#EFF6FD"
+      Content="其他设备已读同步（尚未支持）" FontSize="14" Foreground="#EFF6FD"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
-      ToolTip="目前仅保存此偏好，独立同步逻辑尚未接入；不能保证清零其他设备未读数"/>
+      ToolTip="此开关仅保存以后启用该功能的偏好，目前没有实现其他设备同步，也不会清零其他设备的未读数量"/>
     </StackPanel>
-    <TextBlock Text="新消息已读回执开关重启后台后生效；设备同步开关暂存偏好，功能仍在开发。已读失败不影响发送。"
+    <TextBlock Text="第一项仅向消息发送者请求已读回执；不等于本设备或其他设备未读清零。第二项目前没有同步功能，仅保存偏好。已读回执失败不影响正常发送。"
      FontSize="12" Foreground="#A9C3D9" Margin="0,8,0,5"/>
     <StackPanel Orientation="Horizontal" Margin="0,6,0,11">
      <Button Content="检查已读运行状态" Click="CheckReadHealth_Click"
