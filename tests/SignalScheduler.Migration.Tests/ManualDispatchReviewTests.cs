@@ -98,6 +98,49 @@ public sealed class ManualDispatchReviewTests
         Assert.Equal("0",await ScalarAsync(db,"SELECT cursor FROM v8_jobs"));
     }
 
+    [Fact]
+    public async Task RestartDoesNotAutoResumeAmbiguousDispatchOrRepeatManualReview()
+    {
+        var (store,db,_)=await StartAsync(2);
+        var due=(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct)).Single();
+        await MakeAmbiguousAsync(store,due);
+
+        // Simulate a fresh engine opening the exact same durable user database.
+        var root=Path.GetDirectoryName(db)!;
+        var restarted=new StateStore(RuntimePaths.ForTesting(root,db));
+        await restarted.InitializeAsync(Ct);
+        await restarted.InitializeLiveBatchAsync(Ct);
+        Assert.Equal("RecoveryRequired",
+            (await restarted.ListLiveBatchAsync(Ct)).Single().State);
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,10,Ct));
+
+        var review=await restarted.ReviewAmbiguousDispatchAsync(
+            new(due.Dispatch.JobId,due.Dispatch.DispatchKey,"seen",
+                "重启后已在授权测试群核对确实发出"),Ct);
+        Assert.Equal("Paused",review.JobState);
+        Assert.Equal(1,review.Cursor);
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,10,Ct));
+
+        // A second restart must preserve the adjudication without making
+        // either the old dispatch or the next step automatically runnable.
+        var again=new StateStore(RuntimePaths.ForTesting(root,db));
+        await again.InitializeAsync(Ct);
+        await again.InitializeLiveBatchAsync(Ct);
+        Assert.Equal("Paused",(await again.ListLiveBatchAsync(Ct)).Single().State);
+        Assert.Equal("1",await ScalarAsync(db,"SELECT cursor FROM v8_jobs LIMIT 1"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='manual_confirmed_sent'"));
+        Assert.Empty(await again.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,10,Ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            again.ReviewAmbiguousDispatchAsync(
+                new(due.Dispatch.JobId,due.Dispatch.DispatchKey,"seen",
+                    "不允许重复确认同一条已处理记录"),Ct));
+    }
+
     static async Task MakeAmbiguousAsync(StateStore store,StateStore.DueLiveBatch due)
     {
         var engine=new DurableTaskEngine(store,
