@@ -691,6 +691,51 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='Confirmed'"));
     }
 
+    [Fact]
+    public async Task TwentyGroups_AmbiguousFirstGroupDoesNotMutateNineteenOtherCursors()
+    {
+        var (store,db)=await NewStoreAsync();
+        const string account="+49123";
+        var groups=Enumerable.Range(1,20)
+            .Select(i=>new SignalGroupCatalogItem(account,"isolation-"+i,
+                "授权测试群 "+i,true,Array.Empty<string>())).ToArray();
+        await store.SyncSignalCatalogAsync(new[]{account},groups,new[]{account},Ct);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条通知"),Step(1,"第二条通知")});
+        var started=await store.StartLiveBatchAsync(new(
+            script.ScriptId,groups.Select(g=>g.GroupId).ToArray(),true),Ct);
+        Assert.Equal(20,started.GroupCount);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        Assert.Equal(20,due.Count);
+        var selected=due.Single(x=>x.Dispatch.GroupId=="isolation-1");
+        var engine=new DurableTaskEngine(store,
+            new StubTransport((d,p,ct)=>Task.FromResult(
+                new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
+                    Detail:"simulated timeout"))));
+        await engine.DispatchAsync(selected.Dispatch,"simulated test",Ct);
+
+        var jobs=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal(20,jobs.Count);
+        var affected=Assert.Single(jobs.Where(x=>x.GroupId=="isolation-1"));
+        Assert.Equal("RecoveryRequired",affected.State);
+        Assert.Equal(0,affected.Cursor);
+        var unaffected=jobs.Where(x=>x.GroupId!="isolation-1").ToArray();
+        Assert.Equal(19,unaffected.Length);
+        Assert.All(unaffected,x=>{
+            Assert.Equal("Running",x.State);
+            Assert.Equal(0,x.Cursor);
+        });
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='RecoveryRequired'"));
+        var remaining=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.Equal(19,remaining.Count);
+        Assert.DoesNotContain(remaining,x=>x.Dispatch.GroupId=="isolation-1");
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
