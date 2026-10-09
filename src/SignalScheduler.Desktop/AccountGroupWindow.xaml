@@ -14,7 +14,17 @@
    <Setter Property="Background" Value="#112941"/>
    <Setter Property="Foreground" Value="#F8FAFC"/>
    <Setter Property="BorderBrush" Value="#3E5C79"/>
+   <Setter Property="CaretBrush" Value="#FFFFFF"/>
+   <Setter Property="SelectionBrush" Value="#367AB2"/>
    <Setter Property="Padding" Value="7"/>
+   <Style.Triggers>
+    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+     <Setter Property="BorderBrush" Value="#7DC9FF"/>
+    </Trigger>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Opacity" Value="0.6"/>
+    </Trigger>
+   </Style.Triggers>
   </Style>
   <Style TargetType="DataGrid">
    <Setter Property="AutoGenerateColumns" Value="False"/>
