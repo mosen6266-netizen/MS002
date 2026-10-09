@@ -148,6 +148,31 @@ public sealed class NamedPipeControlServer : BackgroundService
                             response=new ControlResponse(false,Error:ex.Message);
                         }
                         break;
+                    case ControlCommands.LiveBatchPreflight:
+                        try
+                        {
+                            var input=ParsePayload<LiveBatchPreflightRequest>(request.Payload);
+                            var checkedResult=await _store.PreflightLiveBatchAsync(input,ct);
+                            var findings=checkedResult.Issues.ToList();
+                            var permit=await _license.CheckAsync(ct);
+                            if(permit.State!="active" || !permit.ServerReachable ||
+                               permit.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                                findings.Add(new LiveBatchPreflightIssue("错误",
+                                    "当前授权尚未通过在线校验，请先检查授权状态。"));
+                            if(!string.Equals(_guardian.Snapshot.State,"healthy",
+                                StringComparison.OrdinalIgnoreCase))
+                                findings.Add(new LiveBatchPreflightIssue("错误",
+                                    "Signal 后台服务未就绪，无法启动真实任务。"));
+                            response=new ControlResponse(true,Data:checkedResult with {
+                                Issues=findings,CanStart=!findings.Any(x=>x.Level=="错误")
+                            });
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException or
+                            KeyNotFoundException or IOException or UnauthorizedAccessException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.LiveBatchStart:
                         try
                         {
