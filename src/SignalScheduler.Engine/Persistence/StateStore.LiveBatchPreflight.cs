@@ -46,8 +46,11 @@ public sealed partial class StateStore
             }
             if(!step.Attachment.StartsWith("img:",StringComparison.Ordinal))
             {
-                Warn($"第 {position} 条仍引用旧版图片路径，运行时可能无法迁移。");
-                if(hasText)sendable++;
+                Warn($"第 {position} 条仍引用旧版图片路径，启动前需要检查能否迁移。");
+                // Old media may still exist and be safely migrated by the
+                // existing final media inspection. Count it as potential content,
+                // not proof of a valid image or a completed import.
+                sendable++;
                 continue;
             }
             try
