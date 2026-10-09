@@ -141,12 +141,15 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
                     Detail:$"Signal 返回错误码 {code}，是否已经局部发送未知。");
             }
 
+            // signal-cli versions may serialize the accepted message timestamp
+            // as a JSON number or a decimal string. Accept only an explicit,
+            // positive timestamp; never infer success from HTTP 200 alone.
             if(!root.TryGetProperty("result",out var result) ||
                result.ValueKind!=JsonValueKind.Object ||
                !result.TryGetProperty("timestamp",out var ts) ||
-               !ts.TryGetInt64(out var timestamp) || timestamp<=0)
+               !TryAcceptedTimestamp(ts,out var timestamp))
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:"发送回执无有效时间戳，需在群中人工核对。");
+                    Detail:"Signal 已响应发送请求，但没有可确认的消息时间戳。请在群内核对，禁止自动重发。");
 
             return new SignalSendResult(SignalDeliveryOutcome.Confirmed,
                 timestamp.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -163,6 +166,19 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
             return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
                 Detail:$"发送或回执异常：{ex.GetType().Name}；禁止自动重试。");
         }
+    }
+
+    internal static bool TryAcceptedTimestamp(JsonElement value,out long timestamp)
+    {
+        timestamp=0;
+        if(value.ValueKind==JsonValueKind.Number)
+            return value.TryGetInt64(out timestamp) && timestamp>0;
+        if(value.ValueKind==JsonValueKind.String)
+            return long.TryParse(value.GetString(),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out timestamp) && timestamp>0;
+        return false;
     }
 
     public async Task SendTypingAsync(
