@@ -180,7 +180,11 @@ def main() -> None:
         if actual != expected:
             differences = sorted(k for k in expected.keys() | actual.keys()
                                  if expected.get(k) != actual.get(k))
-            raise AssertionError("User data changed during in-place upgrade: " + ", ".join(differences))
+            detail = {key: {"expected": expected.get(key), "actual": actual.get(key)}
+                      for key in differences}
+            # Fixtures contain only synthetic CI data, never real credentials.
+            raise AssertionError("User data changed during in-place upgrade: "
+                                 + json.dumps(detail, ensure_ascii=False, sort_keys=True))
         print("PASS: account remarks, scripts/steps/revisions, completed history,"
               " selected group and user-owned files survived in-place upgrade")
 
