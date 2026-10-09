@@ -266,7 +266,13 @@ public sealed partial class StateStore
         await using var q=c.CreateCommand();
         q.CommandText="""
             SELECT b.job_id,b.script_name,b.group_id,b.group_name,
-                j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail,b.steps_json
+                j.state,j.cursor,b.total_steps,b.next_due_ms,b.detail,
+                CASE WHEN j.state='Running' THEN b.steps_json ELSE NULL END,
+                COALESCE((
+                    SELECT d.state FROM v8_dispatch_journal d
+                    WHERE d.job_id=j.job_id AND d.cursor=j.cursor
+                    ORDER BY d.updated_at DESC LIMIT 1
+                ),'')
             FROM v8_live_batch_jobs b JOIN v8_jobs j ON j.job_id=b.job_id
             ORDER BY b.created_at DESC,b.job_id LIMIT 1000;
             """;
@@ -280,7 +286,8 @@ public sealed partial class StateStore
             {
                 try
                 {
-                    var steps=JsonSerializer.Deserialize<ScriptEditorStep[]>(r.GetString(9));
+                    var steps=r.IsDBNull(9)?null:
+                        JsonSerializer.Deserialize<ScriptEditorStep[]>(r.GetString(9));
                     if(steps is not null)
                     {
                         // First future step cannot begin before the persisted due time.
@@ -298,7 +305,7 @@ public sealed partial class StateStore
             rows.Add(new LiveBatchItem(
                 r.GetString(0),r.GetString(1),r.GetString(2),r.GetString(3),
                 state,cursor,r.GetInt32(6),r.GetInt64(7),
-                r.GetString(8),estimated));
+                r.GetString(8),estimated,r.GetString(10)));
         }
         return rows;
     }
