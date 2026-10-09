@@ -95,6 +95,77 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task EngineRestartQuarantinesOnlyInFlightGroupAndPreservesReasons()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        var first=Assert.Single(due.Where(x=>x.Dispatch.GroupId=="g1"));
+        await store.ReserveAsync(first.Dispatch,Ct);
+        await store.MarkSendingAsync(first.Dispatch,Ct);
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        var jobs=await restarted.ListLiveBatchAsync(Ct);
+        var uncertain=Assert.Single(jobs.Where(x=>x.GroupId=="g1"));
+        var idle=Assert.Single(jobs.Where(x=>x.GroupId=="g2"));
+        Assert.Equal("RecoveryRequired",uncertain.State);
+        Assert.Contains("发送结果不明确",uncertain.Detail);
+        Assert.Equal(0,uncertain.Cursor);
+        Assert.Equal("Paused",idle.State);
+        Assert.Contains("重启",idle.Detail);
+        Assert.Equal(0,idle.Cursor);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_recovery_required'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+
+        // Re-running startup recovery is idempotent: original reasons remain
+        // and event counts don't increase.
+        await restarted.InitializeAsync(Ct);
+        var after=await restarted.ListLiveBatchAsync(Ct);
+        Assert.Equal(uncertain.Detail,
+            Assert.Single(after.Where(x=>x.GroupId=="g1")).Detail);
+        Assert.Equal(idle.Detail,
+            Assert.Single(after.Where(x=>x.GroupId=="g2")).Detail);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_recovery_required'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+    }
+
+    [Fact]
+    public async Task RestartKeepsExistingUserPausedReasonUnchanged()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"内容")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        await store.ControlLiveBatchAsync(new(started.JobIds[0],"pause"),Ct);
+        var before=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Paused",before.State);
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        var after=Assert.Single(await restarted.ListLiveBatchAsync(Ct));
+        Assert.Equal(before.Detail,after.Detail);
+        Assert.Equal("Paused",after.State);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+    }
+
+    [Fact]
     public async Task ConfirmedSendWithoutBatchCheckpointIsPausedBeforeNextMessage()
     {
         var (store,db)=await NewStoreAsync();
