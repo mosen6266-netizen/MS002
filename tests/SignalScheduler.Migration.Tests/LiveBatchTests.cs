@@ -387,6 +387,43 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task QuarantinedFirstMessage_CanBeStoppedWithoutErasingEvidenceOrSendingAgain()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"第一句"),Step(1,"第二句")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var jobId=Assert.Single(started.JobIds);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var sends=0;
+        var sender=new DurableTaskEngine(store,new StubTransport((_,_,_)=>{
+            sends++;
+            return Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"网络回执未知"));
+        }));
+        await sender.DispatchAsync(due.Dispatch,"signal-structured:{}",Ct);
+        Assert.Equal("RecoveryRequired",
+            Assert.Single(await store.ListLiveBatchAsync(Ct)).State);
+
+        var stopped=await store.ControlLiveBatchAsync(
+            new LiveBatchControlRequest(jobId,"stop"),Ct);
+        Assert.Equal("Stopped",stopped.State);
+        Assert.Equal(0,stopped.Cursor);
+        Assert.Contains("异常恢复",stopped.Detail);
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_stop'"));
+        Assert.Empty(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal(1,sends);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ControlLiveBatchAsync(new(jobId,"resume"),Ct));
+    }
+
+    [Fact]
     public async Task ManualControlRejectsInvalidTransitionsAndPreservesStoppedJobs()
     {
         var (store,db)=await NewStoreAsync();
