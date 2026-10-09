@@ -87,7 +87,7 @@
             Click="Copy_Click" HorizontalAlignment="Right"/>
    </DockPanel>
 <DataGrid x:Name="DispatchGrid" EnableColumnVirtualization="False"
-             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" Grid.Row="1" AlternationCount="2"
+             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Grid.Row="1" AlternationCount="2"
              SelectionChanged="DispatchGrid_SelectionChanged">
     <DataGrid.Columns>
      <DataGridTextColumn Header="消息序号" Binding="{Binding Cursor}" Width="65"/>
