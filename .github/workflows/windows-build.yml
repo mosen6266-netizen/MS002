@@ -72,8 +72,9 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
-          $result = Start-Process -FilePath $exe -ArgumentList '--ui-layout-smoke' -Wait -PassThru
-          $report = Join-Path (Split-Path $exe) 'ms002-ui-layout-smoke.txt'
+          $report = Join-Path $env:RUNNER_TEMP 'ms002-ui-layout-smoke.txt'
+          Remove-Item -LiteralPath $report -Force -ErrorAction SilentlyContinue
+          $result = Start-Process -FilePath $exe -ArgumentList @('--ui-layout-smoke',"$report") -Wait -PassThru
           Write-Host "Layout smoke exit code: $($result.ExitCode)"
           if (Test-Path -LiteralPath $report) {
             Get-Content -LiteralPath $report
@@ -81,6 +82,11 @@ jobs:
             Write-Host "Layout smoke did not create its report; app may have exited before the check."
           }
           if ($result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $report)) {
+            Write-Host "Latest .NET Runtime error events:"
+            Get-WinEvent -FilterHashtable @{
+              LogName='Application'; StartTime=(Get-Date).AddMinutes(-8); Id=1026
+            } -ErrorAction SilentlyContinue |
+              Select-Object -First 4 -ExpandProperty Message | Out-String | Write-Host
             throw "WPF layout smoke failed; see process exit code and layout diagnostics above"
           }
 

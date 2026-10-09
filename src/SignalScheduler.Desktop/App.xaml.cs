@@ -13,8 +13,12 @@ public partial class App : Application
         {
             // WPF layout smoke uses the application's resources, but must not
             // launch MainWindow or initialize real Signal accounts.
-            var report=System.IO.Path.Combine(AppContext.BaseDirectory,
-                "ms002-ui-layout-smoke.txt");
+            var report=e.Args.Length>1 && System.IO.Path.IsPathFullyQualified(e.Args[1])
+                ?e.Args[1]
+                :System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                    "ms002-ui-layout-smoke.txt");
+            try{System.IO.File.WriteAllText(report,"Starting WPF layout smoke.\n");}
+            catch{ }
             StartupUri=null;
             ShutdownMode=ShutdownMode.OnExplicitShutdown;
             DispatcherUnhandledException+=(_,args)=>
@@ -28,7 +32,7 @@ public partial class App : Application
             int result=1;
             try
             {
-                result=UiLayoutSmoke.Run();
+                result=UiLayoutSmoke.Run(report);
             }
             catch(Exception ex)
             {

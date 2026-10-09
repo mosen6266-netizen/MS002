@@ -14,10 +14,9 @@ namespace SignalScheduler.Desktop;
 /// </summary>
 internal static class UiLayoutSmoke
 {
-    public static int Run()
+    public static int Run(string path)
     {
         var report=new StringBuilder("MS002 WPF UI width/layout smoke test\n");
-        var path=Path.Combine(AppContext.BaseDirectory,"ms002-ui-layout-smoke.txt");
         Application.Current.ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
