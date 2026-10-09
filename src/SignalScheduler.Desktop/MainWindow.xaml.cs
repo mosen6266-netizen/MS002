@@ -403,7 +403,10 @@ public partial class MainWindow : Window
                    (job.State=="Paused" &&
                     !job.Detail.StartsWith("用户手动暂停",StringComparison.Ordinal));
                 if(!flagged)continue;
-                var marker=$"{job.JobId}:{job.Cursor}:{job.State}";
+                // Include the current failure explanation in the alert identity.
+                // A second fault at the same cursor/state must be noticed if
+                // its cause changes; stable causes remain deduplicated.
+                var marker=$"{job.JobId}:{job.Cursor}:{job.State}:{job.Detail}";
                 current.Add(marker);
                 if(_batchAlerts.Add(marker))
                     ShowCriticalAlert(
