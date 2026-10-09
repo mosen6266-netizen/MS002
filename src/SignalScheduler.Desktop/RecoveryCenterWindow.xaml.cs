@@ -60,7 +60,7 @@ public partial class RecoveryCenterWindow : UserControl
     void ApplyJobsFilter(string? previousJobId)
     {
         if(_overview is null || JobsGrid is null)return;
-        var visible=ShowAllTasks.IsChecked==true
+        IReadOnlyList<RecoveryJobItem> visible=ShowAllTasks.IsChecked==true
             ?_overview.Jobs
             :_overview.Jobs.Where(x=>x.NeedsAttention).ToArray();
         JobsGrid.ItemsSource=visible;
