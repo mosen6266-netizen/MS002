@@ -714,20 +714,17 @@ public sealed partial class StateStore
             checkpoint.Transaction=tx;
             checkpoint.CommandText="""
                 SELECT 1 FROM v8_dispatch_journal d
+                JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
                 WHERE d.job_id=$job AND d.cursor=$previous AND d.state='Confirmed'
-                  AND NOT EXISTS (
-                    SELECT 1 FROM v8_event_log e
-                    WHERE e.dispatch_key=d.dispatch_key
-                      AND e.event_type IN
-                       ('batch_step_confirmed','batch_reminder_pause','batch_completed')
-                  )
+                  AND e.event_type IN
+                   ('batch_step_confirmed','batch_reminder_pause','batch_completed')
                 LIMIT 1;
                 """;
             checkpoint.Parameters.AddWithValue("$job",request.JobId);
             checkpoint.Parameters.AddWithValue("$previous",cursor-1);
-            if(await checkpoint.ExecuteScalarAsync(ct) is not null)
+            if(await checkpoint.ExecuteScalarAsync(ct) is null)
                 throw new InvalidOperationException(
-                    "上条发送已确认但剧本进度未完成写入，不能直接恢复，请先核对。");
+                    "上条消息缺少完整的发送与剧本进度核对记录，不能直接恢复，请先核对。");
         }
 
         if(request.Action!="pause")
