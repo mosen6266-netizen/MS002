@@ -19,6 +19,8 @@ public partial class ScriptEditorWindow : UserControl
     readonly ObservableCollection<ScriptStepRow> _steps=new();
     public ObservableCollection<AccountChoice> AccountOptions {get;}=new();
     bool _firstLoad=true;
+    // Ignore responses from older overlapping script loads.
+    int _scriptLoadGeneration;
     string? _scriptId;
     int _revision;
     bool _loading;
@@ -252,11 +254,16 @@ public partial class ScriptEditorWindow : UserControl
 
     async Task LoadScriptAsync(string id)
     {
+        var generation=++_scriptLoadGeneration;
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptRead,8000,
                 new ScriptReadRequest(id));
+            // Slow responses must never replace a newer user selection.
+            if(generation!=_scriptLoadGeneration)return;
             var document=ReadData<ScriptEditorDocument>(raw);
+            if(document.ScriptId!=id)
+                throw new IOException("后台返回的剧本与所选剧本不一致。");
             LoadDocument(document);
             StatusText.Text=document.ImportedFromV7
                 ?"已加载从 V7 迁移的剧本。编辑不会覆盖原 V7 数据。"
@@ -264,7 +271,8 @@ public partial class ScriptEditorWindow : UserControl
         }
         catch(Exception ex)
         {
-            StatusText.Text=$"剧本读取失败：{ex.Message}";
+            if(generation==_scriptLoadGeneration)
+                StatusText.Text=$"剧本读取失败：{ex.Message}";
         }
     }
 
