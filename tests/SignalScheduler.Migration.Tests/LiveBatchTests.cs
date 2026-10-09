@@ -939,6 +939,38 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
     }
 
+    [Fact]
+    public async Task RepeatedSafetyFaultsCannotOverwriteFirstCauseOrCreateDuplicateEvents()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"授权群公告")});
+        await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var initial=await store.ListLiveBatchAsync(Ct);
+        var affected=initial.Single(x=>x.GroupId=="g1");
+        var healthy=initial.Single(x=>x.GroupId=="g2");
+        const string firstCause="RPC 超时：等待人工检查";
+        await store.PauseLiveBatchForSafetyAsync(affected.JobId,firstCause,Ct);
+        for(var i=0;i<5;i++)
+            await store.PauseLiveBatchForSafetyAsync(affected.JobId,
+                "Signal 后台异常，第 "+i+" 次重复通知",Ct);
+
+        var jobs=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal("Paused",jobs.Single(x=>x.JobId==affected.JobId).State);
+        Assert.Equal(firstCause,jobs.Single(x=>x.JobId==affected.JobId).Detail);
+        Assert.Equal(0,jobs.Single(x=>x.JobId==affected.JobId).Cursor);
+        Assert.Equal("Running",jobs.Single(x=>x.JobId==healthy.JobId).State);
+        var eligible=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.Single(eligible);
+        Assert.Equal(healthy.JobId,eligible[0].Dispatch.JobId);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
