@@ -10,6 +10,10 @@ public partial class RecoveryCenterWindow : UserControl
 {
     RecoveryOverview? _overview;
     bool _refreshing;
+    bool _reviewInProgress;
+    bool _pauseInProgress;
+    string? _selectedEvidenceJob;
+    string? _selectedEvidenceDispatch;
 
     public RecoveryCenterWindow()
     {
@@ -37,13 +41,7 @@ public partial class RecoveryCenterWindow : UserControl
                 ??throw new IOException("任务记录格式错误。");
 
             _overview=overview;
-            JobsGrid.ItemsSource=overview.Jobs;
-            JobsGrid.SelectedItem=overview.Jobs.FirstOrDefault(x=>x.JobId==previous)
-                ??overview.Jobs.FirstOrDefault(x=>x.NeedsReview)
-                ??overview.Jobs.FirstOrDefault();
-            UpdateSelection();
-            StatusText.Text=$"共 {overview.Jobs.Count} 个任务、{overview.Dispatches.Count} 条消息记录；"+
-                $"{overview.Jobs.Count(x=>x.NeedsReview)} 个任务需要人工核对。";
+            ApplyJobsFilter(previous);
         }
         catch(Exception ex)
         {
@@ -53,17 +51,51 @@ public partial class RecoveryCenterWindow : UserControl
         finally{_refreshing=false;}
     }
 
+    void TasksFilterChanged(object sender,RoutedEventArgs e)
+    {
+        if(_overview is not null)
+            ApplyJobsFilter((JobsGrid?.SelectedItem as RecoveryJobItem)?.JobId);
+    }
+
+    void ApplyJobsFilter(string? previousJobId)
+    {
+        if(_overview is null || JobsGrid is null)return;
+        var visible=ShowAllTasks.IsChecked==true
+            ?_overview.Jobs
+            :_overview.Jobs.Where(x=>x.NeedsAttention).ToArray();
+        JobsGrid.ItemsSource=visible;
+        JobsGrid.SelectedItem=visible.FirstOrDefault(x=>x.JobId==previousJobId)
+            ??visible.FirstOrDefault(x=>x.NeedsReview)
+            ??visible.FirstOrDefault();
+        UpdateSelection();
+        var reviewing=_overview.Jobs.Count(x=>x.NeedsReview);
+        StatusText.Text=$"共 {_overview.Jobs.Count} 个任务；{reviewing} 个必须核对发送结果，"+
+            $"{_overview.Jobs.Count(x=>x.NeedsAttention)} 个需要关注。"+
+            (visible.Count==0?" 当前没有需要处理的任务，可勾选“显示全部任务”查看历史。":"");
+    }
+
     void JobsGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>
         UpdateSelection();
 
-    void DispatchGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>
+    void DispatchGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)
+    {
+        var jobId=(JobsGrid?.SelectedItem as RecoveryJobItem)?.JobId;
+        var key=(DispatchGrid?.SelectedItem as RecoveryDispatchItem)?.DispatchKey;
+        if(jobId!=_selectedEvidenceJob || key!=_selectedEvidenceDispatch)
+        {
+            _selectedEvidenceJob=jobId;
+            _selectedEvidenceDispatch=key;
+            EvidenceBox?.Clear();
+        }
         UpdateReviewButtons();
+    }
 
     void UpdateReviewButtons()
     {
         var job=JobsGrid?.SelectedItem as RecoveryJobItem;
         var item=DispatchGrid?.SelectedItem as RecoveryDispatchItem;
-        var allowed=job is {IsLegacy:false,State:"RecoveryRequired"} &&
+        var allowed=!_reviewInProgress && !_pauseInProgress &&
+                    job is {IsLegacy:false,State:"RecoveryRequired"} &&
                     item is {State:"RecoveryRequired"} &&
                     item.JobId==job.JobId && item.Cursor==job.Cursor;
         if(MarkSeenButton is not null)MarkSeenButton.IsEnabled=allowed;
@@ -84,7 +116,8 @@ public partial class RecoveryCenterWindow : UserControl
             ?Array.Empty<RecoveryDispatchItem>()
             :_overview.Dispatches.Where(x=>x.JobId==job.JobId).ToArray();
         PauseButton.IsEnabled=job is {IsLegacy:false} &&
-            job.State is "Running" or "WaitingSignal" or "Stopping";
+            (job.State is "Running" or "WaitingSignal" or "Stopping") &&
+            !_reviewInProgress && !_pauseInProgress;
         UpdateReviewButtons();
     }
 
@@ -96,7 +129,10 @@ public partial class RecoveryCenterWindow : UserControl
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(answer!=MessageBoxResult.Yes) return;
 
+        if(_pauseInProgress || _reviewInProgress)return;
+        _pauseInProgress=true;
         PauseButton.IsEnabled=false;
+        UpdateReviewButtons();
         try
         {
             var raw=await MainWindow.SendAsync(
@@ -116,14 +152,20 @@ public partial class RecoveryCenterWindow : UserControl
         {
             StatusText.Text=$"无法确认暂停是否成功：{ex.Message}。请刷新任务状态后核对。";
         }
+        finally
+        {
+            _pauseInProgress=false;
+            UpdateSelection();
+        }
     }
 
     async Task ReviewAsync(string decision)
     {
+        if(_reviewInProgress || _pauseInProgress)return;
         if(JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy ||
            DispatchGrid.SelectedItem is not RecoveryDispatchItem message ||
            message.JobId!=job.JobId || job.State!="RecoveryRequired" ||
-           message.State!="RecoveryRequired")return;
+           message.State!="RecoveryRequired" || message.Cursor!=job.Cursor)return;
 
         var evidence=EvidenceBox.Text.Trim();
         if(evidence.Length<8)
@@ -142,8 +184,10 @@ public partial class RecoveryCenterWindow : UserControl
             "再次确认发送核对结果",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(confirmation!=MessageBoxResult.Yes)return;
 
+        _reviewInProgress=true;
         MarkSeenButton.IsEnabled=false;
         MarkNotSentButton.IsEnabled=false;
+        PauseButton.IsEnabled=false;
         try
         {
             var raw=await MainWindow.SendAsync(
@@ -167,7 +211,11 @@ public partial class RecoveryCenterWindow : UserControl
         {
             StatusText.Text=$"核对结果未确认成功：{ex.Message}。请先刷新，再检查审计记录；不要重复操作。";
         }
-        finally {UpdateReviewButtons();}
+        finally
+        {
+            _reviewInProgress=false;
+            UpdateSelection();
+        }
     }
 
     async void MarkSeen_Click(object sender,RoutedEventArgs e)=>await ReviewAsync("seen");
