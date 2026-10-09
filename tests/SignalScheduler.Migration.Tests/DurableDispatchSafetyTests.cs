@@ -116,6 +116,37 @@ public sealed class DurableDispatchSafetyTests
     }
 
     [Fact]
+    public async Task CancellationDuringSignalRpcQuarantinesSendAndNeverRetriesOnRestart()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        using var cancel=new CancellationTokenSource();
+        var transport=new FakeTransport((_,_,ct)=>{
+            cancel.Cancel();
+            throw new OperationCanceledException(ct);
+        });
+        var engine=new DurableTaskEngine(store,transport);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(()=>
+            engine.DispatchAsync(Identity(),"test",cancel.Token));
+        Assert.Equal(1,transport.SendCount);
+        Assert.Equal("RecoveryRequired",await ValueAsync(db,
+            "SELECT state FROM v8_dispatch_journal"));
+        Assert.Equal("RecoveryRequired",await ValueAsync(db,
+            "SELECT state FROM v8_jobs"));
+        Assert.Equal("0",await ValueAsync(db,"SELECT cursor FROM v8_jobs"));
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(NoCancel);
+        Assert.Equal("RecoveryRequired",await ValueAsync(db,
+            "SELECT state FROM v8_dispatch_journal"));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            new DurableTaskEngine(restarted,transport).DispatchAsync(
+                Identity(),"test",NoCancel));
+        Assert.Equal(1,transport.SendCount);
+    }
+
+    [Fact]
     public async Task UnexpectedSendError_RequiresRecovery()
     {
         var (store,db)=await NewStoreAsync();
