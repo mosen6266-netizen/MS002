@@ -95,6 +95,77 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task ConfirmedSendWithoutBatchCheckpointIsPausedBeforeNextMessage()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条",true),Step(1,"第二条")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var id=Assert.Single(started.JobIds);
+        var first=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct));
+        var calls=0;
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+        {
+            calls++;
+            return Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Confirmed,"accepted-1","accepted"));
+        }));
+        await engine.DispatchAsync(first.Dispatch,"sent-by-signal",Ct);
+        Assert.Equal("Confirmed",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT cursor FROM v8_jobs WHERE job_id='"+id+"'"));
+        // Simulate process death before ConfirmLiveBatchStepAsync wrote
+        // the reminder and next_due_ms. A new dispatch must be blocked.
+        var eligible=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+100000,10,Ct);
+        Assert.Empty(eligible);
+        var frozen=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Paused",frozen.State);
+        Assert.Contains("进度或提醒尚未写入",frozen.Detail);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_checkpoint_incomplete'"));
+        Assert.Equal(1,calls);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.ControlLiveBatchAsync(new(id,"resume"),Ct));
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        Assert.Equal("Paused",
+            Assert.Single(await restarted.ListLiveBatchAsync(Ct)).State);
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+200000,10,Ct));
+    }
+
+    [Fact]
+    public async Task CompletedBatchCheckpointAllowsTheNextScheduledStep()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1"},true),Ct);
+        var before=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Confirmed,"accepted-1","accepted"))));
+        await engine.DispatchAsync(before.Dispatch,"sent-by-signal",Ct);
+        await store.ConfirmLiveBatchStepAsync(before.Dispatch,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Ct);
+        var after=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,10,Ct));
+        Assert.Equal(1,after.Dispatch.Cursor);
+        Assert.Equal("Running",Assert.Single(await store.ListLiveBatchAsync(Ct)).State);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_checkpoint_incomplete'"));
+    }
+
+    [Fact]
     public async Task ManualControlRejectsInvalidTransitionsAndPreservesStoppedJobs()
     {
         var (store,db)=await NewStoreAsync();
