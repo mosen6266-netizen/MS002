@@ -18,6 +18,7 @@ public sealed class NamedPipeControlServer : BackgroundService
     readonly SignalLinkManager _link;
     readonly LicenseManager _license;
     readonly LiveProbeCoordinator _liveProbe;
+    readonly LiveBatchQueueTelemetry _queueTelemetry;
     readonly IHostApplicationLifetime _lifetime;
 
     public NamedPipeControlServer(
@@ -27,6 +28,7 @@ public sealed class NamedPipeControlServer : BackgroundService
         SignalLinkManager link,
         LicenseManager license,
         LiveProbeCoordinator liveProbe,
+        LiveBatchQueueTelemetry queueTelemetry,
         IHostApplicationLifetime lifetime)
     {
         _store=store;
@@ -35,6 +37,7 @@ public sealed class NamedPipeControlServer : BackgroundService
         _link=link;
         _license=license;
         _liveProbe=liveProbe;
+        _queueTelemetry=queueTelemetry;
         _lifetime=lifetime;
     }
 
@@ -108,8 +111,15 @@ public sealed class NamedPipeControlServer : BackgroundService
                         response=new ControlResponse(true,Data:await _read.GetHealthAsync(ct));
                         break;
                     case ControlCommands.LiveBatchList:
-                        response=new ControlResponse(true,
-                            Data:await _store.ListLiveBatchAsync(ct));
+                        // Overlay ephemeral account-lock telemetry on the
+                        // persisted snapshot. Only the UI receives this flag;
+                        // durable dispatch decisions still use SQLite state.
+                        var liveJobs=await _store.ListLiveBatchAsync(ct);
+                        response=new ControlResponse(true,Data:liveJobs.Select(job=>
+                            job.State=="Running" &&
+                            _queueTelemetry.IsWaitingForAccount(job.JobId)
+                                ?job with {RuntimePhase="WaitingAccount"}
+                                :job).ToArray());
                         break;
                     case ControlCommands.LiveBatchHistoryPage:
                         try
