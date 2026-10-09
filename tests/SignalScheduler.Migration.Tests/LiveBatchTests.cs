@@ -640,6 +640,57 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_live_batch_jobs"));
     }
 
+    [Fact]
+    public async Task AmbiguousGroupCanBeReviewedWithoutResumingOrRewritingOtherGroup()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000;
+        var due=await store.FindDueLiveBatchAsync(now,20,Ct);
+        var uncertain=due.Single(x=>x.Dispatch.GroupId=="g1");
+        var healthy=due.Single(x=>x.Dispatch.GroupId=="g2");
+
+        var ambiguousEngine=new DurableTaskEngine(store,
+            new StubTransport((d,p,ct)=>Task.FromResult(
+                new SignalSendResult(SignalDeliveryOutcome.Ambiguous,Detail:"timeout"))));
+        await ambiguousEngine.DispatchAsync(uncertain.Dispatch,"test",Ct);
+        var confirmedEngine=new DurableTaskEngine(store,
+            new StubTransport((d,p,ct)=>Task.FromResult(
+                new SignalSendResult(SignalDeliveryOutcome.Confirmed,"ack-2","ACK"))));
+        await confirmedEngine.DispatchAsync(healthy.Dispatch,"test",Ct);
+        await store.ConfirmLiveBatchStepAsync(healthy.Dispatch,now,Ct);
+
+        var before=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal("RecoveryRequired",before.Single(x=>x.GroupId=="g1").State);
+        Assert.Equal(1,before.Single(x=>x.GroupId=="g2").Cursor);
+        Assert.Equal("Running",before.Single(x=>x.GroupId=="g2").State);
+
+        var review=await store.ReviewAmbiguousDispatchAsync(
+            new(uncertain.Dispatch.JobId,uncertain.Dispatch.DispatchKey,"seen",
+                "已在经授权的测试群内核实该条消息"),Ct);
+        Assert.Equal("Paused",review.JobState);
+        Assert.Equal(1,review.Cursor);
+
+        var after=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal("Paused",after.Single(x=>x.GroupId=="g1").State);
+        Assert.Equal("Running",after.Single(x=>x.GroupId=="g2").State);
+        Assert.Equal(1,after.Single(x=>x.GroupId=="g2").Cursor);
+        var ready=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.DoesNotContain(ready,x=>x.Dispatch.GroupId=="g1");
+        Assert.Contains(ready,x=>x.Dispatch.GroupId=="g2");
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='manual_confirmed_sent'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='ManuallyConfirmed'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='Confirmed'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
