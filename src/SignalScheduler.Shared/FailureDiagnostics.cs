@@ -16,11 +16,16 @@ public static class FailureDiagnostics
         "SIGNAL_ACCOUNT","SIGNAL_NETWORK","SIGNAL_ATTACHMENT",
         "RPC_MISMATCH","RPC_MISSING_TIMESTAMP","RPC_HTTP",
         "LOCAL_RUNTIME","PRESEND_BLOCKED","LOCAL_EXCEPTION",
-        "SEND_UNCERTAIN","UNKNOWN"
+        "SEND_UNCERTAIN","UNKNOWN","NONE"
     };
 
     public static FailureDiagnosis Analyze(string? detail,string? state=null)
     {
+        if(state is "Confirmed" or "Committed" or "ManuallyConfirmed" or
+            "Signal 已确认提交" or "已记录发送确认" or "人工核实已发送" or "已完成")
+            return new("NONE","无异常记录","发送确认",
+                "仅说明已记录 RPC 接受，不等于所有成员收到或已读",
+                "无需处理异常；如有争议请核查 Signal 实际记录。");
         var d=detail??"";
         bool Has(string s)=>d.Contains(s,StringComparison.OrdinalIgnoreCase);
         if(Has("ServerSideErrorException") || Has("Signal 服务端处理失败"))
