@@ -182,10 +182,8 @@ public partial class RunningTasksWindow : UserControl
         var row=MonitorGrid?.SelectedItem as BatchJobRow;
         var operable=_snapshotFresh && !_refreshing && !_busy;
         PauseTaskButton.IsEnabled=operable && row?.CanPause==true;
-        ResumeTaskButton.IsEnabled=operable && row?.CanResume==true &&
-            !LiveTaskMonitor.NeedsAttention(row.Snapshot);
-        StopTaskButton.IsEnabled=operable && row?.CanStop==true &&
-            !LiveTaskMonitor.NeedsAttention(row.Snapshot);
+        ResumeTaskButton.IsEnabled=operable && row?.CanResume==true;
+        StopTaskButton.IsEnabled=operable && row?.CanStop==true;
         if(row is null)
         {
             SelectedTaskText.Text="选择上表中的群组任务查看详情。";
@@ -195,7 +193,7 @@ public partial class RunningTasksWindow : UserControl
             $"进度：{row.Progress} · 状态：{row.StateDisplay} · 阶段：{row.Phase}\n"+
             $"说明：{row.Detail}"+
             (LiveTaskMonitor.NeedsAttention(row.Snapshot)
-                ?"\n该任务需要进一步核对，请通过异常恢复中心处理。":"");
+                ?"\n该任务可能需要人工核对。未知发送结果请使用异常恢复中心；恢复暂停任务前务必确认异常已解决。":"");
     }
 
     async Task ControlAsync(string action)
@@ -203,15 +201,13 @@ public partial class RunningTasksWindow : UserControl
         if(_busy || !_snapshotFresh || _refreshing ||
            MonitorGrid.SelectedItem is not BatchJobRow row)return;
         if(action=="pause" && !row.CanPause)return;
-        if(action=="resume" && (!row.CanResume ||
-            LiveTaskMonitor.NeedsAttention(row.Snapshot)))return;
-        if(action=="stop" && (!row.CanStop ||
-            LiveTaskMonitor.NeedsAttention(row.Snapshot)))return;
+        if(action=="resume" && !row.CanResume)return;
+        if(action=="stop" && !row.CanStop)return;
 
         if(action is "resume" or "stop")
         {
             var question=action=="resume"
-                ?$"确定手动继续群「{row.GroupName}」吗？请先确认没有待核对的消息。"
+                ?$"确定手动继续群「{row.GroupName}」吗？\n当前任务说明：{row.Detail}\n请先确认异常已解决、没有待核对的消息；后台仍会再次校验发送记录。"
                 :$"确定停止群「{row.GroupName}」吗？停止后不能从原位置直接继续。";
             if(MessageBox.Show(Window.GetWindow(this),question,
                 "确认任务操作",MessageBoxButton.YesNo,
