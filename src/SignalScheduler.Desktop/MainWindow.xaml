@@ -18,6 +18,15 @@
    <Setter Property="BorderBrush" Value="#365571"/>
    <Setter Property="Padding" Value="12,9"/>
    <Setter Property="Cursor" Value="Hand"/>
+   <Style.Triggers>
+    <Trigger Property="IsKeyboardFocusWithin" Value="True">
+     <Setter Property="BorderBrush" Value="#7DC9FF"/>
+    </Trigger>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Opacity" Value="0.62"/>
+     <Setter Property="Cursor" Value="Arrow"/>
+    </Trigger>
+   </Style.Triggers>
   </Style>
   <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
    <Setter Property="Margin" Value="0,0,0,7"/>
