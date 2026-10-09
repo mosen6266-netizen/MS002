@@ -22,7 +22,9 @@ public sealed record SafeDiagnosticSnapshot(
     int PendingReadReceipts,
     int AttemptedReadReceipts,
     long LastReadEventMs,
-    bool DatabasePresent);
+    bool DatabasePresent,
+    bool DashboardAvailable=true,
+    bool ReadHealthAvailable=true);
 
 public static class SafeDiagnosticReport
 {
@@ -36,13 +38,14 @@ public static class SafeDiagnosticReport
         static string Version(string? version)
         {
             if(string.IsNullOrWhiteSpace(version))return "未知";
-            return version.Length<=50 &&
-                version.All(c=>char.IsAsciiLetterOrDigit(c) ||
-                    c is '.' or '-' or '+')
+            return System.Text.RegularExpressions.Regex.IsMatch(version,
+                @"^\\d{1,4}(?:\\.\\d{1,4}){1,3}(?:-[A-Za-z0-9.-]{1,24})?$")
                 ?version:"未知";
         }
 
         static int Count(int value)=>Math.Clamp(value,0,10000000);
+        static string Metric(int value,bool available)=>
+            available?Count(value).ToString():"未取得数据";
 
         var connection=AllowState(input.SignalConnectionState,new[]{
             "ready","running","offline","stopped","starting","degraded",
@@ -71,18 +74,18 @@ public static class SafeDiagnosticReport
         sb.AppendLine($"本地数据库：{(input.DatabasePresent?"文件存在":"文件不存在")}");
         sb.AppendLine();
         sb.AppendLine("数据概况（仅数量）");
-        sb.AppendLine($"账号数量：{Count(input.Accounts)}");
-        sb.AppendLine($"启用账号：{Count(input.EnabledAccounts)}");
-        sb.AppendLine($"群组数量：{Count(input.Groups)}");
-        sb.AppendLine($"剧本数量：{Count(input.Scripts)}");
-        sb.AppendLine($"任务数量：{Count(input.Jobs)}");
-        sb.AppendLine($"待核对任务：{Count(input.RecoveryJobs)}");
+        sb.AppendLine($"账号数量：{Metric(input.Accounts,input.DashboardAvailable)}");
+        sb.AppendLine($"启用账号：{Metric(input.EnabledAccounts,input.DashboardAvailable)}");
+        sb.AppendLine($"群组数量：{Metric(input.Groups,input.DashboardAvailable)}");
+        sb.AppendLine($"剧本数量：{Metric(input.Scripts,input.DashboardAvailable)}");
+        sb.AppendLine($"任务数量：{Metric(input.Jobs,input.DashboardAvailable)}");
+        sb.AppendLine($"待核对任务：{Metric(input.RecoveryJobs,input.DashboardAvailable)}");
         sb.AppendLine();
         sb.AppendLine("已读事件监听（不代表其他设备已读清零）");
-        sb.AppendLine($"监听状态：{read}");
-        sb.AppendLine($"待处理回执：{Count(input.PendingReadReceipts)}");
-        sb.AppendLine($"已请求回执：{Count(input.AttemptedReadReceipts)}");
-        sb.AppendLine($"最近捕获事件：{last}");
+        sb.AppendLine($"监听状态：{(input.ReadHealthAvailable?read:"未取得数据")}");
+        sb.AppendLine($"待处理回执：{Metric(input.PendingReadReceipts,input.ReadHealthAvailable)}");
+        sb.AppendLine($"已请求回执：{Metric(input.AttemptedReadReceipts,input.ReadHealthAvailable)}");
+        sb.AppendLine($"最近捕获事件：{(input.ReadHealthAvailable?last:"未取得数据")}");
         sb.AppendLine();
         sb.AppendLine("隐私保护：未收集手机号、账号备注、群名、地址、消息、附件内容、密钥或日志原文。");
         return sb.ToString();
