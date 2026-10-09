@@ -262,18 +262,57 @@ public sealed class SignalGuardian : BackgroundService
         finally{p.Dispose();}
     }
 
+    // Raw signal-cli stdout includes inbound JSON envelopes containing full
+    // message bodies, group IDs and personal identifiers. Never persist a
+    // substring of daemon-controlled output, even if it happens to contain
+    // "INFO", "ERROR" or a telephone-number regex match.
+    public static string? SanitizeDaemonDiagnostic(string? line)
+    {
+        if(string.IsNullOrWhiteSpace(line)) return null;
+        if(line.TrimStart().StartsWith("{",StringComparison.Ordinal) ||
+           line.Contains("\"envelope\"",StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if(line.Contains("ServerSideErrorException",StringComparison.Ordinal))
+            return "ERROR SignalSend.ServerSideErrorException";
+        if(line.Contains("AccountCheckException",StringComparison.Ordinal))
+            return "ERROR SignalAccount.AccountCheckException";
+        if(line.Contains("UntrustedIdentity",StringComparison.Ordinal))
+            return "ERROR SignalAccount.UntrustedIdentity";
+        if(line.Contains("SignalJsonRpcDispatcherHandler",StringComparison.Ordinal) &&
+           line.Contains("ERROR",StringComparison.Ordinal))
+            return "ERROR SignalSend.RpcDispatcher";
+        if(line.Contains("ReceiveHelper",StringComparison.Ordinal) &&
+           line.Contains("WARN",StringComparison.Ordinal))
+            return "WARN SignalReceive.ConnectionInterrupted";
+        if(line.Contains("HttpServerHandler",StringComparison.Ordinal) &&
+           line.Contains("no authentication",StringComparison.OrdinalIgnoreCase))
+            return "WARN LocalRpc.UnauthenticatedLoopback";
+        if(line.Contains("DaemonCommand",StringComparison.Ordinal) &&
+           line.Contains("INFO",StringComparison.Ordinal))
+            return "INFO SignalDaemon.Started";
+        if(line.Contains("SocketTimeoutException",StringComparison.Ordinal) ||
+           line.Contains("ConnectException",StringComparison.Ordinal))
+            return "ERROR SignalNetwork.Connection";
+        if(line.Contains("Exception",StringComparison.Ordinal) &&
+           (line.Contains("ERROR",StringComparison.Ordinal) ||
+            line.Contains("Caused by:",StringComparison.Ordinal)))
+            return "ERROR SignalDaemon.OtherException";
+        return null;
+    }
+
     void OnProcessLine(string? line)
     {
         if(string.IsNullOrWhiteSpace(line)) return;
         _lastOutput=DateTimeOffset.UtcNow;
-        if(!DiagnosticTokens.Any(t=>line.Contains(t,StringComparison.OrdinalIgnoreCase))) return;
+        var sanitized=SanitizeDaemonDiagnostic(line);
+        if(sanitized is null)return;
 
         try
         {
-            var sanitized=PhoneRegex.Replace(line,"[phone]");
-            if(sanitized.Length>1200) sanitized=sanitized[..1200];
             RotateLogIfNeeded();
-            File.AppendAllText(_paths.SignalCliLogPath,$"{DateTimeOffset.Now:O} {sanitized}{Environment.NewLine}");
+            File.AppendAllText(_paths.SignalCliLogPath,
+                $"{DateTimeOffset.Now:O} {sanitized}{Environment.NewLine}");
         }
         catch { }
     }
