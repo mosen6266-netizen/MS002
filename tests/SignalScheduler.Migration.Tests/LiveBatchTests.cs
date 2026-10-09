@@ -144,6 +144,60 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task SignalDaemonRestartFreezesGroupsAndQuarantinesOnlyUnknownSends()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"群组第一条"),Step(1,"群组第二条")});
+        await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        var sending=Assert.Single(due.Where(x=>x.Dispatch.GroupId=="g1"));
+        await store.ReserveAsync(sending.Dispatch,Ct);
+        await store.MarkSendingAsync(sending.Dispatch,Ct);
+
+        // Guardian first wants to restart a live daemon, but a Signal call
+        // might still be executing. All running groups freeze and no kill is
+        // permitted. The live journal must stay Sending until actual exit.
+        Assert.False(await store.TryPrepareGuardianRestartAsync(false,Ct));
+        var frozen=await store.ListLiveBatchAsync(Ct);
+        Assert.All(frozen,x=>Assert.Equal("Paused",x.State));
+        Assert.All(frozen,x=>Assert.Contains("Signal 后台",x.Detail));
+        Assert.Equal("Sending",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Empty(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+
+        // Once daemon exit has been verified, quarantine only the group
+        // with unknown external delivery. The other group stays paused.
+        Assert.True(await store.TryPrepareGuardianRestartAsync(true,Ct));
+        var after=await store.ListLiveBatchAsync(Ct);
+        var unknown=Assert.Single(after.Where(x=>x.GroupId=="g1"));
+        var idle=Assert.Single(after.Where(x=>x.GroupId=="g2"));
+        Assert.Equal("RecoveryRequired",unknown.State);
+        Assert.Contains("发送结果尚未确认",unknown.Detail);
+        Assert.Equal("Paused",idle.State);
+        Assert.Contains("Signal 后台",idle.Detail);
+        Assert.Equal(0,unknown.Cursor);
+        Assert.Equal(0,idle.Cursor);
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Equal("2",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='daemon_restart_paused'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='daemon_recovery_required'"));
+
+        // Repeated health checks must not erase an operator-facing reason.
+        Assert.True(await store.TryPrepareGuardianRestartAsync(true,Ct));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='daemon_recovery_required'"));
+        Assert.Equal(unknown.Detail,Assert.Single(
+            (await store.ListLiveBatchAsync(Ct)).Where(x=>x.GroupId=="g1")).Detail);
+    }
+
+    [Fact]
     public async Task RestartKeepsExistingUserPausedReasonUnchanged()
     {
         var (store,db)=await NewStoreAsync();
