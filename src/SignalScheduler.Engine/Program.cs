@@ -78,8 +78,10 @@ static async Task<int> RequestPrepareUpdateAsync()
         }
         catch
         {
-            // No Engine is listening, so there is nothing to stop.
-            return 0;
+            // An Engine can own its mutex before its control pipe is ready.
+            // Never report a safe shutdown merely because connection failed:
+            // Inno Setup will retry and must fail closed if the process lives.
+            return 31;
         }
 
         using var reader=new StreamReader(pipe,leaveOpen:true);
