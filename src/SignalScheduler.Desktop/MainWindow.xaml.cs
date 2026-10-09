@@ -397,13 +397,11 @@ public partial class MainWindow : Window
                    (job.State=="Stopped" &&
                     !job.Detail.Contains("手动",StringComparison.Ordinal) &&
                     !job.Detail.Contains("用户",StringComparison.Ordinal)) ||
+                   // Every non-manual pause needs operator attention, even
+                   // when its message uses an unfamiliar error description.
+                   // Manual pause has an explicit durable detail in StateStore.
                    (job.State=="Paused" &&
-                    !job.Detail.Contains("用户手动暂停",StringComparison.Ordinal) &&
-                    !job.Detail.Contains("手动暂停",StringComparison.Ordinal) &&
-                    new[]{"提醒","异常","断开","授权","失败","离线",
-                        "不可用","错误","超时","不健康","失联","回执",
-                        "人工核对","待核对","重启","安全暂停"}
-                       .Any(reason=>job.Detail.Contains(reason,StringComparison.Ordinal)));
+                    !job.Detail.StartsWith("用户手动暂停",StringComparison.Ordinal));
                 if(!flagged)continue;
                 var marker=$"{job.JobId}:{job.Cursor}:{job.State}";
                 current.Add(marker);
