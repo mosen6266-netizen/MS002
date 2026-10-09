@@ -556,8 +556,15 @@ public sealed partial class StateStore
     public async Task PauseLiveBatchForSafetyAsync(
         string jobId,string detail,CancellationToken ct)
     {
+        if(string.IsNullOrWhiteSpace(jobId)||jobId.Length>256)
+            throw new ArgumentException("任务编号无效。");
+        // Only a currently running group may transition to Paused. A delayed
+        // worker must never overwrite the cause recorded for a stopped,
+        // completed, or RecoveryRequired job.
         await using var c=Open();
         using var tx=c.BeginTransaction();
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var changed=0;
         await using(var job=c.CreateCommand())
         {
             job.Transaction=tx;
@@ -565,17 +572,38 @@ public sealed partial class StateStore
                 UPDATE v8_jobs SET state='Paused',updated_at=$now
                 WHERE job_id=$j AND state='Running';
                 """;
-            job.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            job.Parameters.AddWithValue("$now",now);
             job.Parameters.AddWithValue("$j",jobId);
-            await job.ExecuteNonQueryAsync(ct);
+            changed=await job.ExecuteNonQueryAsync(ct);
         }
-        await using(var plan=c.CreateCommand())
+        if(changed==1)
         {
-            plan.Transaction=tx;
-            plan.CommandText="UPDATE v8_live_batch_jobs SET detail=$detail WHERE job_id=$j";
-            plan.Parameters.AddWithValue("$j",jobId);
-            plan.Parameters.AddWithValue("$detail",detail.Length>600?detail[..600]:detail);
-            await plan.ExecuteNonQueryAsync(ct);
+            var summary=string.IsNullOrWhiteSpace(detail)
+                ?"异常停止：后台任务已暂停，请人工核对。"
+                :detail.Length>600?detail[..600]:detail;
+            await using(var plan=c.CreateCommand())
+            {
+                plan.Transaction=tx;
+                plan.CommandText="""
+                    UPDATE v8_live_batch_jobs SET detail=$detail
+                    WHERE job_id=$j;
+                    """;
+                plan.Parameters.AddWithValue("$j",jobId);
+                plan.Parameters.AddWithValue("$detail",summary);
+                await plan.ExecuteNonQueryAsync(ct);
+            }
+            await using(var ev=c.CreateCommand())
+            {
+                ev.Transaction=tx;
+                ev.CommandText="""
+                    INSERT INTO v8_event_log(job_id,event_type,detail,created_at)
+                    VALUES($j,'batch_safety_pause',$detail,$now);
+                    """;
+                ev.Parameters.AddWithValue("$j",jobId);
+                ev.Parameters.AddWithValue("$detail",summary);
+                ev.Parameters.AddWithValue("$now",now);
+                await ev.ExecuteNonQueryAsync(ct);
+            }
         }
         tx.Commit();
     }
