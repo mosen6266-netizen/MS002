@@ -71,10 +71,9 @@
    Foreground="#EAF4FD" BorderBrush="#34516C"
    RowBackground="#152C43" AlternatingRowBackground="#1B3851"
    AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-   SelectionMode="Single" SelectionUnit="FullRow" HeadersVisibility="Column"
-   EnableRowVirtualization="True" EnableColumnVirtualization="True"
-   SelectionChanged="MonitorGrid_SelectionChanged"
-   ScrollViewer.HorizontalScrollBarVisibility="Auto">
+   SelectionMode="Single" SelectionUnit="FullRow"
+   EnableRowVirtualization="True"
+   SelectionChanged="MonitorGrid_SelectionChanged">
    <DataGrid.Columns>
     <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="155"
      ElementStyle="{StaticResource TruncatedGridText}"/>
