@@ -66,6 +66,15 @@ jobs:
           test -s release-files/SHA256.txt || {
             echo "::error::安装包哈希清单缺失"; exit 1;
           }
+          # The build creates SHA256.txt with PowerShell Format-List. Verify
+          # its recorded hash against the downloaded installer, not just that
+          # the manifest exists, before publishing the release.
+          actual_hash="$(sha256sum "$installer" | cut -d ' ' -f 1)"
+          if ! grep -Fqi "$actual_hash" release-files/SHA256.txt; then
+            echo "::error::安装包与原始构建哈希清单不一致，拒绝发布"
+            exit 1
+          fi
+          echo "安装包哈希与原始构建清单一致：$actual_hash"
           echo "将发布：$(basename "$installer")"
           sha256sum "$installer" | tee release-files/INSTALLER_SHA256.txt
 
