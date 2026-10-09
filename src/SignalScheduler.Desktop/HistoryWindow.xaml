@@ -67,6 +67,8 @@
     <DataGridTextColumn Header="账号备注" Binding="{Binding AccountLabel}" Width="115"/>
     <DataGridTextColumn Header="发表内容" Binding="{Binding Content}" Width="3*" MinWidth="120"/>
     <DataGridTextColumn Header="发送结果" Binding="{Binding State}" Width="100"/>
+    <DataGridTextColumn Header="故障类别" Binding="{Binding DiagnosisLabel}" Width="160"/>
+    <DataGridTextColumn Header="诊断代码" Binding="{Binding DiagnosisCode}" Width="160"/>
     <DataGridTextColumn Header="详情" Binding="{Binding Detail}" Width="2*" MinWidth="105"/>
     <DataGridTextColumn Header="发送时间" Binding="{Binding SentAt}" Width="145"/>
    </DataGrid.Columns>
