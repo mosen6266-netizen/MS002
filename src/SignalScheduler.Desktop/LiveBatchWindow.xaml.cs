@@ -50,7 +50,8 @@ public partial class LiveBatchWindow : UserControl
                     .ToLocalTime().ToString("MM-dd HH:mm:ss")
                 :"没有捕获到群消息";
             ReadHealthLabel.Text=$"监听：{health.StreamState} · 最近消息：{last} · "+
-                $"待处理：{health.Pending} · 已请求：{health.Attempted}"+
+                $"待处理：{health.Pending}（其中等待重试 {health.WaitingRetry}） · "+
+                $"已请求：{health.Attempted} · 最终失败：{health.Failed}"+
                 (string.IsNullOrWhiteSpace(health.LastError)?"":$" · 故障：{health.LastError}");
         }
         catch(Exception ex){ReadHealthLabel.Text="已读状态检查失败："+ex.Message;}
