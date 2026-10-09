@@ -25,6 +25,8 @@ public sealed class SignalReadCoordinator : BackgroundService
     volatile string _lastError="";
     long _lastConnectedMs;
     long _lastEventMs;
+    long _lastFailureMs;
+    volatile string _lastFailureType="";
 
     public async Task<ReadHealthSnapshot> GetHealthAsync(CancellationToken ct)
     {
@@ -32,6 +34,7 @@ public sealed class SignalReadCoordinator : BackgroundService
         var attempted=0;
         var failed=0;
         var waitingRetry=0;
+        var unknown=0;
         try
         {
             await InitializeAsync(ct);
@@ -59,6 +62,7 @@ public sealed class SignalReadCoordinator : BackgroundService
                     }
                     if(state=="attempted")attempted+=r.GetInt32(1);
                     if(state=="failed")failed+=r.GetInt32(1);
+                    if(state=="unknown")unknown+=r.GetInt32(1);
                 }
             }
             finally{_databaseGate.Release();}
@@ -72,7 +76,8 @@ public sealed class SignalReadCoordinator : BackgroundService
         return new ReadHealthSnapshot(_streamState,
             Interlocked.Read(ref _lastConnectedMs),
             Interlocked.Read(ref _lastEventMs),pending,attempted,_lastError,
-            failed,waitingRetry);
+            failed,waitingRetry,unknown,
+            Interlocked.Read(ref _lastFailureMs),_lastFailureType);
     }
 
 
@@ -139,6 +144,53 @@ public sealed class SignalReadCoordinator : BackgroundService
                     """;
                 await alter.ExecuteNonQueryAsync(ct);
             }
+            // Recover the terminal attempt left uncertain by an abrupt exit.
+            // This is NOT a confirmed failure: the remote RPC may have been
+            // accepted before the process died. Do not retry it automatically.
+            await using(var recover=db.CreateCommand())
+            {
+                recover.CommandText="""
+                    UPDATE v8_read_events
+                    SET state='unknown',detail='最后一次已读回执请求被程序中断，结果未知，不自动重试'
+                    WHERE state='pending' AND attempts>=$max;
+                    """;
+                recover.Parameters.AddWithValue("$max",ReadReceiptRetryPolicy.MaxAttempts);
+                await recover.ExecuteNonQueryAsync(ct);
+            }
+
+            await using(var schema=db.CreateCommand())
+            {
+                schema.CommandText="""
+                    CREATE TABLE IF NOT EXISTS v8_read_stream_status(
+                        id INTEGER PRIMARY KEY CHECK(id=1),
+                        state TEXT NOT NULL DEFAULT '尚未连接',
+                        last_error TEXT NOT NULL DEFAULT '',
+                        last_connected_ms INTEGER NOT NULL DEFAULT 0,
+                        last_event_ms INTEGER NOT NULL DEFAULT 0,
+                        last_failure_ms INTEGER NOT NULL DEFAULT 0,
+                        last_failure_type TEXT NOT NULL DEFAULT '',
+                        updated_ms INTEGER NOT NULL DEFAULT 0
+                    );
+                    INSERT OR IGNORE INTO v8_read_stream_status(id) VALUES(1);
+                    """;
+                await schema.ExecuteNonQueryAsync(ct);
+            }
+            await using(var health=db.CreateCommand())
+            {
+                health.CommandText="""
+                    SELECT last_connected_ms,last_event_ms,last_failure_ms,
+                           last_failure_type
+                    FROM v8_read_stream_status WHERE id=1;
+                    """;
+                await using var reader=await health.ExecuteReaderAsync(ct);
+                if(await reader.ReadAsync(ct))
+                {
+                    Interlocked.Exchange(ref _lastConnectedMs,reader.GetInt64(0));
+                    Interlocked.Exchange(ref _lastEventMs,reader.GetInt64(1));
+                    Interlocked.Exchange(ref _lastFailureMs,reader.GetInt64(2));
+                    _lastFailureType=reader.GetString(3);
+                }
+            }
             _initialized=true;
         }
         finally{_databaseGate.Release();}
@@ -198,7 +250,16 @@ public sealed class SignalReadCoordinator : BackgroundService
             q.Parameters.AddWithValue("$s",author);
             q.Parameters.AddWithValue("$t",timestamp);
             await q.ExecuteNonQueryAsync(ct);
-            Interlocked.Exchange(ref _lastEventMs,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            var eventMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            await using(var update=db.CreateCommand())
+            {
+                update.CommandText="""
+                    UPDATE v8_read_stream_status SET last_event_ms=$when WHERE id=1;
+                    """;
+                update.Parameters.AddWithValue("$when",eventMs);
+                await update.ExecuteNonQueryAsync(ct);
+            }
+            Interlocked.Exchange(ref _lastEventMs,eventMs);
         }
         finally{_databaseGate.Release();}
     }
