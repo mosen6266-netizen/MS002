@@ -362,8 +362,15 @@ public partial class MainWindow : Window
             if(!_engineNotified)
             {
                 _engineNotified=true;
-                AddNotification("Signal 后台连接异常："+ex.Message+
-                    "\n请检查后台程序；不要假设任务仍在正常运行。",false);
+                var notice="Signal 后台连接异常："+ex.Message+
+                    "\n请检查后台程序；不要假设任务仍在正常运行。";
+                if(_hasLiveJobs)
+                    ShowCriticalAlert("运行中的任务失去后台状态连接。"+
+                        "\n当前发送结果未知，切勿重复启动或覆盖安装；"+
+                        "\n请等待后台恢复并到任务恢复中心核对。"+
+                        "\n\n"+notice);
+                else
+                    AddNotification(notice,false);
             }
         }
         finally{_refreshing=false;}
