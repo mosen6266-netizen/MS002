@@ -83,6 +83,29 @@ public sealed class LiveBatchTimingTests
     }
 
     [Fact]
+    public void RealAccountQueueWaitOverridesOverdueSchedulerButNotDurablePause()
+    {
+        var queued=Job("Running",Now-2000,45000) with {
+            RuntimePhase="WaitingAccount"
+        };
+        var timing=LiveBatchTiming.Format(queued,Now,Now);
+        Assert.Equal("等待账号",timing.Phase);
+        Assert.Equal("账号正被其他任务使用",timing.NextCountdown);
+        Assert.Equal("等待账号后重算",timing.RemainingEstimate);
+        Assert.Equal("—",timing.EarliestFinish);
+
+        var released=LiveBatchTiming.Format(
+            queued with {RuntimePhase=""},Now,Now);
+        Assert.Equal("等待调度或账号",released.Phase);
+        Assert.Equal("等待调度",released.NextCountdown);
+
+        var paused=LiveBatchTiming.Format(
+            queued with {State="Paused"},Now,Now);
+        Assert.Equal("已暂停",paused.Phase);
+        Assert.Equal("已暂停",paused.NextCountdown);
+    }
+
+    [Fact]
     public void RestoringPausedJobRequiresNewRunningSnapshotBeforeAnyCountdown()
     {
         var paused=LiveBatchTiming.Format(
