@@ -158,7 +158,15 @@ public partial class RecoveryCenterWindow : UserControl
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(answer!=MessageBoxResult.Yes) return;
 
-        if(_pauseInProgress || _reviewInProgress)return;
+        // A modal dialog runs a nested WPF event loop. A refresh or selection
+        // change may occur while confirmation is open; never act on the old row.
+        if(!_snapshotFresh || _refreshing || _pauseInProgress || _reviewInProgress ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.JobId!=job.JobId ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.State!=job.State)
+        {
+            StatusText.Text="确认期间任务列表已变化，请刷新后重新选择需要暂停的任务。";
+            return;
+        }
         _pauseInProgress=true;
         PauseButton.IsEnabled=false;
         UpdateReviewButtons();
@@ -218,6 +226,17 @@ public partial class RecoveryCenterWindow : UserControl
             "再次确认发送核对结果",MessageBoxButton.YesNo,MessageBoxImage.Warning);
         if(confirmation!=MessageBoxResult.Yes)return;
 
+        // Do not submit an irreversible adjudication if the modal let a
+        // refresh or another selection replace the reviewed dispatch.
+        if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.JobId!=job.JobId ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.State!="RecoveryRequired" ||
+           (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.DispatchKey!=message.DispatchKey ||
+           (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.State!="RecoveryRequired")
+        {
+            StatusText.Text="确认期间核对记录已变化，请重新刷新并确认当前发送记录。";
+            return;
+        }
         _reviewInProgress=true;
         MarkSeenButton.IsEnabled=false;
         MarkNotSentButton.IsEnabled=false;
