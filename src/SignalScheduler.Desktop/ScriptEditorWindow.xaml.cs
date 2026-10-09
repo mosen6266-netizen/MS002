@@ -433,9 +433,9 @@ public partial class ScriptEditorWindow : UserControl
             HorizontalAlignment=HorizontalAlignment.Right,
             Margin=new Thickness(0,14,0,0)
         };
-        var cancel=new Button{Content="取消",MinWidth=100,Padding=new Thickness(12,6),Margin=new Thickness(0,0,10,0)};
+        var cancel=new Button{Content="取消",MinWidth=100,Padding=new Thickness(12,6,12,6),Margin=new Thickness(0,0,10,0)};
         cancel.Click+=(_,_)=>popup.DialogResult=false;
-        var accept=new Button{Content="载入选中版本",MinWidth=135,Padding=new Thickness(12,6)};
+        var accept=new Button{Content="载入选中版本",MinWidth=135,Padding=new Thickness(12,6,12,6)};
         accept.Click+=(_,_)=>{if(list.SelectedIndex>=0)popup.DialogResult=true;};
         actions.Children.Add(cancel);
         actions.Children.Add(accept);
