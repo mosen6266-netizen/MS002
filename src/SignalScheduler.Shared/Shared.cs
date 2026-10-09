@@ -120,6 +120,11 @@ public sealed record RecoveryDispatchItem(
     public string StateDisplay=>StatusLabels.Delivery(State);
     public string GroupDisplay=>string.IsNullOrWhiteSpace(GroupName)?"未找到群名":GroupName;
     public string AccountDisplay=>string.IsNullOrWhiteSpace(AccountLabel)?"未备注账号":AccountLabel;
+    public string DiagnosisCode=>FailureDiagnostics.ExportableCode(Detail,State);
+    public string DiagnosisLabel=>FailureDiagnostics.Analyze(Detail,State).Label;
+    public string DiagnosisStage=>FailureDiagnostics.Analyze(Detail,State).Stage;
+    public string DiagnosisCertainty=>FailureDiagnostics.Analyze(Detail,State).Certainty;
+    public string DiagnosticNextStep=>FailureDiagnostics.Analyze(Detail,State).NextStep;
 }
 public sealed record RecoveryOverview(
     IReadOnlyList<RecoveryJobItem> Jobs,IReadOnlyList<RecoveryDispatchItem> Dispatches);
@@ -224,7 +229,11 @@ public sealed record LiveBatchHistoryPage(IReadOnlyList<LiveBatchItem> Jobs,long
 public sealed record LiveBatchHistoryDetailRequest(string JobId);
 public sealed record LiveBatchHistoryMessage(
     int Position,string AccountLabel,string Content,
-    string State,string Detail,string SentAt);
+    string State,string Detail,string SentAt)
+{
+    public string DiagnosisLabel=>FailureDiagnostics.Analyze(Detail,State).Label;
+    public string DiagnosisCode=>FailureDiagnostics.ExportableCode(Detail,State);
+}
 public sealed record LiveBatchHistoryDetail(
     string JobId,string ScriptName,string GroupName,string State,
     long Cursor,int TotalSteps,IReadOnlyList<LiveBatchHistoryMessage> Messages);
