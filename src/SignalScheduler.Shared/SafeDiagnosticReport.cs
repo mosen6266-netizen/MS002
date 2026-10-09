@@ -24,7 +24,9 @@ public sealed record SafeDiagnosticSnapshot(
     long LastReadEventMs,
     bool DatabasePresent,
     bool DashboardAvailable=true,
-    bool ReadHealthAvailable=true);
+    bool ReadHealthAvailable=true,
+    int FailedReadReceipts=0,
+    int DeferredReadReceipts=0);
 
 public static class SafeDiagnosticReport
 {
@@ -85,6 +87,8 @@ public static class SafeDiagnosticReport
         sb.AppendLine($"监听状态：{(input.ReadHealthAvailable?read:"未取得数据")}");
         sb.AppendLine($"待处理回执：{Metric(input.PendingReadReceipts,input.ReadHealthAvailable)}");
         sb.AppendLine($"已请求回执：{Metric(input.AttemptedReadReceipts,input.ReadHealthAvailable)}");
+        sb.AppendLine($"等待重试回执：{Metric(input.DeferredReadReceipts,input.ReadHealthAvailable)}");
+        sb.AppendLine($"最终失败回执：{Metric(input.FailedReadReceipts,input.ReadHealthAvailable)}");
         sb.AppendLine($"最近捕获事件：{(input.ReadHealthAvailable?last:"未取得数据")}");
         sb.AppendLine();
         sb.AppendLine("隐私保护：未收集手机号、账号备注、群名、地址、消息、附件内容、密钥或日志原文。");
