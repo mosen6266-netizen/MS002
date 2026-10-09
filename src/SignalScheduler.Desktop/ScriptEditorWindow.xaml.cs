@@ -272,7 +272,20 @@ public partial class ScriptEditorWindow : UserControl
         catch(Exception ex)
         {
             if(generation==_scriptLoadGeneration)
+            {
+                // Keep the selected list entry consistent with the document
+                // that is actually displayed after a failed asynchronous read.
+                _loading=true;
+                try
+                {
+                    ScriptsList.SelectedItem=
+                        (ScriptsList.ItemsSource as System.Collections.IEnumerable)?
+                            .Cast<ScriptEditorSummary>()
+                            .FirstOrDefault(x=>x.ScriptId==_scriptId);
+                }
+                finally{_loading=false;}
                 StatusText.Text=$"剧本读取失败：{ex.Message}";
+            }
         }
     }
 
@@ -344,6 +357,9 @@ public partial class ScriptEditorWindow : UserControl
 
     void BeginNew()
     {
+        // Invalidate outstanding reads so a late response cannot overwrite
+        // a new unsaved script or its local draft.
+        ++_scriptLoadGeneration;
         _loading=true;
         _scriptId=null;
         _revision=0;
