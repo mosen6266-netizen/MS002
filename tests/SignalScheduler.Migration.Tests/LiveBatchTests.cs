@@ -861,6 +861,52 @@ public sealed class LiveBatchTests
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
     }
 
+    [Fact]
+    public async Task ManualPauseAndIndependentSafetyPauseRemainStoppedAcrossTwoEngineRestarts()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var initial=await store.ListLiveBatchAsync(Ct);
+        var manual=initial.Single(x=>x.GroupId=="g1");
+        var safety=initial.Single(x=>x.GroupId=="g2");
+
+        await store.ControlLiveBatchAsync(new(manual.JobId,"pause"),Ct);
+        var manualReason=(await store.ListLiveBatchAsync(Ct))
+            .Single(x=>x.JobId==manual.JobId).Detail;
+        await store.PauseLiveBatchForSafetyAsync(safety.JobId,
+            "Signal RPC failed: explicit operator intervention required",Ct);
+        var safetyReason=(await store.ListLiveBatchAsync(Ct))
+            .Single(x=>x.JobId==safety.JobId).Detail;
+
+        var root=Path.GetDirectoryName(db)!;
+        for(var iteration=0;iteration<2;iteration++)
+        {
+            var reopened=new StateStore(RuntimePaths.ForTesting(root,db));
+            await reopened.InitializeAsync(Ct);
+            var rows=await reopened.ListLiveBatchAsync(Ct);
+            Assert.Equal(2,rows.Count);
+            Assert.All(rows,x=>{
+                Assert.Equal("Paused",x.State);
+                Assert.Equal(0,x.Cursor);
+            });
+            Assert.Equal(manualReason,rows.Single(x=>x.JobId==manual.JobId).Detail);
+            Assert.Equal(safetyReason,rows.Single(x=>x.JobId==safety.JobId).Detail);
+            Assert.Empty(await reopened.FindDueLiveBatchAsync(
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        }
+
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
