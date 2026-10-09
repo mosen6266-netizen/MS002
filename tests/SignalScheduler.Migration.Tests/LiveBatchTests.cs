@@ -1083,6 +1083,47 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
     }
 
+    [Fact]
+    public async Task AccountReconnectionCannotAutomaticallyResumeSafetyPausedGroup()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"授权群公告")});
+        await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        var jobs=await store.ListLiveBatchAsync(Ct);
+        var affected=jobs.Single(x=>x.GroupId=="g1");
+        var unaffected=jobs.Single(x=>x.GroupId=="g2");
+
+        // Simulate the local catalog detecting the shared Signal account offline.
+        await using(var c=new SqliteConnection($"Data Source={db}"))
+        {
+            await c.OpenAsync();
+            await using var cmd=c.CreateCommand();
+            cmd.CommandText="UPDATE v8_signal_accounts SET online=0 WHERE account='+49123'";
+            Assert.Equal(1,await cmd.ExecuteNonQueryAsync());
+        }
+        await store.PauseLiveBatchForSafetyAsync(affected.JobId,
+            "账号离线，等待用户手动继续",Ct);
+
+        // Signal reconnects; restoring account health must not mutate task state.
+        await store.SyncSignalCatalogAsync(new[]{"+49123"},new[]{
+            new SignalGroupCatalogItem("+49123","g1","群 0",true,Array.Empty<string>()),
+            new SignalGroupCatalogItem("+49123","g2","群 1",true,Array.Empty<string>())
+        },new[]{"+49123"},Ct);
+        jobs=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal("Paused",jobs.Single(x=>x.JobId==affected.JobId).State);
+        Assert.Equal("Running",jobs.Single(x=>x.JobId==unaffected.JobId).State);
+        Assert.Equal(0,jobs.Single(x=>x.JobId==affected.JobId).Cursor);
+        Assert.Contains("账号离线",jobs.Single(x=>x.JobId==affected.JobId).Detail);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.Single(due);
+        Assert.Equal(unaffected.JobId,due[0].Dispatch.JobId);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
