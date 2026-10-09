@@ -451,9 +451,12 @@ public sealed partial class StateStore
                     SELECT 1 FROM v8_dispatch_journal d
                     JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
                     WHERE d.job_id=j.job_id AND d.cursor=j.cursor-1
-                      AND d.state='Confirmed'
-                      AND e.event_type IN
-                        ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                      AND (
+                        (d.state='Confirmed' AND e.event_type IN
+                         ('batch_step_confirmed','batch_reminder_pause','batch_completed'))
+                        OR (d.state='ManuallyConfirmed' AND
+                            e.event_type='manual_confirmed_sent')
+                      )
                 );
                 """;
             await using var reader=await query.ExecuteReaderAsync(ct);
@@ -476,9 +479,12 @@ public sealed partial class StateStore
                     SELECT 1 FROM v8_dispatch_journal d
                     JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
                     WHERE d.job_id=v8_jobs.job_id AND d.cursor=v8_jobs.cursor-1
-                      AND d.state='Confirmed'
-                      AND e.event_type IN
-                        ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                      AND (
+                        (d.state='Confirmed' AND e.event_type IN
+                         ('batch_step_confirmed','batch_reminder_pause','batch_completed'))
+                        OR (d.state='ManuallyConfirmed' AND
+                            e.event_type='manual_confirmed_sent')
+                      )
                   );
                 """;
             freeze.Parameters.AddWithValue("$now",now);
