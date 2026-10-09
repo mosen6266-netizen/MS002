@@ -14,8 +14,11 @@ public static class InstalledRuntimeCheck
             return new("未知","未知","未检查");
         try
         {
+            // Desktop EXE installs in {app}; Engine EXE installs in {app}/Engine.
+            // This inspector is called by the Desktop and must resolve from
+            // that root, not from the Engine's AppContext.BaseDirectory.
             var runtime=Path.GetFullPath(Path.Combine(
-                desktopDirectory,"..","Runtime","signal-stack-v1"));
+                desktopDirectory,"Runtime","signal-stack-v1"));
             var java=Path.Combine(runtime,"jre","bin","java.exe");
             var signalLib=Path.Combine(runtime,"signal-cli","lib");
 
