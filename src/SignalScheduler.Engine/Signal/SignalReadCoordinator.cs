@@ -285,74 +285,131 @@ public sealed class SignalReadCoordinator : BackgroundService
     public async Task TrySendForGroupAsync(string account,string group,CancellationToken ct)
     {
         if(!ReadReceiptsEnabled())return;
-        await InitializeAsync(ct);
-        var pending=new List<(string Author,long Timestamp)>();
-        await _databaseGate.WaitAsync(ct);
+        // If another group is already attempting receipts, preserve normal
+        // message dispatch latency. Pending receipts remain durably queued.
+        if(!await _sendGate.WaitAsync(0,ct))return;
         try
         {
-            await using var db=Open();
-            await using var q=db.CreateCommand();
-            q.CommandText="""
-                SELECT author,timestamp_ms FROM v8_read_events
-                WHERE account=$a AND group_id=$g AND state='pending'
-                ORDER BY timestamp_ms LIMIT 100;
-                """;
-            q.Parameters.AddWithValue("$a",account);
-            q.Parameters.AddWithValue("$g",group);
-            await using var r=await q.ExecuteReaderAsync(ct);
-            while(await r.ReadAsync(ct))pending.Add((r.GetString(0),r.GetInt64(1)));
-        }
-        finally{_databaseGate.Release();}
-        foreach(var item in pending)
-        {
-            var state="pending";
-            var detail="已读回执尚未获得成功响应，稍后重试";
-            try
-            {
-                var id=Guid.NewGuid().ToString("N");
-                using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeout.CancelAfter(TimeSpan.FromSeconds(4));
-                using var response=await _http.PostAsJsonAsync("api/v1/rpc",new{
-                    jsonrpc="2.0",method="sendReceipt",id,
-                    @params=new{account,recipient=item.Author,targetTimestamp=item.Timestamp,type="read"}
-                },timeout.Token);
-                var raw=await response.Content.ReadAsStringAsync(timeout.Token);
-                using var doc=JsonDocument.Parse(raw);
-                var root=doc.RootElement;
-                if(response.IsSuccessStatusCode &&
-                   String(root,"id")==id &&
-                   (!root.TryGetProperty("error",out var error) ||
-                    error.ValueKind==JsonValueKind.Null))
-                {
-                    state="attempted";
-                    detail="Signal RPC 已接受已读回执";
-                }
-            }
-            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-            catch(Exception ex)
-            {
-                detail="已读回执失败："+ex.GetType().Name;
-                _logger.LogWarning(ex,"Read receipt request failed; retained for retry");
-            }
+            await InitializeAsync(ct);
+            var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var pending=new List<(string Author,long Timestamp,int Attempt)>();
             await _databaseGate.WaitAsync(ct);
             try
             {
                 await using var db=Open();
                 await using var q=db.CreateCommand();
                 q.CommandText="""
-                    UPDATE v8_read_events SET state=$state,detail=$detail
-                    WHERE account=$a AND group_id=$g AND author=$sender
-                    AND timestamp_ms=$timestamp;
+                    SELECT author,timestamp_ms,attempts
+                    FROM v8_read_events
+                    WHERE account=$a AND group_id=$g AND state='pending'
+                      AND next_retry_ms<=$now AND attempts<$max
+                    ORDER BY next_retry_ms,timestamp_ms LIMIT $limit;
                     """;
-                q.Parameters.AddWithValue("$state",state);
-                q.Parameters.AddWithValue("$detail",detail);
                 q.Parameters.AddWithValue("$a",account);
                 q.Parameters.AddWithValue("$g",group);
-                q.Parameters.AddWithValue("$sender",item.Author);
-                q.Parameters.AddWithValue("$timestamp",item.Timestamp);
-                await q.ExecuteNonQueryAsync(ct);
+                q.Parameters.AddWithValue("$now",now);
+                q.Parameters.AddWithValue("$max",ReadReceiptRetryPolicy.MaxAttempts);
+                q.Parameters.AddWithValue("$limit",ReadReceiptRetryPolicy.MaxReceiptsPerSend);
+                await using(var r=await q.ExecuteReaderAsync(ct))
+                {
+                    while(await r.ReadAsync(ct))
+                        pending.Add((r.GetString(0),r.GetInt64(1),r.GetInt32(2)+1));
+                }
+
+                // Reserve each attempt durably before the network request.
+                // A crash cannot silently reset the retry counter.
+                foreach(var item in pending)
+                {
+                    await using var claim=db.CreateCommand();
+                    claim.CommandText="""
+                        UPDATE v8_read_events
+                        SET attempts=$attempt,next_retry_ms=$next,detail=$detail
+                        WHERE account=$a AND group_id=$g AND author=$sender
+                          AND timestamp_ms=$timestamp AND state='pending';
+                        """;
+                    claim.Parameters.AddWithValue("$attempt",item.Attempt);
+                    claim.Parameters.AddWithValue("$next",
+                        now+(long)ReadReceiptRetryPolicy.NextDelay(item.Attempt).TotalMilliseconds);
+                    claim.Parameters.AddWithValue("$detail","已请求发送回执，等待接口响应");
+                    claim.Parameters.AddWithValue("$a",account);
+                    claim.Parameters.AddWithValue("$g",group);
+                    claim.Parameters.AddWithValue("$sender",item.Author);
+                    claim.Parameters.AddWithValue("$timestamp",item.Timestamp);
+                    await claim.ExecuteNonQueryAsync(ct);
+                }
             }
             finally{_databaseGate.Release();}
+
+            foreach(var item in pending)
+            {
+                var state="pending";
+                var detail="已读回执请求尚未得到成功确认";
+                try
+                {
+                    var id=Guid.NewGuid().ToString("N");
+                    using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    timeout.CancelAfter(ReadReceiptRetryPolicy.RpcTimeout);
+                    using var response=await _http.PostAsJsonAsync("api/v1/rpc",new{
+                        jsonrpc="2.0",method="sendReceipt",id,
+                        @params=new{
+                            account,recipient=item.Author,
+                            targetTimestamp=item.Timestamp,type="read"
+                        }
+                    },timeout.Token);
+                    var raw=await response.Content.ReadAsStringAsync(timeout.Token);
+                    using var doc=JsonDocument.Parse(raw);
+                    var root=doc.RootElement;
+                    if(response.IsSuccessStatusCode &&
+                       String(root,"id")==id &&
+                       (!root.TryGetProperty("error",out var error) ||
+                        error.ValueKind==JsonValueKind.Null))
+                    {
+                        state="attempted";
+                        detail="Signal RPC 已接受已读回执（不代表其他设备清零）";
+                    }
+                }
+                catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+                catch(Exception ex)
+                {
+                    detail="回执尝试失败："+ex.GetType().Name;
+                    // Avoid logging one stack trace per message for a daemon outage.
+                    if(item.Attempt==1 || item.Attempt==ReadReceiptRetryPolicy.MaxAttempts)
+                        _logger.LogWarning(ex,
+                            "Read receipt attempt {Attempt}/{Max} failed; outgoing dispatch proceeds",
+                            item.Attempt,ReadReceiptRetryPolicy.MaxAttempts);
+                }
+
+                if(state!="attempted" &&
+                   item.Attempt>=ReadReceiptRetryPolicy.MaxAttempts)
+                {
+                    state="failed";
+                    detail="已达到最多 "+ReadReceiptRetryPolicy.MaxAttempts+
+                        " 次重试，未确认已读回执成功";
+                }
+
+                await _databaseGate.WaitAsync(ct);
+                try
+                {
+                    await using var db=Open();
+                    await using var q=db.CreateCommand();
+                    q.CommandText="""
+                        UPDATE v8_read_events SET state=$state,detail=$detail
+                        WHERE account=$a AND group_id=$g AND author=$sender
+                          AND timestamp_ms=$timestamp AND attempts=$attempt;
+                        """;
+                    q.Parameters.AddWithValue("$state",state);
+                    q.Parameters.AddWithValue("$detail",detail);
+                    q.Parameters.AddWithValue("$a",account);
+                    q.Parameters.AddWithValue("$g",group);
+                    q.Parameters.AddWithValue("$sender",item.Author);
+                    q.Parameters.AddWithValue("$timestamp",item.Timestamp);
+                    q.Parameters.AddWithValue("$attempt",item.Attempt);
+                    await q.ExecuteNonQueryAsync(ct);
+                }
+                finally{_databaseGate.Release();}
+            }
         }
+        finally{_sendGate.Release();}
     }
+
 }
