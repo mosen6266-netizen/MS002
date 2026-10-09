@@ -11,11 +11,32 @@ public partial class App : Application
     {
         if(e.Args.Contains("--ui-layout-smoke",StringComparer.OrdinalIgnoreCase))
         {
-            // CI-only WPF rendering diagnostics: never touch Signal credentials
-            // or create a second normal dashboard window.
+            // WPF layout smoke uses the application's resources, but must not
+            // launch MainWindow or initialize real Signal accounts.
+            var report=System.IO.Path.Combine(AppContext.BaseDirectory,
+                "ms002-ui-layout-smoke.txt");
             StartupUri=null;
-            base.OnStartup(e);
-            Shutdown(UiLayoutSmoke.Run());
+            ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            DispatcherUnhandledException+=(_,args)=>
+            {
+                try{System.IO.File.WriteAllText(report,
+                    "Unhandled WPF layout error: "+args.Exception);}
+                catch{ }
+                args.Handled=true;
+                Shutdown(1);
+            };
+            int result=1;
+            try
+            {
+                result=UiLayoutSmoke.Run();
+            }
+            catch(Exception ex)
+            {
+                try{System.IO.File.WriteAllText(report,
+                    "WPF layout bootstrap error: "+ex);}
+                catch{ }
+            }
+            Shutdown(result);
             return;
         }
         _mutex=new Mutex(true,@"Local\SignalScheduler.V8.Desktop",out var createdNew);
