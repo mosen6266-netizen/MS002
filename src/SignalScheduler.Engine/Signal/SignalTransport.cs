@@ -179,6 +179,10 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
         var source=error.GetRawText();
         if(source.Length>16384)source=source[..16384];
         bool Has(string value)=>source.Contains(value,StringComparison.OrdinalIgnoreCase);
+        if(Has("ServerSideErrorException") ||
+           Has("Server-side error") ||
+           Has("server side error"))
+            return "Signal 服务端处理失败";
         if(Has("UntrustedIdentity") || Has("identity key") ||
            Has("Untrusted identity"))
             return "身份密钥需要人工核验";
