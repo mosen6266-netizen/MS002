@@ -431,9 +431,82 @@ public sealed partial class StateStore
             state,cursor,total,messages);
     }
 
+    /// <summary>
+    /// A transport acknowledgement advances the durable cursor before the
+    /// script-specific pause/delay checkpoint is stored. If the process dies
+    /// between those two transactions, do not send the next script step using
+    /// the stale due time or silently skip a scripted reminder.
+    /// </summary>
+    public async Task<int> PauseUnfinalizedConfirmedBatchesAsync(CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        var affected=new List<string>();
+        await using(var query=c.CreateCommand())
+        {
+            query.Transaction=tx;
+            query.CommandText="""
+                SELECT j.job_id FROM v8_jobs j
+                JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                WHERE j.state='Running' AND j.cursor>0 AND NOT EXISTS(
+                    SELECT 1 FROM v8_dispatch_journal d
+                    JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
+                    WHERE d.job_id=j.job_id AND d.cursor=j.cursor-1
+                      AND d.state='Confirmed'
+                      AND e.event_type IN
+                        ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                );
+                """;
+            await using var reader=await query.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct))
+                affected.Add(reader.GetString(0));
+        }
+        var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        const string detail="发现已确认发送，但剧本进度或提醒尚未写入；任务已安全暂停，需人工核对。";
+        var paused=0;
+        foreach(var jobId in affected)
+        {
+            await using var freeze=c.CreateCommand();
+            freeze.Transaction=tx;
+            freeze.CommandText="""
+                UPDATE v8_jobs SET state='Paused',updated_at=$now
+                WHERE job_id=$job AND state='Running';
+                """;
+            freeze.Parameters.AddWithValue("$now",now);
+            freeze.Parameters.AddWithValue("$job",jobId);
+            if(await freeze.ExecuteNonQueryAsync(ct)!=1)continue;
+            paused++;
+            await using(var plan=c.CreateCommand())
+            {
+                plan.Transaction=tx;
+                plan.CommandText="UPDATE v8_live_batch_jobs SET detail=$detail WHERE job_id=$job;";
+                plan.Parameters.AddWithValue("$job",jobId);
+                plan.Parameters.AddWithValue("$detail",detail);
+                await plan.ExecuteNonQueryAsync(ct);
+            }
+            await using(var ev=c.CreateCommand())
+            {
+                ev.Transaction=tx;
+                ev.CommandText="""
+                    INSERT INTO v8_event_log(job_id,event_type,detail,created_at)
+                    VALUES($job,'batch_checkpoint_incomplete',$detail,$now);
+                    """;
+                ev.Parameters.AddWithValue("$job",jobId);
+                ev.Parameters.AddWithValue("$detail",detail);
+                ev.Parameters.AddWithValue("$now",now);
+                await ev.ExecuteNonQueryAsync(ct);
+            }
+        }
+        tx.Commit();
+        return paused;
+    }
+
     public async Task<IReadOnlyList<DueLiveBatch>> FindDueLiveBatchAsync(
         long nowMs,int limit,CancellationToken ct)
     {
+        // Fail closed on a missing post-confirm script checkpoint before
+        // selecting any eligible batch. Never replay an accepted message.
+        await PauseUnfinalizedConfirmedBatchesAsync(ct);
         await using var c=Open();
         var due=new List<DueLiveBatch>();
         await using var q=c.CreateCommand();
@@ -633,6 +706,28 @@ public sealed partial class StateStore
             if(!await r.ReadAsync(ct))
                 throw new KeyNotFoundException("任务不存在。");
             state=r.GetString(0);cursor=r.GetInt64(1);count=r.GetInt32(2);
+        }
+
+        if(request.Action=="resume" && cursor>0)
+        {
+            await using var checkpoint=c.CreateCommand();
+            checkpoint.Transaction=tx;
+            checkpoint.CommandText="""
+                SELECT 1 FROM v8_dispatch_journal d
+                WHERE d.job_id=$job AND d.cursor=$previous AND d.state='Confirmed'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM v8_event_log e
+                    WHERE e.dispatch_key=d.dispatch_key
+                      AND e.event_type IN
+                       ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                  )
+                LIMIT 1;
+                """;
+            checkpoint.Parameters.AddWithValue("$job",request.JobId);
+            checkpoint.Parameters.AddWithValue("$previous",cursor-1);
+            if(await checkpoint.ExecuteScalarAsync(ct) is not null)
+                throw new InvalidOperationException(
+                    "上条发送已确认但剧本进度未完成写入，不能直接恢复，请先核对。");
         }
 
         if(request.Action!="pause")
