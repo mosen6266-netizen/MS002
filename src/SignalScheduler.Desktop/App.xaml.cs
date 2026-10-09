@@ -19,7 +19,8 @@ public partial class App : Application
                     "ms002-ui-layout-smoke.txt");
             try{System.IO.File.WriteAllText(report,"Starting WPF layout smoke.\n");}
             catch{ }
-            StartupUri=null;
+            // Shutdown below occurs before the normal StartupUri is opened.
+            // WPF throws ArgumentNullException when StartupUri is set to null.
             ShutdownMode=ShutdownMode.OnExplicitShutdown;
             DispatcherUnhandledException+=(_,args)=>
             {
