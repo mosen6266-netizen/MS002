@@ -118,6 +118,72 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task SafetyPauseIsIdempotentAndDoesNotOverwriteStoppedOrPausedEvidence()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        var start=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var jobId=Assert.Single(start.JobIds);
+
+        await store.PauseLiveBatchForSafetyAsync(
+            jobId,"异常停止：首次检测到网络断开",Ct);
+        var snapshot=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Paused",snapshot.State);
+        Assert.Contains("首次检测到网络断开",snapshot.Detail);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+
+        await store.PauseLiveBatchForSafetyAsync(
+            jobId,"异常停止：迟到的第二次故障",Ct);
+        snapshot=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Contains("首次检测到网络断开",snapshot.Detail);
+        Assert.DoesNotContain("第二次故障",snapshot.Detail);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+
+        await store.ControlLiveBatchAsync(new(jobId,"stop"),Ct);
+        var stopped=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Stopped",stopped.State);
+        await store.PauseLiveBatchForSafetyAsync(
+            jobId,"异常停止：应当忽略的延迟回调",Ct);
+        snapshot=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal(stopped.State,snapshot.State);
+        Assert.Equal(stopped.Detail,snapshot.Detail);
+    }
+
+    [Fact]
+    public async Task LateSafetyPauseMustNotDowngradeAmbiguousRecoveryOrOverwriteDetails()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"通知")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"provider timeout"))));
+        await engine.DispatchAsync(due.Dispatch,"test",Ct);
+        var before=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("RecoveryRequired",before.State);
+
+        await store.PauseLiveBatchForSafetyAsync(
+            started.JobIds[0],"异常停止：旧任务的延迟回调",Ct);
+        var after=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("RecoveryRequired",after.State);
+        Assert.Equal(before.Detail,after.Detail);
+        Assert.Equal(before.Cursor,after.Cursor);
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Empty(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+    }
+
+    [Fact]
     public async Task HistoryPagingReturnsOnlyFinishedTasksAndFiltersByGroup()
     {
         var (store,_)=await NewStoreAsync();
