@@ -39,7 +39,7 @@ public static class SafeDiagnosticReport
         {
             if(string.IsNullOrWhiteSpace(version))return "未知";
             return System.Text.RegularExpressions.Regex.IsMatch(version,
-                @"^\\d{1,4}(?:\\.\\d{1,4}){1,3}(?:-[A-Za-z0-9.-]{1,24})?$")
+                @"^\d{1,4}(?:\.\d{1,4}){1,3}(?:-[A-Za-z0-9.-]{1,24})?$")
                 ?version:"未知";
         }
 
