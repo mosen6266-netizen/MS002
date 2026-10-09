@@ -73,7 +73,7 @@
    SelectionMode="Single" SelectionUnit="FullRow" HeadersVisibility="Column"
    EnableRowVirtualization="True" EnableColumnVirtualization="True"
    SelectionChanged="MonitorGrid_SelectionChanged"
-   HorizontalScrollBarVisibility="Auto">
+   ScrollViewer.HorizontalScrollBarVisibility="Auto">
    <DataGrid.Columns>
     <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="155"
      ElementStyle="{StaticResource TruncatedGridText}"/>
