@@ -1031,6 +1031,58 @@ public sealed class LiveBatchTests
             "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='RecoveryRequired'"));
     }
 
+    [Fact]
+    public async Task TwentyGroupsMixedManualAndSafetyPausesKeepOnlyHealthyGroupsEligible()
+    {
+        var (store,db)=await NewStoreAsync();
+        const string account="+49123";
+        var groups=Enumerable.Range(1,20)
+            .Select(i=>new SignalGroupCatalogItem(account,"mixed-"+i,
+                "授权测试群 "+i,true,Array.Empty<string>())).ToArray();
+        await store.SyncSignalCatalogAsync(new[]{account},groups,new[]{account},Ct);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"合法群公告")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,
+            groups.Select(x=>x.GroupId).ToArray(),true),Ct);
+        var initial=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal(20,initial.Count);
+
+        foreach(var job in initial.Where((_,i)=>i<5))
+            await store.ControlLiveBatchAsync(new(job.JobId,"pause"),Ct);
+        foreach(var job in initial.Where((_,i)=>i>=5 && i<10))
+            await store.PauseLiveBatchForSafetyAsync(job.JobId,
+                "群通道异常，需要人工介入",Ct);
+
+        var after=await store.ListLiveBatchAsync(Ct);
+        Assert.Equal(10,after.Count(x=>x.State=="Paused"));
+        Assert.Equal(10,after.Count(x=>x.State=="Running"));
+        Assert.All(after,x=>Assert.Equal(0,x.Cursor));
+        var eligible=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct);
+        Assert.Equal(10,eligible.Count);
+        var runningIds=after.Where(x=>x.State=="Running")
+            .Select(x=>x.JobId).ToHashSet();
+        Assert.All(eligible,x=>Assert.Contains(x.Dispatch.JobId,runningIds));
+        Assert.Equal(10,eligible.Select(x=>x.Dispatch.GroupId).Distinct().Count());
+        Assert.Equal("5",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        Assert.All(await restarted.ListLiveBatchAsync(Ct),x=>{
+            Assert.Equal("Paused",x.State);
+            Assert.Equal(0,x.Cursor);
+        });
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal("5",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_safety_pause'"));
+        Assert.Equal("10",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
