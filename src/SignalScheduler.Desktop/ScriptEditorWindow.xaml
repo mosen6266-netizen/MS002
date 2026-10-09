@@ -260,16 +260,18 @@
        <DataGridTemplateColumn.CellTemplate>
         <DataTemplate>
          <Button Content="{Binding AttachmentLabel}" Click="AttachmentQuickPreview_Click"
-          Tag="{Binding}" IsEnabled="{Binding HasAttachment}"
-          Style="{StaticResource SmallRowButton}" MinWidth="85"
+          Tag="{Binding}" Style="{StaticResource SmallRowButton}" MinWidth="85"
           Margin="4,0" Padding="7,2" Background="#20445C" Foreground="#D6EDFF"
-          ToolTip="左键预览；右键可替换或移除图片">
+          ToolTip="{Binding AttachmentHint}">
           <Button.ContextMenu>
            <ContextMenu DataContext="{Binding PlacementTarget.DataContext,RelativeSource={RelativeSource Self}}">
-            <MenuItem Header="预览图片" Click="AttachmentPreview_Click" CommandParameter="{Binding}"/>
-            <MenuItem Header="替换图片" Click="AttachmentReplace_Click" CommandParameter="{Binding}"/>
+            <MenuItem Header="预览图片" Click="AttachmentPreview_Click"
+             IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
+            <MenuItem Header="添加 / 替换图片" Click="AttachmentReplace_Click"
+             CommandParameter="{Binding}"/>
             <Separator/>
-            <MenuItem Header="移除图片" Click="AttachmentRemove_Click" CommandParameter="{Binding}"/>
+            <MenuItem Header="移除图片" Click="AttachmentRemove_Click"
+             IsEnabled="{Binding HasAttachment}" CommandParameter="{Binding}"/>
            </ContextMenu>
           </Button.ContextMenu>
          </Button>
