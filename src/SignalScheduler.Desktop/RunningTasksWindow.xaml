@@ -18,13 +18,22 @@
    </Style.Triggers>
   </Style>
  </UserControl.Resources>
- <StackPanel Margin="22,20,22,28">
-  <StackPanel Margin="0,0,0,14">
+ <Grid Margin="18,12,18,12">
+  <Grid.RowDefinitions>
+   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="*"/>
+   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="Auto"/>
+  </Grid.RowDefinitions>
+  <StackPanel Grid.Row="0" Margin="0,0,0,7">
    <TextBlock Text="运行任务监控" FontSize="25" FontWeight="SemiBold"/>
    <TextBlock Text="查看各群任务的真实状态、下一句等待时间和发送结果；不会自动恢复已暂停的任务。"
     Foreground="#ADC4D9" TextWrapping="Wrap" Margin="0,6,0,0"/>
   </StackPanel>
-  <Border Background="#122A40" BorderBrush="#31536F" BorderThickness="1"
+  <Border Grid.Row="1" Background="#122A40" BorderBrush="#31536F" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,0,0,13">
    <WrapPanel>
     <TextBlock x:Name="AllCountText" Text="任务总数：—" Margin="0,0,22,6"
@@ -37,7 +46,7 @@
      Foreground="#FFBFA4"/>
    </WrapPanel>
   </Border>
-  <WrapPanel Margin="0,0,0,8" Orientation="Horizontal">
+  <WrapPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
    <TextBlock Text="显示：" VerticalAlignment="Center" Margin="0,0,7,7"/>
    <ComboBox x:Name="TaskFilter" Width="176" Margin="0,0,12,7"
     SelectionChanged="FilterChanged" SelectedIndex="0">
@@ -54,7 +63,7 @@
    <Button Content="打开异常恢复中心" Click="OpenRecovery_Click"
     Style="{StaticResource MonitorAction}"/>
   </WrapPanel>
-  <DockPanel Margin="0,0,0,8">
+  <DockPanel Grid.Row="3" Margin="0,0,0,8">
    <TextBlock DockPanel.Dock="Left" x:Name="JobsPageLabel"
     Text="第 1 / 1 页" Foreground="#AFCBE0" VerticalAlignment="Center"/>
    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
@@ -65,8 +74,8 @@
      Click="NextPage_Click" Style="{StaticResource MonitorAction}"/>
    </StackPanel>
   </DockPanel>
-  <DataGrid x:Name="MonitorGrid" EnableColumnVirtualization="False"
-   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" Height="487" Background="#11283C"
+  <DataGrid x:Name="MonitorGrid" Grid.Row="4" EnableColumnVirtualization="False"
+   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Background="#11283C"
    ColumnHeaderHeight="42" RowHeight="43"
    Foreground="#EAF4FD" BorderBrush="#34516C"
    RowBackground="#152C43" AlternatingRowBackground="#1B3851"
@@ -75,21 +84,21 @@
    EnableRowVirtualization="True"
    SelectionChanged="MonitorGrid_SelectionChanged">
    <DataGrid.Columns>
-    <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="155"
+    <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="2*" MinWidth="100"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="群组" Binding="{Binding GroupName}" Width="155"
+    <DataGridTextColumn Header="群组" Binding="{Binding GroupName}" Width="2*" MinWidth="100"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="任务状态" Binding="{Binding StateDisplay}" Width="108"/>
-    <DataGridTextColumn Header="当前阶段" Binding="{Binding Phase}" Width="154"/>
-    <DataGridTextColumn Header="发送进度" Binding="{Binding Progress}" Width="84"/>
-    <DataGridTextColumn Header="下句等待" Binding="{Binding NextCountdown}" Width="118"/>
-    <DataGridTextColumn Header="剩余时间估算" Binding="{Binding RemainingEstimate}" Width="180"/>
-    <DataGridTextColumn Header="最早完成时间" Binding="{Binding EarliestFinish}" Width="170"/>
-    <DataGridTextColumn Header="任务说明" Binding="{Binding Detail}" Width="240"
+    <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="110"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="发送进度" Binding="{Binding Progress}" Width="90"/>
+    <DataGridTextColumn Header="当前阶段" Binding="{Binding Phase}" Width="140"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="下句等待" Binding="{Binding NextCountdown}" Width="110"/>
+    <DataGridTextColumn Header="剩余时间" Binding="{Binding RemainingEstimate}" Width="145"
      ElementStyle="{StaticResource TruncatedGridText}"/>
    </DataGrid.Columns>
   </DataGrid>
-  <Border Background="#11273A" BorderBrush="#30526C" BorderThickness="1"
+  <Border Grid.Row="5" Background="#11273A" BorderBrush="#30526C" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,14,0,0">
    <StackPanel>
     <TextBlock Text="选中任务详情" FontSize="16" FontWeight="SemiBold"
@@ -110,7 +119,7 @@
      Foreground="#95B5CF" FontSize="11" TextWrapping="Wrap"/>
    </StackPanel>
   </Border>
-  <TextBlock x:Name="StatusText" Text="正在读取任务状态…"
+  <TextBlock Grid.Row="6" x:Name="StatusText" Text="正在读取任务状态…"
    Foreground="#ADC5DB" TextWrapping="Wrap" Margin="0,12,0,0"/>
- </StackPanel>
+ </Grid>
 </UserControl>
