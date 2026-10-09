@@ -90,6 +90,50 @@ public sealed class RecoveryCenterTests
     }
 
     [Fact]
+    public void RecoveryAttentionFilterKeepsUncertainAndSafetyPausedJobsVisible()
+    {
+        Assert.True(new RecoveryJobItem("1","group","RecoveryRequired",0,false,true).NeedsAttention);
+        Assert.True(new RecoveryJobItem("2","group","Paused",0,false,false,
+            "异常暂停：Signal 后台断开").NeedsAttention);
+        Assert.True(new RecoveryJobItem("3","group","Running",0,false,false).NeedsAttention);
+        Assert.True(new RecoveryJobItem("4","old","Stopped",3,true,true).NeedsAttention);
+        Assert.False(new RecoveryJobItem("5","normal","Paused",0,false,false,
+            "用户手动暂停").NeedsAttention);
+        Assert.False(new RecoveryJobItem("6","done","Completed",2,false,false).NeedsAttention);
+    }
+
+    [Fact]
+    public async Task RecoverySnapshotShowsBatchFailureReasonWithoutChangingState()
+    {
+        var (store,db)=await CreateAsync();
+        await store.InitializeLiveBatchAsync(CancellationToken.None);
+        await using(var c=new SqliteConnection($"Data Source={db}"))
+        {
+            await c.OpenAsync();
+            await using var q=c.CreateCommand();
+            q.CommandText="""
+                INSERT INTO v8_jobs(job_id,state,cursor,updated_at)
+                VALUES('job-group','Paused',1,100);
+                INSERT INTO v8_live_batch_jobs(
+                    job_id,script_id,script_name,group_id,group_name,
+                    run_token,steps_json,total_steps,next_due_ms,detail,created_at)
+                VALUES('job-group','script-1','测试剧本','g1','测试群',
+                    'token','[]',2,123456,
+                    '异常暂停：后台重启后需要人工确认',100);
+                """;
+            await q.ExecuteNonQueryAsync();
+        }
+        var snapshot=await store.GetRecoveryOverviewAsync(CancellationToken.None);
+        var job=Assert.Single(snapshot.Jobs);
+        Assert.Equal("测试群 · 测试剧本",job.Name);
+        Assert.Equal("Paused",job.State);
+        Assert.Contains("后台重启",job.Detail);
+        Assert.True(job.NeedsAttention);
+        Assert.Equal("Paused",await ValueAsync(db,
+            "SELECT state FROM v8_jobs WHERE job_id='job-group'"));
+    }
+
+    [Fact]
     public async Task InvalidOrNonexistentTask_IsRejected()
     {
         var (store,_)=await CreateAsync();
