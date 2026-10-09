@@ -14,6 +14,7 @@ public sealed class SignalSendRpcContractTests
     {
         public JsonElement Captured {get;private set;}
         public int Requests {get;private set;}
+        public bool StringTimestamp {get;set;}
         protected override async Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,CancellationToken cancellationToken)
         {
@@ -28,7 +29,7 @@ public sealed class SignalSendRpcContractTests
             {
                 Content=new StringContent(JsonSerializer.Serialize(new
                 {
-                    jsonrpc="2.0",result=new{timestamp=1732345678901L},id
+                    jsonrpc="2.0",result=new{timestamp=StringTimestamp ? (object)"1732345678901" : 1732345678901L},id
                 }),Encoding.UTF8,"application/json")
             };
         }
@@ -61,4 +62,23 @@ public sealed class SignalSendRpcContractTests
         Assert.Equal("selected-group",Assert.Single(groups.EnumerateArray()).GetString());
         Assert.Equal("第一句发送测试",parameters.GetProperty("message").GetString());
     }
+    [Fact]
+    public async Task FirstScriptMessage_AcceptsDecimalStringTimestampAcknowledgement()
+    {
+        var handler=new CaptureHandler{StringTimestamp=true};
+        using var http=new HttpClient(handler)
+        {
+            BaseAddress=new Uri("http://127.0.0.1:7583/")
+        };
+        var transport=new SignalCliTransport(http,()=>true);
+        var identity=new DispatchIdentity(
+            "job2","run2",0,0,"selected-group","+491234567890","hash2");
+        var result=await transport.SendAsync(identity,
+            "signal-structured:{\\"Message\\":\\"第一句发送测试\\",\\"AttachmentPath\\":null}",
+            CancellationToken.None);
+        Assert.Equal(SignalDeliveryOutcome.Confirmed,result.Outcome);
+        Assert.Equal("1732345678901",result.ProviderMessageId);
+        Assert.Equal(1,handler.Requests);
+    }
+
 }
