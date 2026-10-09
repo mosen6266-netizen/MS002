@@ -233,22 +233,29 @@ jobs:
           $ready = $false
           for ($probe = 1; $probe -le 24; $probe++) {
             if ($engineProc.HasExited) { throw "Engine exited before upgrade smoke test" }
-            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut)
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut,[System.IO.Pipes.PipeOptions]::Asynchronous)
             try {
               $pipe.Connect(800)
-              $pipe.ReadTimeout = 2000
+              # NamedPipeClientStream.ReadTimeout is not supported for this
+              # asynchronous pipe on all Windows runners; setting it throws
+              # SetValueInvocationException before the first ping is sent.
+              # Bound ReadLineAsync explicitly instead and fail closed.
               $writer = [System.IO.StreamWriter]::new($pipe)
               $writer.AutoFlush = $true
               $reader = [System.IO.StreamReader]::new($pipe)
               $writer.WriteLine('{"Command":"ping"}')
-              $reply = $reader.ReadLine()
+              $readTask = $reader.ReadLineAsync()
+              if (-not $readTask.Wait(3000)) {
+                throw "Engine IPC ping timed out after 3 seconds"
+              }
+              $reply = $readTask.Result
               if ($reply -and ((ConvertFrom-Json -InputObject $reply).Ok -eq $true)) {
                 $ready = $true
                 break
               }
             }
             catch {
-              if ($probe -eq 24) { Write-Warning "Engine ping failed: $($_.Exception.GetType().Name)" }
+              if ($probe -eq 24) { Write-Warning "Engine ping failed: $($_.Exception.ToString())" }
             }
             finally { $pipe.Dispose() }
             Start-Sleep -Milliseconds 500
