@@ -698,8 +698,15 @@ public partial class ScriptEditorWindow : UserControl
         }
     }
 
+    bool _imageImportBusy;
+
     async void ImportImage_Click(object sender,RoutedEventArgs e)
     {
+        if(_imageImportBusy)
+        {
+            StatusText.Text="图片正在导入，请等待校验完成。";
+            return;
+        }
         CommitGrid();
         if(StepsGrid.SelectedItem is not ScriptStepRow row)
         {
@@ -712,23 +719,49 @@ public partial class ScriptEditorWindow : UserControl
             Filter="图片文件 (*.png;*.jpg;*.jpeg;*.gif;*.bmp)|*.png;*.jpg;*.jpeg;*.gif;*.bmp",
             CheckFileExists=true
         };
-        if(picker.ShowDialog(Window.GetWindow(this))!=true) return;
+        if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+        var scriptAtStart=_scriptId;
+        var originalAttachment=row.Attachment;
+        _imageImportBusy=true;
         try
         {
+            StatusText.Text="正在导入并检查图片完整性…";
             var data=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
                 ControlCommands.ImageImport,25000,
                 new ImageImportRequest(picker.FileName)));
-            row.Attachment=data.Reference;
+
+            // The backend's hash verification is the authority. Never update
+            // the draft to a new reference before verifying that it can be read.
+            var verified=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
+                ControlCommands.ImageLookup,15000,
+                new ImageLookupRequest(data.Reference)));
+            if(!string.Equals(verified.Reference,data.Reference,StringComparison.Ordinal))
+                throw new IOException("导入图片后校验引用不一致。");
+
+            // A user can switch scripts while the IPC requests are running.
+            // Do not apply the result to an obsolete row or overwrite an edit.
+            if(!Equals(scriptAtStart,_scriptId) || !_steps.Contains(row) ||
+               row.Attachment!=originalAttachment)
+            {
+                StatusText.Text="图片已导入本地，但当前消息已经发生变化。没有覆盖原附件，请重新选择消息添加。";
+                return;
+            }
+            row.Attachment=verified.Reference;
+            row.SetImageHealth("ok","导入后校验通过");
             _dirty=true;
-            StatusText.Text=$"图片「{data.OriginalName}」已安全导入。请保存剧本。"+
-                "图片保存在本地用户数据目录，软件升级不会删除。";
+            StatusText.Text=$"图片「{data.OriginalName}」导入并校验成功。请保存剧本。";
         }
         catch(Exception ex)
         {
-            StatusText.Text=$"图片导入失败：{ex.Message}";
+            // Preserve the original attachment when import or verification fails.
+            if(_steps.Contains(row) && Equals(scriptAtStart,_scriptId) &&
+               row.Attachment==originalAttachment && !string.IsNullOrWhiteSpace(originalAttachment))
+                row.SetImageHealth("invalid","替换失败，原图片引用已保留");
+            StatusText.Text=$"图片导入或校验失败，原附件未改变：{ex.Message}";
             MessageBox.Show(Window.GetWindow(this),ex.Message,"图片导入失败",
                 MessageBoxButton.OK,MessageBoxImage.Warning);
         }
+        finally { _imageImportBusy=false; }
     }
 
     async void PreviewImage_Click(object sender,RoutedEventArgs e)
