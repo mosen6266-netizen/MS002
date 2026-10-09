@@ -137,8 +137,12 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
                     return new SignalSendResult(
                         SignalDeliveryOutcome.DefinitelyNotSent,
                         Detail:$"Signal JSON-RPC 拒绝参数（{code}），确认未发出。");
+                // Never persist untrusted daemon error strings: they may contain
+                // phone numbers, member identifiers, group IDs or file paths.
+                // Only an allowlisted, fixed error category may enter recovery.
+                var category=ClassifySendFailure(error);
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:$"Signal 返回错误码 {code}，是否已经局部发送未知。");
+                    Detail:$"Signal 错误码 {code}（{category}）。发送结果未确认，请先在群内核对，禁止自动重发。");
             }
 
             // signal-cli versions may serialize the accepted message timestamp
@@ -166,6 +170,36 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
             return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
                 Detail:$"发送或回执异常：{ex.GetType().Name}；禁止自动重试。");
         }
+    }
+
+    // Inspect daemon-provided detail in memory only. This deliberately returns
+    // fixed, non-identifying text, never the arbitrary error message itself.
+    internal static string ClassifySendFailure(JsonElement error)
+    {
+        var source=error.GetRawText();
+        if(source.Length>16384)source=source[..16384];
+        bool Has(string value)=>source.Contains(value,StringComparison.OrdinalIgnoreCase);
+        if(Has("UntrustedIdentity") || Has("identity key") ||
+           Has("Untrusted identity"))
+            return "身份密钥需要人工核验";
+        if(Has("Captcha") || Has("RateLimit") || Has("rate limit") ||
+           Has("429") || Has("challenge"))
+            return "发送限流或服务验证";
+        if(Has("GroupNotFound") || Has("InvalidGroup") ||
+           Has("group not found") || Has("not a member") ||
+           Has("NotMemberException") || Has("not in group"))
+            return "群组不存在或账号已不在群组中";
+        if(Has("NotRegistered") || Has("Unauthorized") ||
+           Has("authentication") || Has("not registered"))
+            return "账号注册或认证状态异常";
+        if(Has("SocketTimeout") || Has("PushNetworkException") ||
+           Has("ConnectionException") || Has("ConnectException") ||
+           Has("connection reset") || Has("timeout"))
+            return "网络连接或远端响应异常";
+        if(Has("AttachmentInvalid") || Has("attachment not found") ||
+           Has("NoSuchFileException"))
+            return "附件文件异常";
+        return "未分类的 Signal 内部异常";
     }
 
     internal static bool TryAcceptedTimestamp(JsonElement value,out long timestamp)
