@@ -16,7 +16,10 @@ public partial class LiveBatchWindow : UserControl
     static readonly string ReadOptionsPath=Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "SignalSchedulerData","read-options.json");
-    bool _loadingReadOptions;
+    // WPF CheckBox Checked/Unchecked can fire inside InitializeComponent,
+    // before both controls and persisted preferences have been restored.
+    // Never persist these intermediate/default checkbox states.
+    bool _loadingReadOptions=true;
 
     void RestoreReadOptions()
     {
