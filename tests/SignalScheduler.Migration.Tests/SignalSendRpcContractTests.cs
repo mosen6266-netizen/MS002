@@ -81,4 +81,65 @@ public sealed class SignalSendRpcContractTests
         Assert.Equal(1,handler.Requests);
     }
 
+    sealed class ErrorHandler : HttpMessageHandler
+    {
+        public string ErrorMessage {get;set;}="UntrustedIdentityException for +491234567890";
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,CancellationToken cancellationToken)
+        {
+            var raw=await request.Content!.ReadAsStringAsync(cancellationToken);
+            using var json=JsonDocument.Parse(raw);
+            var id=json.RootElement.GetProperty("id").GetString();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content=new StringContent(JsonSerializer.Serialize(new
+                {
+                    jsonrpc="2.0",
+                    error=new{code=-32603,message=ErrorMessage,data=(object?)null},
+                    id
+                }),Encoding.UTF8,"application/json")
+            };
+        }
+    }
+
+    [Fact]
+    public async Task InternalRpcError_IsQuarantinedWithSafeClassification()
+    {
+        using var http=new HttpClient(new ErrorHandler())
+        {
+            BaseAddress=new Uri("http://127.0.0.1:7583/")
+        };
+        var transport=new SignalCliTransport(http,()=>true);
+        var dispatch=new DispatchIdentity(
+            "job3","run3",0,0,"selected-group","+491234567890","hash3");
+        var result=await transport.SendAsync(dispatch,
+            "signal-structured:{\"Message\":\"测试\",\"AttachmentPath\":null}",
+            CancellationToken.None);
+        Assert.Equal(SignalDeliveryOutcome.Ambiguous,result.Outcome);
+        Assert.Contains("-32603",result.Detail!);
+        Assert.Contains("身份密钥需要人工核验",result.Detail!);
+        Assert.DoesNotContain("+491234567890",result.Detail!);
+        Assert.Null(result.ProviderMessageId);
+    }
+
+    [Fact]
+    public async Task UnknownRpcError_IsQuarantinedWithoutUntrustedErrorText()
+    {
+        using var http=new HttpClient(new ErrorHandler{
+            ErrorMessage="Unexpected group field and secret 123456789"
+        })
+        {
+            BaseAddress=new Uri("http://127.0.0.1:7583/")
+        };
+        var transport=new SignalCliTransport(http,()=>true);
+        var dispatch=new DispatchIdentity(
+            "job4","run4",0,0,"selected-group","+491234567890","hash4");
+        var result=await transport.SendAsync(dispatch,
+            "signal-structured:{\"Message\":\"测试\",\"AttachmentPath\":null}",
+            CancellationToken.None);
+        Assert.Equal(SignalDeliveryOutcome.Ambiguous,result.Outcome);
+        Assert.Contains("未分类的 Signal 内部异常",result.Detail!);
+        Assert.DoesNotContain("secret",result.Detail!);
+    }
+
 }
