@@ -68,6 +68,8 @@ public sealed class SignalGuardian : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
         if(!File.Exists(_paths.JavaExe) || !Directory.Exists(_paths.SignalCliHome))
         {
             SetSnapshot("missing-runtime","缺少内置 Java / signal-cli Runtime","",false,Array.Empty<string>());
@@ -154,7 +156,15 @@ public sealed class SignalGuardian : BackgroundService
             }
         }
 
-        await StopOwnedAsync();
+        }
+        finally
+        {
+            // BackgroundService cancellation can interrupt startup/probing,
+            // before the normal loop tail runs. Always reap the Java daemon
+            // we launched, even when a task is cancelled or startup throws.
+            // The IPC safety gate decides whether shutdown is permitted.
+            await StopOwnedAsync();
+        }
     }
 
     async Task StartOwnedAsync(string version,CancellationToken ct)
@@ -241,17 +251,27 @@ public sealed class SignalGuardian : BackgroundService
     {
         var p=_owned;
         _owned=null;
-        if(p is null) return;
+        if(p is null)return;
         try
         {
             if(!p.HasExited)
             {
-                p.Kill(entireProcessTree:true);
-                await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(8));
+                try{p.Kill(entireProcessTree:true);}
+                catch(InvalidOperationException){} // exited during the kill
+                // Keep waiting for actual termination rather than releasing
+                // the Process object immediately while java.dll is still mapped.
+                await p.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(20));
             }
         }
-        catch { }
-        finally { p.Dispose(); }
+        catch(Exception ex)
+        {
+            SetSnapshot("fault",
+                "后台 Java 进程未确认完全退出："+ex.GetType().Name,
+                Snapshot.InstalledVersion,true,Snapshot.LiveAccounts);
+            // The installer independently checks that bundled runtime files
+            // are unlocked, and must fail closed if the process survives.
+        }
+        finally{p.Dispose();}
     }
 
     void OnProcessLine(string? line)
