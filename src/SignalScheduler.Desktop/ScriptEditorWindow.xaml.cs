@@ -389,6 +389,63 @@ public partial class ScriptEditorWindow : UserControl
         StatusText.Text="新剧本尚未保存，完成编辑后点击右上角“保存剧本”。";
     }
 
+    int? ChooseScriptVersion(IReadOnlyList<ScriptVersionSummary> versions)
+    {
+        var owner=Window.GetWindow(this);
+        var popup=new Window
+        {
+            Owner=owner,
+            Title="选择剧本历史版本",
+            Width=650,
+            Height=490,
+            MinWidth=470,
+            MinHeight=330,
+            WindowStartupLocation=WindowStartupLocation.CenterOwner,
+            Background=System.Windows.Media.Brushes.White,
+            ResizeMode=ResizeMode.CanResize
+        };
+        var layout=new Grid{Margin=new Thickness(18)};
+        layout.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        layout.RowDefinitions.Add(new RowDefinition{Height=new GridLength(1,GridUnitType.Star)});
+        layout.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
+        var instruction=new TextBlock
+        {
+            Text="选择要载入编辑区的历史版本（不会直接覆盖正式保存的数据）",
+            TextWrapping=TextWrapping.Wrap,
+            Foreground=System.Windows.Media.Brushes.Black,
+            Margin=new Thickness(0,0,0,12)
+        };
+        layout.Children.Add(instruction);
+        var list=new ListBox
+        {
+            ItemsSource=versions.Select(x=>
+                $"版本 {x.Revision}　 {x.Name}　 {DateTimeOffset.FromUnixTimeSeconds(x.SavedAt).ToLocalTime():yyyy-MM-dd HH:mm}").ToArray(),
+            SelectedIndex=0,
+            FontSize=14,
+            Foreground=System.Windows.Media.Brushes.Black,
+            Background=System.Windows.Media.Brushes.White
+        };
+        Grid.SetRow(list,1);
+        layout.Children.Add(list);
+        var actions=new StackPanel
+        {
+            Orientation=Orientation.Horizontal,
+            HorizontalAlignment=HorizontalAlignment.Right,
+            Margin=new Thickness(0,14,0,0)
+        };
+        var cancel=new Button{Content="取消",MinWidth=100,Padding=new Thickness(12,6),Margin=new Thickness(0,0,10,0)};
+        cancel.Click+=(_,_)=>popup.DialogResult=false;
+        var accept=new Button{Content="载入选中版本",MinWidth=135,Padding=new Thickness(12,6)};
+        accept.Click+=(_,_)=>{if(list.SelectedIndex>=0)popup.DialogResult=true;};
+        actions.Children.Add(cancel);
+        actions.Children.Add(accept);
+        Grid.SetRow(actions,2);
+        layout.Children.Add(actions);
+        popup.Content=layout;
+        if(popup.ShowDialog()!=true || list.SelectedIndex<0)return null;
+        return versions[list.SelectedIndex].Revision;
+    }
+
     async void RestoreVersion_Click(object sender,RoutedEventArgs e)
     {
         if(string.IsNullOrWhiteSpace(_scriptId))
@@ -396,49 +453,62 @@ public partial class ScriptEditorWindow : UserControl
             StatusText.Text="请先打开一个已保存的剧本。";
             return;
         }
-        if(!ConfirmDiscard())return;
+        var scriptId=_scriptId;
+        var generation=_scriptLoadGeneration;
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptVersions,10000,
-                new ScriptReadRequest(_scriptId));
+                new ScriptReadRequest(scriptId));
+            if(generation!=_scriptLoadGeneration || _scriptId!=scriptId)return;
             var versions=ReadData<List<ScriptVersionSummary>>(raw);
             if(versions.Count==0)
             {
                 StatusText.Text="这个剧本还没有可恢复的旧版本；首次修改保存后才会生成历史。";
                 return;
             }
-            var names=string.Join("\n",versions.Take(15).Select(x=>
-                $"版本 {x.Revision}  ·  {x.Name}  ·  {DateTimeOffset.FromUnixTimeSeconds(x.SavedAt).ToLocalTime():MM-dd HH:mm}"));
-            var answer=Microsoft.VisualBasic.Interaction.InputBox(
-                "可用历史版本（最近 15 个）：\n"+names+
-                "\n\n输入需要查看并恢复的版本号：",
-                "剧本修订历史",versions[0].Revision.ToString());
-            if(!int.TryParse(answer,out var revision) ||
-               !versions.Any(x=>x.Revision==revision))return;
+            var revision=ChooseScriptVersion(versions);
+            if(revision is null)return;
             var versionRaw=await MainWindow.SendAsync(ControlCommands.ScriptVersionRead,
-                10000,new ScriptVersionRequest(_scriptId,revision));
+                10000,new ScriptVersionRequest(scriptId,revision.Value));
+            if(generation!=_scriptLoadGeneration || _scriptId!=scriptId)
+            {
+                StatusText.Text="读取期间切换了剧本，已取消旧版本恢复。";
+                return;
+            }
             var old=ReadData<ScriptEditorDocument>(versionRaw);
+            if(old.ScriptId!=scriptId)
+                throw new IOException("后台返回的历史版本与当前剧本不一致。");
+            var original=ComputeDraftSignature();
             if(MessageBox.Show(Window.GetWindow(this),
-                $"将版本 {revision} 载入当前编辑区？\n正式剧本不会被直接覆盖，核对后需要手动保存。",
+                $"将版本 {revision.Value} 载入当前编辑区？\n正式剧本不会被直接覆盖，核对后需要手动保存。",
                 "恢复历史剧本",MessageBoxButton.YesNo,
                 MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
+            if(generation!=_scriptLoadGeneration || _scriptId!=scriptId ||
+               original!=ComputeDraftSignature())
+            {
+                StatusText.Text="确认期间编辑内容发生变化，已取消恢复。";
+                return;
+            }
+            if(!ConfirmDiscard())return;
             var currentRevision=_revision;
-            var currentScriptId=_scriptId;
             _loading=true;
-            NameBox.Text=old.Name;
-            GroupBox.Text=old.TargetGroupId;
-            _steps.Clear();
-            foreach(var step in old.Steps)AppendRow(new ScriptStepRow(step),-1);
-            Reindex();
-            _scriptId=currentScriptId;
-            _revision=currentRevision;
-            _dirty=true;
-            _loading=false;
-            StatusText.Text=$"旧版本 {revision} 已载入编辑区。请检查内容后点击保存剧本。";
+            try
+            {
+                NameBox.Text=old.Name;
+                GroupBox.Text=old.TargetGroupId;
+                _steps.Clear();
+                foreach(var step in old.Steps)
+                    AppendRow(new ScriptStepRow(step),-1);
+                Reindex();
+                _scriptId=scriptId;
+                _revision=currentRevision;
+                _dirty=true;
+            }
+            finally{_loading=false;}
+            StatusText.Text=$"历史版本 {revision.Value} 已载入编辑区。检查内容后点击保存剧本。";
         }
         catch(Exception ex)
         {
-            _loading=false;
             StatusText.Text="恢复旧版本失败："+ex.Message;
         }
     }
