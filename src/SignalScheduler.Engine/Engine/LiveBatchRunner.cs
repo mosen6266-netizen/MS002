@@ -21,12 +21,13 @@ public sealed class LiveBatchRunner : BackgroundService
     readonly DurableTaskEngine _engine;
     readonly ISignalTypingTransport _typing;
     readonly SignalReadCoordinator _read;
+    readonly LiveBatchQueueTelemetry _queueTelemetry;
     readonly ConcurrentDictionary<string,SemaphoreSlim> _accountLocks=new();
     readonly SemaphoreSlim _slots=new(4,4);
 
     public LiveBatchRunner(StateStore store,LicenseManager license,
         SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing,
-        SignalReadCoordinator read)
+        SignalReadCoordinator read,LiveBatchQueueTelemetry queueTelemetry)
     {
         _store=store;
         _license=license;
@@ -34,6 +35,7 @@ public sealed class LiveBatchRunner : BackgroundService
         _engine=engine;
         _typing=typing;
         _read=read;
+        _queueTelemetry=queueTelemetry;
     }
 
     async Task SimulateTypingAsync(StateStore.DueLiveBatch due,CancellationToken ct)
@@ -68,7 +70,15 @@ public sealed class LiveBatchRunner : BackgroundService
     {
         var accountGate=_accountLocks.GetOrAdd(
             due.Dispatch.AccountId,_=>new SemaphoreSlim(1,1));
-        await accountGate.WaitAsync(ct);
+        var acquired=await accountGate.WaitAsync(0,ct);
+        if(!acquired)
+        {
+            // The lock wait is UI telemetry only. The runner's existing
+            // account FIFO/dispatch behavior remains authoritative.
+            _queueTelemetry.WaitingForAccount(due.Dispatch.JobId);
+            try{await accountGate.WaitAsync(ct);}
+            finally{_queueTelemetry.Clear(due.Dispatch.JobId);}
+        }
         try
         {
             var jobId=due.Dispatch.JobId;
