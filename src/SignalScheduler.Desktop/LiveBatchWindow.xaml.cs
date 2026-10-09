@@ -194,7 +194,6 @@ public partial class LiveBatchWindow : UserControl
     {
         try
         {
-            var old=(ScriptBox.SelectedItem as ScriptEditorSummary)?.ScriptId;
             var results=await Task.WhenAll(
                 MainWindow.SendAsync(ControlCommands.ScriptList,8000),
                 MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,8000));
@@ -208,6 +207,8 @@ public partial class LiveBatchWindow : UserControl
             AccountsSummary.Foreground=offline==0
                 ?System.Windows.Media.Brushes.LightGreen
                 :System.Windows.Media.Brushes.Gold;
+            // Preserve a selection made while the catalog was loading.
+            var old=(ScriptBox.SelectedItem as ScriptEditorSummary)?.ScriptId;
             ScriptBox.ItemsSource=scripts;
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();

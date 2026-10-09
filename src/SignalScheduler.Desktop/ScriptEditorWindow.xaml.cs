@@ -691,8 +691,9 @@ public partial class ScriptEditorWindow : UserControl
 
     async void CheckImages_Click(object sender,RoutedEventArgs e)
     {
-        var attachments=_steps.Select(x=>x.Attachment)
-            .Where(x=>!string.IsNullOrWhiteSpace(x))
+        var imageRows=_steps.Where(x=>!string.IsNullOrWhiteSpace(x.Attachment))
+            .Select(x=>(Row:x,Reference:x.Attachment)).ToArray();
+        var attachments=imageRows.Select(x=>x.Reference)
             .Distinct(StringComparer.Ordinal).ToArray();
         if(attachments.Length==0)
         {
@@ -706,8 +707,9 @@ public partial class ScriptEditorWindow : UserControl
             var raw=await MainWindow.SendAsync(ControlCommands.ImageCheck,30000,
                 new ImageCheckRequest(attachments));
             if(generation!=_scriptLoadGeneration ||
-               !_steps.All(row=>string.IsNullOrWhiteSpace(row.Attachment) ||
-                   attachments.Contains(row.Attachment,StringComparer.Ordinal)))
+               imageRows.Length!=_steps.Count(x=>!string.IsNullOrWhiteSpace(x.Attachment)) ||
+               imageRows.Any(x=>!_steps.Contains(x.Row) ||
+                   x.Row.Attachment!=x.Reference))
             {
                 StatusText.Text="图片检查期间剧本或附件已变化，请重新检查。";
                 return;

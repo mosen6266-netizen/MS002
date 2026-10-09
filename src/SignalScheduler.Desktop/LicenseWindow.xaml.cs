@@ -10,6 +10,7 @@ namespace SignalScheduler.Desktop;
 public partial class LicenseWindow : UserControl
 {
     bool _activating;
+    int _statusRequestSerial;
     public LicenseWindow()
     {
         InitializeComponent();
@@ -32,15 +33,17 @@ public partial class LicenseWindow : UserControl
 
     async Task RefreshAsync(bool online)
     {
+        var serial=++_statusRequestSerial;
         try
         {
             var raw=await MainWindow.SendAsync(
                 online?ControlCommands.LicenseCheck:ControlCommands.LicenseStatus,
                 online?20000:5000);
-            Render(ReadStatus(raw));
+            if(serial==_statusRequestSerial)Render(ReadStatus(raw));
         }
         catch(Exception ex)
         {
+            if(serial!=_statusRequestSerial)return;
             StateText.Text="查询失败";
             StateText.Foreground=Brushes.IndianRed;
             FeedbackText.Text=$"授权查询失败：{ex.Message}";
@@ -85,6 +88,7 @@ public partial class LicenseWindow : UserControl
             !=MessageBoxResult.Yes) return;
 
         _activating=true;
+        ++_statusRequestSerial; // Ignore older status requests during activation.
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.LicenseActivate,20000,

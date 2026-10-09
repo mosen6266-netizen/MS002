@@ -16,6 +16,7 @@ public partial class AccountGroupWindow : UserControl
     bool _loading;
     bool _refreshing;
     bool _savingGroups;
+    bool _savingAccount;
 
     public AccountGroupWindow()
     {
@@ -40,7 +41,7 @@ public partial class AccountGroupWindow : UserControl
 
     async Task RefreshAsync()
     {
-        if(_refreshing || _savingGroups)return;
+        if(_refreshing || _savingGroups || _savingAccount)return;
         _refreshing=true;
         try
         {
@@ -115,30 +116,51 @@ public partial class AccountGroupWindow : UserControl
 
     async void SaveAccount_Click(object sender,RoutedEventArgs e)
     {
-        if(_refreshing || AccountGrid.SelectedItem is not ManagedAccount account)return;
+        if(_refreshing || _savingAccount ||
+           AccountGrid.SelectedItem is not ManagedAccount account)return;
         var label=AccountLabel.Text.Trim();
+        var enabled=AccountEnabled.IsChecked==true;
         if(label.Length==0)
         {
             StatusText.Text="请填写账号备注。";
             return;
         }
+        _savingAccount=true;
         SaveAccountButton.IsEnabled=false;
         try
         {
             var data=new UpdateManagedAccount(
-                account.Account,label,AccountEnabled.IsChecked==true,account.Revision);
+                account.Account,label,enabled,account.Revision);
             var raw=await MainWindow.SendAsync(ControlCommands.UpdateAccount,10000,data);
             var saved=Unwrap<ManagedAccount>(raw);
-            var index=_accounts.IndexOf(account);
-            _accounts[index]=saved;
-            AccountGrid.SelectedItem=saved;
-            StatusText.Text=$"账号「{saved.Label}」的设置已保存，本地版本 {saved.Revision}。";
+            var sameSelection=(AccountGrid.SelectedItem as ManagedAccount)?.Account==saved.Account;
+            var updatedWhileSaving=sameSelection &&
+                (AccountLabel.Text!=label || AccountEnabled.IsChecked!=enabled);
+            var editedLabel=AccountLabel.Text;
+            var editedEnabled=AccountEnabled.IsChecked;
+            var index=_accounts.ToList().FindIndex(x=>x.Account==saved.Account);
+            if(index>=0)_accounts[index]=saved;
+            if(sameSelection && index>=0)
+            {
+                AccountGrid.SelectedItem=saved;
+                if(updatedWhileSaving)
+                {
+                    AccountLabel.Text=editedLabel;
+                    AccountEnabled.IsChecked=editedEnabled;
+                }
+            }
+            StatusText.Text=$"账号「{saved.Label}」的设置已保存，本地版本 {saved.Revision}。"+
+                (updatedWhileSaving?" 后续修改仍在编辑框中，请再次保存。":"");
         }
         catch(Exception ex)
         {
             StatusText.Text=$"无法保存账号设置：{ex.Message}。请刷新后重试。";
         }
-        finally { SaveAccountButton.IsEnabled=AccountGrid.SelectedItem is ManagedAccount; }
+        finally
+        {
+            _savingAccount=false;
+            SaveAccountButton.IsEnabled=AccountGrid.SelectedItem is ManagedAccount;
+        }
     }
 
     void SelectAll_Click(object sender,RoutedEventArgs e)
