@@ -1,11 +1,9 @@
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.IO;
+ using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Threading;
+ using System.Windows.Threading;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
@@ -16,12 +14,13 @@ namespace SignalScheduler.Desktop;
 /// </summary>
 public partial class RunningTasksWindow : UserControl
 {
-    readonly ObservableCollection<BatchJobRow> _jobs=new();
+    // Only the current page is observable by WPF; all historical task rows
+    // stay in a plain list, avoiding a full-grid rebuild every two seconds.
+    readonly List<BatchJobRow> _jobs=new();
+    readonly ObservableCollection<BatchJobRow> _pageRows=new();
     readonly DispatcherTimer _poll=new(){Interval=TimeSpan.FromSeconds(2)};
     readonly DispatcherTimer _clock=new(){Interval=TimeSpan.FromSeconds(1)};
-    readonly HashSet<string> _pageIds=new(StringComparer.Ordinal);
-    ICollectionView? _view;
-    bool _refreshing;
+     bool _refreshing;
     bool _busy;
     bool _snapshotFresh;
     int _page;
@@ -30,9 +29,7 @@ public partial class RunningTasksWindow : UserControl
     public RunningTasksWindow()
     {
         InitializeComponent();
-        _view=CollectionViewSource.GetDefaultView(_jobs);
-        _view.Filter=o=>o is BatchJobRow row && _pageIds.Contains(row.JobId);
-        MonitorGrid.ItemsSource=_view;
+        MonitorGrid.ItemsSource=_pageRows;
         Loaded+=async (_,_)=>{
             _poll.Start();
             _clock.Start();
@@ -76,21 +73,33 @@ public partial class RunningTasksWindow : UserControl
 
     void RebuildPage(string? selectedId=null)
     {
-        if(_view is null || MonitorGrid is null)return;
+        if(MonitorGrid is null)return;
         var matching=_jobs.Where(x=>LiveTaskMonitor.IsVisible(
             x.Snapshot,SelectedFilter())).ToArray();
         var pages=Math.Max(1,(matching.Length+PageSize-1)/PageSize);
         _page=Math.Clamp(_page,0,pages-1);
-        _pageIds.Clear();
-        foreach(var row in matching.Skip(_page*PageSize).Take(PageSize))
-            _pageIds.Add(row.JobId);
-        _view.Refresh();
+        var pageRows=matching.Skip(_page*PageSize).Take(PageSize).ToArray();
+        // Minimal changes: leave existing visual rows in place whenever
+        // they still belong to the current page (preserves scroll/focus).
+        for(var i=0;i<pageRows.Length;i++)
+        {
+            if(i<_pageRows.Count && ReferenceEquals(_pageRows[i],pageRows[i]))
+                continue;
+            var position=_pageRows.IndexOf(pageRows[i]);
+            if(position>=0)_pageRows.Move(position,i);
+            else _pageRows.Insert(i,pageRows[i]);
+        }
+        while(_pageRows.Count>pageRows.Length)
+            _pageRows.RemoveAt(_pageRows.Count-1);
         JobsPageLabel.Text=$"第 {_page+1} / {pages} 页 · 匹配 {matching.Length} 条 · 每页 10 条";
         PreviousPageButton.IsEnabled=_page>0;
         NextPageButton.IsEnabled=_page<pages-1;
         if(selectedId is not null)
-            MonitorGrid.SelectedItem=_jobs.FirstOrDefault(x=>x.JobId==selectedId &&
-                _pageIds.Contains(x.JobId));
+        {
+            var selected=pageRows.FirstOrDefault(x=>x.JobId==selectedId);
+            if(selected is not null && !ReferenceEquals(MonitorGrid.SelectedItem,selected))
+                MonitorGrid.SelectedItem=selected;
+        }
         UpdateSelection();
     }
 
@@ -104,26 +113,16 @@ public partial class RunningTasksWindow : UserControl
         {
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchList,10000);
             var incoming=Unwrap<List<LiveBatchItem>>(raw);
-            var ids=new HashSet<string>(incoming.Select(x=>x.JobId),StringComparer.Ordinal);
-            var index=_jobs.ToDictionary(x=>x.JobId,StringComparer.Ordinal);
-            var position=0;
+            var previous=_jobs.ToDictionary(x=>x.JobId,StringComparer.Ordinal);
+            var ordered=new List<BatchJobRow>(incoming.Count);
             foreach(var item in incoming)
             {
-                if(!index.TryGetValue(item.JobId,out var row))
-                {
-                    row=new BatchJobRow(item);
-                    _jobs.Insert(Math.Min(position,_jobs.Count),row);
-                }
-                else
-                {
-                    row.Update(item);
-                    var oldPosition=_jobs.IndexOf(row);
-                    if(oldPosition!=position)_jobs.Move(oldPosition,position);
-                }
-                position++;
+                if(previous.TryGetValue(item.JobId,out var row))row.Update(item);
+                else row=new BatchJobRow(item);
+                ordered.Add(row);
             }
-            for(var i=_jobs.Count-1;i>=0;i--)
-                if(!ids.Contains(_jobs[i].JobId))_jobs.RemoveAt(i);
+            _jobs.Clear();
+            _jobs.AddRange(ordered);
 
             _lastSuccessfulRefreshMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _snapshotFresh=true;
