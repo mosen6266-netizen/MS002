@@ -10,6 +10,7 @@ public partial class RecoveryCenterWindow : UserControl
 {
     RecoveryOverview? _overview;
     bool _refreshing;
+    bool _snapshotFresh;
     bool _reviewInProgress;
     bool _pauseInProgress;
     string? _selectedEvidenceJob;
@@ -41,12 +42,16 @@ public partial class RecoveryCenterWindow : UserControl
                 ??throw new IOException("任务记录格式错误。");
 
             _overview=overview;
+            _snapshotFresh=true;
             ApplyJobsFilter(previous);
         }
         catch(Exception ex)
         {
-            StatusText.Text=$"刷新失败：{ex.Message}。原有列表可能已经过期，请检查后台引擎。";
+            _snapshotFresh=false;
+            StatusText.Text=$"刷新失败：{ex.Message}。列表已过期，所有核对操作已禁用。请先恢复后台连接并重新刷新。";
             PauseButton.IsEnabled=false;
+            MarkSeenButton.IsEnabled=false;
+            MarkNotSentButton.IsEnabled=false;
         }
         finally{_refreshing=false;}
     }
@@ -94,7 +99,7 @@ public partial class RecoveryCenterWindow : UserControl
     {
         var job=JobsGrid?.SelectedItem as RecoveryJobItem;
         var item=DispatchGrid?.SelectedItem as RecoveryDispatchItem;
-        var allowed=!_reviewInProgress && !_pauseInProgress &&
+        var allowed=_snapshotFresh && !_refreshing && !_reviewInProgress && !_pauseInProgress &&
                     job is {IsLegacy:false,State:"RecoveryRequired"} &&
                     item is {State:"RecoveryRequired"} &&
                     item.JobId==job.JobId && item.Cursor==job.Cursor;
@@ -117,13 +122,14 @@ public partial class RecoveryCenterWindow : UserControl
             :_overview.Dispatches.Where(x=>x.JobId==job.JobId).ToArray();
         PauseButton.IsEnabled=job is {IsLegacy:false} &&
             (job.State is "Running" or "WaitingSignal" or "Stopping") &&
-            !_reviewInProgress && !_pauseInProgress;
+            _snapshotFresh && !_refreshing && !_reviewInProgress && !_pauseInProgress;
         UpdateReviewButtons();
     }
 
     async void Pause_Click(object sender,RoutedEventArgs e)
     {
-        if(JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy) return;
+        if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress ||
+           JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy) return;
         var answer=MessageBox.Show(Window.GetWindow(this),
             $"确认暂停任务「{job.Name}」？\n\n如果已有消息进入发送阶段，暂停不会撤回这条消息，必须核对发送记录。",
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
@@ -161,7 +167,7 @@ public partial class RecoveryCenterWindow : UserControl
 
     async Task ReviewAsync(string decision)
     {
-        if(_reviewInProgress || _pauseInProgress)return;
+        if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress)return;
         if(JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy ||
            DispatchGrid.SelectedItem is not RecoveryDispatchItem message ||
            message.JobId!=job.JobId || job.State!="RecoveryRequired" ||
