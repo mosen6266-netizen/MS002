@@ -75,7 +75,8 @@ public partial class ScriptEditorWindow : UserControl
             if(!File.Exists(path))return;
             var draft=JsonSerializer.Deserialize<LocalDraft>(File.ReadAllText(path));
             if(draft is null || draft.ScriptId!=_scriptId ||
-               draft.Revision!=_revision)return;
+               draft.Revision!=_revision || draft.Steps is null ||
+               draft.Steps.Length>1500)return;
             var sig=JsonSerializer.Serialize(new{
                 Name=draft.Name,Group=draft.Group,Steps=draft.Steps.Select((x,i)=>new{
                     x.Account,x.Message,x.Attachment,x.PauseAfter,
@@ -262,12 +263,18 @@ public partial class ScriptEditorWindow : UserControl
     async Task LoadScriptAsync(string id)
     {
         var generation=++_scriptLoadGeneration;
+        var before=ComputeDraftSignature();
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptRead,8000,
                 new ScriptReadRequest(id));
             // Slow responses must never replace a newer user selection.
             if(generation!=_scriptLoadGeneration)return;
+            if(before!=ComputeDraftSignature())
+            {
+                StatusText.Text="加载期间编辑内容发生变化，已保留当前内容；需要时请重新选择剧本。";
+                return;
+            }
             var document=ReadData<ScriptEditorDocument>(raw);
             if(document.ScriptId!=id)
                 throw new IOException("后台返回的剧本与所选剧本不一致。");
@@ -695,8 +702,16 @@ public partial class ScriptEditorWindow : UserControl
         try
         {
             StatusText.Text="正在校验图片完整性…";
+            var generation=_scriptLoadGeneration;
             var raw=await MainWindow.SendAsync(ControlCommands.ImageCheck,30000,
                 new ImageCheckRequest(attachments));
+            if(generation!=_scriptLoadGeneration ||
+               !_steps.All(row=>string.IsNullOrWhiteSpace(row.Attachment) ||
+                   attachments.Contains(row.Attachment,StringComparer.Ordinal)))
+            {
+                StatusText.Text="图片检查期间剧本或附件已变化，请重新检查。";
+                return;
+            }
             var results=ReadData<List<ImageCheckResult>>(raw);
             var byReference=results.ToDictionary(x=>x.Reference,StringComparer.Ordinal);
             var good=0;
@@ -923,13 +938,34 @@ public partial class ScriptEditorWindow : UserControl
             _revision,output);
     }
 
+    bool _saveInProgress;
     async void Save_Click(object sender,RoutedEventArgs e)
     {
+        if(_saveInProgress)return;
+        _saveInProgress=true;
         try
         {
             var request=CollectDraft();
+            var originalScriptId=_scriptId;
+            var signature=ComputeDraftSignature();
+            var generation=_scriptLoadGeneration;
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptSave,16000,request);
             var doc=ReadData<ScriptEditorDocument>(raw);
+            if(generation!=_scriptLoadGeneration || _scriptId!=originalScriptId ||
+               signature!=ComputeDraftSignature())
+            {
+                // The server saved the submitted snapshot. Do not discard any
+                // edits made after submission or switch the current editor.
+                if(generation==_scriptLoadGeneration && _scriptId==originalScriptId)
+                {
+                    _scriptId=doc.ScriptId;
+                    _revision=doc.Revision;
+                    _dirty=true;
+                    SaveLocalDraft();
+                }
+                StatusText.Text="提交时的剧本版本已保存，但编辑区有后续修改；已保留当前内容，请再次保存。";
+                return;
+            }
             ClearLocalDraft();
             LoadDocument(doc);
             StatusText.Text=$"保存成功：{doc.Name}，共 {doc.Steps.Count} 条消息。";
@@ -941,6 +977,7 @@ public partial class ScriptEditorWindow : UserControl
             MessageBox.Show(Window.GetWindow(this),ex.Message,"无法保存剧本",MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
+        finally{_saveInProgress=false;}
     }
 
     void Import_Click(object sender,RoutedEventArgs e)
