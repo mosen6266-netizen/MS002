@@ -594,6 +594,40 @@ public sealed partial class StateStore
         using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        // Record only new state transitions. Already-paused tasks preserve
+        // their operator reason, even if Guardian retries recovery checks.
+        var batchTransitions=new List<(string JobId,bool Uncertain)>();
+        await using(var table=c.CreateCommand())
+        {
+            table.Transaction=tx;
+            table.CommandText="""
+                SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='v8_live_batch_jobs' LIMIT 1;
+                """;
+            if(await table.ExecuteScalarAsync(ct) is not null)
+            {
+                await using var read=c.CreateCommand();
+                read.Transaction=tx;
+                read.CommandText="""
+                    SELECT j.job_id,
+                        EXISTS(SELECT 1 FROM v8_dispatch_journal d
+                            WHERE d.job_id=j.job_id AND
+                                  d.state IN ('Sending','Unknown','RecoveryRequired'))
+                    FROM v8_jobs j JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                    WHERE j.state IN ('Running','Stopping','WaitingSignal')
+                       OR ($exited=1 AND j.state<>'RecoveryRequired' AND EXISTS(
+                           SELECT 1 FROM v8_dispatch_journal d
+                           WHERE d.job_id=j.job_id
+                             AND d.state IN ('Sending','Unknown','RecoveryRequired')));
+                    """;
+                read.Parameters.AddWithValue("$exited",daemonAlreadyExited?1:0);
+                await using var reader=await read.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))
+                    batchTransitions.Add((reader.GetString(0),
+                        daemonAlreadyExited && reader.GetInt64(1)!=0));
+            }
+        }
+
         // Never auto-resume a task merely because signal-cli recovers.
         await using(var pause=c.CreateCommand())
         {
@@ -637,18 +671,54 @@ public sealed partial class StateStore
                 journal.Parameters.AddWithValue("$n",now);
                 await journal.ExecuteNonQueryAsync(ct);
             }
-            tx.Commit();
-            return true;
         }
 
-        await using var pending=c.CreateCommand();
-        pending.Transaction=tx;
-        pending.CommandText="""
-            SELECT COUNT(*) FROM v8_dispatch_journal WHERE state IN ('Sending','Unknown');
-            """;
-        var inFlight=Convert.ToInt64(await pending.ExecuteScalarAsync(ct)??0);
+        foreach(var (jobId,uncertain) in batchTransitions)
+        {
+            var reason=uncertain
+                ?"Signal 后台异常退出，发送结果尚未确认；必须人工核对，任务不会自动重发。"
+                :"异常暂停：Signal 后台正在重启或失去连接，任务不会自动继续。";
+            await using(var plan=c.CreateCommand())
+            {
+                plan.Transaction=tx;
+                plan.CommandText="""
+                    UPDATE v8_live_batch_jobs SET detail=$reason WHERE job_id=$job;
+                    """;
+                plan.Parameters.AddWithValue("$reason",reason);
+                plan.Parameters.AddWithValue("$job",jobId);
+                await plan.ExecuteNonQueryAsync(ct);
+            }
+            await using(var ev=c.CreateCommand())
+            {
+                ev.Transaction=tx;
+                ev.CommandText="""
+                    INSERT INTO v8_event_log(job_id,event_type,detail,created_at)
+                    VALUES($job,$type,$reason,$now);
+                    """;
+                ev.Parameters.AddWithValue("$job",jobId);
+                ev.Parameters.AddWithValue("$type",
+                    uncertain?"daemon_recovery_required":"daemon_restart_paused");
+                ev.Parameters.AddWithValue("$reason",reason);
+                ev.Parameters.AddWithValue("$now",now);
+                await ev.ExecuteNonQueryAsync(ct);
+            }
+        }
+
+        // Do not stop an alive daemon while an irreversible Signal RPC
+        // may still be in progress. Jobs remain safely paused either way.
+        var inFlight=0L;
+        if(!daemonAlreadyExited)
+        {
+            await using var pending=c.CreateCommand();
+            pending.Transaction=tx;
+            pending.CommandText="""
+                SELECT COUNT(*) FROM v8_dispatch_journal
+                WHERE state IN ('Sending','Unknown');
+                """;
+            inFlight=Convert.ToInt64(await pending.ExecuteScalarAsync(ct)??0);
+        }
         tx.Commit();
-        return inFlight==0;
+        return daemonAlreadyExited || inFlight==0;
     }
 
     public async Task<UpdateReadiness> GetUpdateReadinessAsync(CancellationToken ct)
