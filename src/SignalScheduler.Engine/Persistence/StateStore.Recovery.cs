@@ -34,7 +34,7 @@ public sealed partial class StateStore
         var accountsTable=await HasTableAsync("v8_signal_accounts");
         var batchJoin=batchTable
             ?"LEFT JOIN v8_live_batch_jobs b ON b.job_id=j.job_id"
-            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name WHERE 0) b ON b.job_id=j.job_id";
+            :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name, NULL AS detail WHERE 0) b ON b.job_id=j.job_id";
         var pilotJoin=pilotTable
             ?"LEFT JOIN v8_live_pilot_plans p ON p.job_id=j.job_id"
             :"LEFT JOIN (SELECT NULL AS job_id, NULL AS group_name, NULL AS script_name WHERE 0) p ON p.job_id=j.job_id";
@@ -55,13 +55,18 @@ public sealed partial class StateStore
                            NULLIF(p.group_name,'') || ' · ' || NULLIF(p.script_name,''),
                            NULLIF(v.group_name,'') || ' · ' || NULLIF(v.script_name,''),
                            NULLIF(q.group_name,'') || ' · 实发测试',
-                           '未命名任务')
+                           '未命名任务'),
+                       COALESCE(NULLIF(b.detail,''),'')
                 FROM v8_jobs j
                 {batchJoin}
                 {pilotJoin}
                 {previewJoin}
                 {probeJoin}
-                ORDER BY j.updated_at DESC,j.job_id LIMIT 500;
+                ORDER BY CASE WHEN j.state='RecoveryRequired' THEN 0
+                              WHEN j.state IN ('Running','WaitingSignal','Stopping') THEN 1
+                              WHEN j.state='Paused' THEN 2
+                              ELSE 3 END,
+                         j.updated_at DESC,j.job_id LIMIT 500;
                 """;
             await using var r=await query.ExecuteReaderAsync(ct);
             while(await r.ReadAsync(ct))
@@ -69,7 +74,7 @@ public sealed partial class StateStore
                 var state=r.GetString(1);
                 jobs.Add(new RecoveryJobItem(
                     r.GetString(0),r.GetString(3),state,r.GetInt64(2),false,
-                    state=="RecoveryRequired"));
+                    state=="RecoveryRequired",r.GetString(4)));
             }
         }
 
