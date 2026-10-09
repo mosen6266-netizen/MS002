@@ -74,7 +74,7 @@ public sealed class SignalSendRpcContractTests
         var identity=new DispatchIdentity(
             "job2","run2",0,0,"selected-group","+491234567890","hash2");
         var result=await transport.SendAsync(identity,
-            "signal-structured:{\\"Message\\":\\"第一句发送测试\\",\\"AttachmentPath\\":null}",
+            "signal-structured:{\"Message\":\"第一句发送测试\",\"AttachmentPath\":null}",
             CancellationToken.None);
         Assert.Equal(SignalDeliveryOutcome.Confirmed,result.Outcome);
         Assert.Equal("1732345678901",result.ProviderMessageId);
