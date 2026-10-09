@@ -235,7 +235,7 @@ public sealed record UpdateReadiness(
 public sealed record ControlRequest(string Command, JsonElement? Payload = null);
 public sealed record ControlResponse(bool Ok, string? Error = null, object? Data = null);
 
-public sealed record ReadHealthSnapshot(string StreamState,long LastConnectedMs,long LastEventMs,int Pending,int Attempted,string LastError);
+public sealed record ReadHealthSnapshot(string StreamState,long LastConnectedMs,long LastEventMs,int Pending,int Attempted,string LastError,int Failed=0,int WaitingRetry=0);
 
 public static class ControlCommands
 {
