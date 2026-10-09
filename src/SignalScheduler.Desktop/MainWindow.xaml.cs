@@ -89,7 +89,8 @@ public partial class MainWindow : Window
         HomeNav.Content=compact?"⌂   首页":"⌂   首页 · 快速开始";
         AccountNav.Content=compact?"◉   账号群组":"◉   账号与群组";
         ScriptNav.Content="✎   剧本管理";
-        TaskNav.Content=compact?"◷   任务恢复":"◷   任务与恢复";
+        TaskNav.Content="◷   运行任务";
+        RecoveryNav.Content=compact?"⚠   恢复":"⚠   异常恢复";
         HistoryNav.Content="◷   历史记录";
         LicenseNav.Content=compact?"⚙   授权":"⚙   授权设置";
         // Keep an escape route for unusually small screens, rather than
@@ -148,6 +149,7 @@ public partial class MainWindow : Window
             "home"=>new LiveBatchWindow(),
             "accounts"=>new AccountGroupWindow(),
             "scripts"=>new ScriptEditorWindow(),
+            "tasks"=>new RunningTasksWindow(),
             "recovery"=>new RecoveryCenterWindow(),
             "history"=>new HistoryWindow(),
             "license"=>new LicenseWindow(),
@@ -200,8 +202,10 @@ public partial class MainWindow : Window
                 "管理账号备注、可用状态与 Signal 群组，不再打开新窗口。"),
             "scripts"=>("剧本管理",
                 "编辑消息、图片、发送间隔和提醒；修改保存在本地。"),
+            "tasks"=>("运行任务",
+                "按群监控消息阶段、等待时间与进度；异常发送请在恢复中心核对。"),
             "history"=>("历史记录","查看已结束任务及其每条消息的发送结果。"),
-            "recovery"=>("任务与恢复",
+            "recovery"=>("异常恢复",
                 "核对真实发送回执、暂停异常任务，避免未知结果被重复发送。"),
             "license"=>("卡密与授权",
                 "激活或核验现有卡密；本机资料继续保存在用户目录。"),
@@ -209,7 +213,7 @@ public partial class MainWindow : Window
         };
         PageTitle.Text=heading;
         PageSubtitle.Text=subtitle;
-        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,HistoryNav,LicenseNav})
+        foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,RecoveryNav,HistoryNav,LicenseNav})
             b.Background=Equals(b.Tag,key)
                 ?new SolidColorBrush(Color.FromRgb(34,73,111))
                 :Brushes.Transparent;
