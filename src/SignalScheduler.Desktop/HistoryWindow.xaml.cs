@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using SignalScheduler.Shared;
@@ -11,6 +12,8 @@ public partial class HistoryWindow : UserControl
     int _page;
     int _pages=1;
     bool _loading;
+    bool _pendingRefresh;
+    bool _exporting;
     int _requestId;
     public HistoryWindow()
     {
@@ -33,7 +36,11 @@ public partial class HistoryWindow : UserControl
 
     async Task RefreshAsync()
     {
-        if(_loading)return;
+        if(_loading)
+        {
+            _pendingRefresh=true;
+            return;
+        }
         _loading=true;
         var requestId=++_requestId;
         try
@@ -59,8 +66,20 @@ public partial class HistoryWindow : UserControl
             HistoryNextButton.IsEnabled=_page+1<_pages;
             StatusText.Text=$"历史记录共 {result.Total} 条。选择一条查看发送详情。";
         }
-        catch(Exception ex){StatusText.Text="加载历史失败："+ex.Message;}
-        finally{_loading=false;}
+        catch(Exception ex)
+        {
+            if(requestId==_requestId)
+                StatusText.Text="加载历史失败："+ex.Message;
+        }
+        finally
+        {
+            _loading=false;
+            if(_pendingRefresh)
+            {
+                _pendingRefresh=false;
+                await RefreshAsync();
+            }
+        }
     }
 
     async void Refresh_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
@@ -68,12 +87,13 @@ public partial class HistoryWindow : UserControl
     {
         if(!IsLoaded)return;
         _page=0;
+        ++_requestId;
         _=RefreshAsync();
     }
     async void PreviousPage_Click(object sender,RoutedEventArgs e)
-    {if(_page>0){_page--;await RefreshAsync();}}
+    {if(_page>0){_page--; ++_requestId; await RefreshAsync();}}
     async void NextPage_Click(object sender,RoutedEventArgs e)
-    {if(_page+1<_pages){_page++;await RefreshAsync();}}
+    {if(_page+1<_pages){_page++; ++_requestId; await RefreshAsync();}}
 
     async void HistoryGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)
     {
@@ -95,5 +115,51 @@ public partial class HistoryWindow : UserControl
             MessagesGrid.ItemsSource=null;
             StatusText.Text="读取发送明细失败："+ex.Message;
         }
+    }
+
+    async void ExportSelected_Click(object sender,RoutedEventArgs e)
+    {
+        if(_exporting || HistoryGrid.SelectedItem is not BatchJobRow job)
+        {
+            StatusText.Text="请先选择一条历史任务，再导出该任务的完整发送明细。";
+            return;
+        }
+        _exporting=true;
+        try
+        {
+            var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchHistoryDetail,
+                15000,new LiveBatchHistoryDetailRequest(job.JobId));
+            var detail=Unwrap<LiveBatchHistoryDetail>(raw);
+            if(detail.JobId!=job.JobId)
+                throw new IOException("后台返回的任务与所选记录不一致。");
+            var picker=new SaveFileDialog
+            {
+                Title="导出此任务的完整发送明细",
+                FileName="Signal-发送历史-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".json",
+                Filter="JSON 文件 (*.json)|*.json",
+                AddExtension=true
+            };
+            if(picker.ShowDialog(Window.GetWindow(this))!=true)return;
+            // User deliberately exports messages/evidence: never send this data
+            // to a server or log it; the destination is their chosen local file.
+            var content=JsonSerializer.Serialize(detail,
+                new JsonSerializerOptions{WriteIndented=true});
+            var temp=picker.FileName+".tmp";
+            try
+            {
+                File.WriteAllText(temp,content);
+                File.Move(temp,picker.FileName,true);
+            }
+            finally
+            {
+                if(File.Exists(temp))File.Delete(temp);
+            }
+            StatusText.Text=$"已导出「{detail.GroupName}」的完整发送明细。请妥善保管包含消息内容的文件。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="导出失败："+ex.Message;
+        }
+        finally{_exporting=false;}
     }
 }

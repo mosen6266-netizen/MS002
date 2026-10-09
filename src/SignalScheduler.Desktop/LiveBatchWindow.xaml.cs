@@ -90,14 +90,26 @@ public partial class LiveBatchWindow : UserControl
     const int GroupsPerPage=10;
     int _groupPage;
     ICollectionView? _groupsView;
+    readonly HashSet<string> _visibleGroupIds=new(StringComparer.Ordinal);
+    void GroupSearchBox_TextChanged(object sender,TextChangedEventArgs e)
+    {
+        _groupPage=0;
+        RefreshGroupPage();
+    }
     void RefreshGroupPage()
     {
         if(GroupsGrid is null)return;
-        var pages=Math.Max(1,(_groups.Count+GroupsPerPage-1)/GroupsPerPage);
+        var term=GroupSearchBox?.Text.Trim()??"";
+        var matches=_groups.Where(g=>term.Length==0 ||
+            g.Name.Contains(term,StringComparison.CurrentCultureIgnoreCase)).ToArray();
+        var pages=Math.Max(1,(matches.Length+GroupsPerPage-1)/GroupsPerPage);
         _groupPage=Math.Clamp(_groupPage,0,pages-1);
+        _visibleGroupIds.Clear();
+        foreach(var row in matches.Skip(_groupPage*GroupsPerPage).Take(GroupsPerPage))
+            _visibleGroupIds.Add(row.GroupId);
         _groupsView?.Refresh();
         if(GroupsPageLabel is not null)
-            GroupsPageLabel.Text=$"第 {_groupPage+1} / {pages} 页 · 共 {_groups.Count} 个群";
+            GroupsPageLabel.Text=$"第 {_groupPage+1} / {pages} 页 · 找到 {matches.Length} / {_groups.Count} 个群";
         if(PreviousGroupsPage is not null)PreviousGroupsPage.IsEnabled=_groupPage>0;
         if(NextGroupsPage is not null)NextGroupsPage.IsEnabled=_groupPage<pages-1;
     }
@@ -146,7 +158,7 @@ public partial class LiveBatchWindow : UserControl
         RestoreReadOptions();
         _groupsView=CollectionViewSource.GetDefaultView(_groups);
         _groupsView.Filter=o=>o is BatchGroupRow row &&
-            _groups.IndexOf(row)/GroupsPerPage==_groupPage;
+            _visibleGroupIds.Contains(row.GroupId);
         GroupsGrid.ItemsSource=_groupsView;
         _jobsView=CollectionViewSource.GetDefaultView(_jobs);
         _jobsView.Filter=o=>o is BatchJobRow row &&

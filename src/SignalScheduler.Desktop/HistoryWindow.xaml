@@ -5,9 +5,9 @@
  <Grid Margin="20">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-   <RowDefinition Height="485"/><RowDefinition Height="14"/>
+   <RowDefinition Height="2*"/><RowDefinition Height="14"/>
    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
-   <RowDefinition Height="440"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="2*"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <DockPanel>
    <StackPanel DockPanel.Dock="Left">
@@ -30,6 +30,8 @@
     <ComboBoxItem Content="异常停止" Tag="Failed"/>
    </ComboBox>
    <Button Content="查询" Click="Refresh_Click" Padding="10,4" Margin="0,0,8,6"/>
+   <Button Content="导出所选明细 JSON" Click="ExportSelected_Click"
+    Padding="10,4" Margin="0,0,8,6" ToolTip="导出当前选中任务的全部消息及结果，包含消息正文"/>
    <Button x:Name="HistoryPrevButton" Content="上一页" Click="PreviousPage_Click"
     Margin="0,0,6,6" Padding="10,4"/>
    <TextBlock x:Name="HistoryPageLabel" Text="第 1 / 1 页" VerticalAlignment="Center"

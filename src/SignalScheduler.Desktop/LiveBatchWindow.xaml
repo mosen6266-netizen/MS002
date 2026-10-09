@@ -112,6 +112,11 @@
       <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"/>
      </StackPanel>
     </Grid>
+    <TextBox x:Name="GroupSearchBox" Height="36" Margin="0,2,0,10"
+      TextChanged="GroupSearchBox_TextChanged"
+      Background="#19374E" Foreground="#F0F7FD" CaretBrush="White"
+      BorderBrush="#45708D" Padding="9,5"
+      ToolTip="输入群组名称关键词，仅筛选显示，不改变已勾选的群组"/>
     <DataGrid x:Name="GroupsGrid"
       SelectionChanged="GroupsGrid_SelectionChanged"
        AlternationCount="2" RowHeight="45"
