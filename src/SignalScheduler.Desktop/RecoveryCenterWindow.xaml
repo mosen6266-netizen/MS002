@@ -60,7 +60,7 @@
    <TextBlock Text="需要处理的任务（可勾选显示全部）" FontSize="16" FontWeight="SemiBold"
               Margin="0,0,0,10"/>
    <DataGrid x:Name="JobsGrid" EnableColumnVirtualization="False"
-             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Grid.Row="1" AlternationCount="2"
+             HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" Grid.Row="1" AlternationCount="2"
              SelectionChanged="JobsGrid_SelectionChanged">
     <DataGrid.Columns>
      <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="2*" MinWidth="90"
@@ -83,8 +83,10 @@
    <DockPanel Margin="0,0,0,10">
     <TextBlock Text="所选任务的发送审计记录" FontSize="16"
                FontWeight="SemiBold" DockPanel.Dock="Left"/>
-    <Button Content="复制选中记录" DockPanel.Dock="Right"
-            Click="Copy_Click" HorizontalAlignment="Right"/>
+    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+     <Button Content="复制脱敏诊断" Click="CopySafeDiagnostic_Click" Background="#195A64"/>
+     <Button Content="复制完整记录" Click="Copy_Click"/>
+    </StackPanel>
    </DockPanel>
 <DataGrid x:Name="DispatchGrid" EnableColumnVirtualization="False"
              HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Grid.Row="1" AlternationCount="2"
@@ -94,6 +96,8 @@
      <DataGridTextColumn Header="发送状态" Binding="{Binding StateDisplay}" Width="115"/>
      <DataGridTextColumn Header="账号备注" Binding="{Binding AccountDisplay}" Width="120"/>
      <DataGridTextColumn Header="群组" Binding="{Binding GroupDisplay}" Width="2*" MinWidth="100"/>
+     <DataGridTextColumn Header="故障类别" Binding="{Binding DiagnosisLabel}" Width="180"/>
+     <DataGridTextColumn Header="故障阶段" Binding="{Binding DiagnosisStage}" Width="140"/>
      <DataGridTextColumn Header="提供方消息 ID" Binding="{Binding ProviderMessageId}" Width="150"/>
      <DataGridTextColumn Header="异常 / 说明" Binding="{Binding Detail}" Width="2*" MinWidth="105"
       ElementStyle="{StaticResource TruncatedGridText}"/>
