@@ -25,7 +25,9 @@ public sealed class LiveProbeTests
             Assert.Equal("send",request.GetProperty("method").GetString());
             var p=request.GetProperty("params");
             Assert.Equal("+49123",p.GetProperty("account").GetString());
-            Assert.Equal("group-1",p.GetProperty("groupId").GetString());
+            Assert.False(p.TryGetProperty("groupId",out _));
+            Assert.Equal("group-1",
+                Assert.Single(p.GetProperty("groupIds").EnumerateArray()).GetString());
             Assert.StartsWith("[SignalScheduler 实发测试]",
                 p.GetProperty("message").GetString());
             return (HttpStatusCode.OK,JsonSerializer.Serialize(new
