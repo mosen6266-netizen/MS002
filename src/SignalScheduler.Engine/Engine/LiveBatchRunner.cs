@@ -176,7 +176,33 @@ public sealed class LiveBatchRunner : BackgroundService
 
     async Task ProcessSafelyAsync(StateStore.DueLiveBatch due,CancellationToken ct)
     {
-        try{await ProcessGroupAsync(due,ct);}
+        try
+        {
+            await ProcessGroupAsync(due,ct);
+        }
+        catch(OperationCanceledException) when(ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch(Exception ex)
+        {
+            // A worker failure must not leave the group Running and therefore
+            // eligible for the next polling cycle. Never advance its cursor
+            // or guess the outcome of an in-flight Signal request.
+            try
+            {
+                await _store.PauseLiveBatchForSafetyAsync(
+                    due.Dispatch.JobId,
+                    "异常停止：后台调度发生未处理错误（"+
+                        ex.GetType().Name+"），请检查恢复记录并手动决定是否继续。",
+                    CancellationToken.None);
+            }
+            catch
+            {
+                // If SQLite itself is unavailable, journal recovery on next
+                // startup remains fail-closed; never retry in this worker.
+            }
+        }
         finally{_slots.Release();}
     }
 
