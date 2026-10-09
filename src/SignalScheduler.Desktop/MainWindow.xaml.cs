@@ -37,6 +37,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         PreviewMouseWheel+=GlobalWheel_PreviewMouseWheel;
+        SizeChanged+=(_,_)=>AdjustNavigationForViewport();
         WorkspaceScroll.SizeChanged+=(_,_)=>
         {
             if(_currentPage=="scripts")
@@ -74,6 +75,26 @@ public partial class MainWindow : Window
         Height=Math.Min(Height,maxHeight);
         Left=area.Left+(area.Width-Width)/2;
         Top=area.Top+(area.Height-Height)/2;
+        AdjustNavigationForViewport();
+    }
+
+    void AdjustNavigationForViewport()
+    {
+        // WPF sizes are device-independent pixels. At 125–200% scaling,
+        // 215 DIP of navigation can unnecessarily crowd a laptop display.
+        var compact=ActualWidth>0 && ActualWidth<1120;
+        var newWidth=compact?184:215;
+        if(Math.Abs(NavigationColumn.Width.Value-newWidth)>0.1)
+            NavigationColumn.Width=new GridLength(newWidth);
+        HomeNav.Content=compact?"⌂   首页":"⌂   首页 · 快速开始";
+        AccountNav.Content=compact?"◉   账号群组":"◉   账号与群组";
+        ScriptNav.Content="✎   剧本管理";
+        TaskNav.Content=compact?"◷   任务恢复":"◷   任务与恢复";
+        HistoryNav.Content="◷   历史记录";
+        LicenseNav.Content=compact?"⚙   授权":"⚙   授权设置";
+        // Keep an escape route for unusually small screens, rather than
+        // clipping content silently. Normal widths never gain a scrollbar.
+        WorkspaceScroll.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
     }
 
     void GlobalWheel_PreviewMouseWheel(object sender,
