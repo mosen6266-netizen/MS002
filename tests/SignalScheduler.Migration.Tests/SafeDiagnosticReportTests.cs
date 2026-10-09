@@ -41,6 +41,18 @@ public sealed class SafeDiagnosticReportTests
     }
 
     [Fact]
+    public void SanitizedReportIncludesRetryAndPermanentFailureCounts()
+    {
+        var data=new SafeDiagnosticSnapshot(
+            DateTimeOffset.UtcNow,"8.0.0",true,"Ready",2,2,1,1,0,0,
+            "已连接",5,8,0,true,true,true,3,4);
+        var report=SafeDiagnosticReport.Render(data);
+        Assert.Contains("等待重试回执：4",report);
+        Assert.Contains("最终失败回执：3",report);
+        Assert.DoesNotContain("test-sender",report);
+    }
+
+    [Fact]
     public void InvalidMetricsAreClampedInsteadOfExportingSurprisingValues()
     {
         var data=new SafeDiagnosticSnapshot(DateTimeOffset.UtcNow,
