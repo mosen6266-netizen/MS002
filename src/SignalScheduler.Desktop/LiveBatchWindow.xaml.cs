@@ -126,7 +126,7 @@ public partial class LiveBatchWindow : UserControl
 
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchJobRow> _jobs=new();
-    const int JobsPerPage=10;
+    const int JobsPerPage=2;
     int _jobsPage;
     ICollectionView? _jobsView;
     void RefreshJobsPage()
@@ -302,9 +302,15 @@ public partial class LiveBatchWindow : UserControl
 
     void SelectAll_Click(object sender,RoutedEventArgs e)
     {
-        // Do not silently select more groups than the configured per-run limit.
-        foreach(var (group,index) in _groups.Select((value,index)=>(value,index)))
-            group.Selected=index<20;
+        // Respect the current search filter. Keep already selected items and
+        // cap selection at twenty, even when groups span several pages.
+        var query=GroupSearchBox.Text.Trim();
+        foreach(var row in _groups.Where(x=>query.Length==0 ||
+            x.Name.Contains(query,StringComparison.CurrentCultureIgnoreCase)))
+        {
+            if(_groups.Count(x=>x.Selected)>=20)break;
+            row.Selected=true;
+        }
         RefreshSelectedTags();
     }
 

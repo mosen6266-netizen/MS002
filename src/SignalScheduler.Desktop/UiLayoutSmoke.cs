@@ -29,7 +29,7 @@ internal static class UiLayoutSmoke
                     "另一个示例群组",2,false))
             };
             CheckPage(home,"首页群组选择",home.GroupsGrid,
-                new[]{60d,420d,70d},report);
+                new[]{50d,150d,60d},report);
 
             var account=new AccountGroupWindow();
             account.AccountGrid.ItemsSource=new[]

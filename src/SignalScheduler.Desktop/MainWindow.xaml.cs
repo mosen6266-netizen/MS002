@@ -34,12 +34,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        PreviewMouseWheel+=GlobalWheel_PreviewMouseWheel;
+        // Let controls handle their own mouse wheel; the outer workspace does not scroll.
         SizeChanged+=(_,_)=>AdjustNavigationForViewport();
         WorkspaceScroll.SizeChanged+=(_,_)=>
         {
-            if(_currentPage=="scripts")
-                PageHost.Height=Math.Max(300,WorkspaceScroll.ActualHeight);
+            PageHost.Height=Math.Max(320,WorkspaceScroll.ActualHeight);
         };
         Application.Current.MainWindow=this;
         NotificationsList.ItemsSource=_notifications;
@@ -97,7 +96,7 @@ public partial class MainWindow : Window
         LicenseNav.Content=compact?"⚙   授权":"⚙   授权设置";
         // Keep an escape route for unusually small screens, rather than
         // clipping content silently. Normal widths never gain a scrollbar.
-        WorkspaceScroll.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
+        WorkspaceScroll.HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled;
     }
 
     void GlobalWheel_PreviewMouseWheel(object sender,
@@ -189,17 +188,17 @@ public partial class MainWindow : Window
            old is ScriptEditorWindow editor &&
            !editor.CanLeave())return;
 
-        // The editor is a single-height workspace; other pages can use full-page scroll.
-        WorkspaceScroll.VerticalScrollBarVisibility=key=="scripts"
-            ?ScrollBarVisibility.Disabled:ScrollBarVisibility.Auto;
-        PageHost.Height=key=="scripts"
-            ?Math.Max(300,WorkspaceScroll.ActualHeight):double.NaN;
+        // All pages use one bounded viewport. Tables scroll their own rows,
+        // never the entire application, and horizontal page scroll is disabled.
+        WorkspaceScroll.VerticalScrollBarVisibility=ScrollBarVisibility.Disabled;
+        WorkspaceScroll.HorizontalScrollBarVisibility=ScrollBarVisibility.Disabled;
+        PageHost.Height=Math.Max(320,WorkspaceScroll.ActualHeight);
         PageHost.Content=GetPage(key);
         _currentPage=key;
         var (heading,subtitle)=key switch
         {
             "home"=>("首页 · 快速开始",
-                "直接勾选群组、选择剧本并启动；进行中的任务在同一页独立管理。"),
+                "左侧选择群组，右侧选择剧本；每页十个群组，不用上下滚动。"),
             "accounts"=>("账号与群组",
                 "管理账号备注、可用状态与 Signal 群组，不再打开新窗口。"),
             "scripts"=>("剧本管理",
