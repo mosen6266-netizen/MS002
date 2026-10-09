@@ -83,6 +83,39 @@ public sealed partial class StateStore
         using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+        // Capture live-batch transitions BEFORE moving their generic job
+        // states. A repeated startup must not overwrite an already recorded
+        // human-review reason. Older databases may not have the batch table.
+        var batchTransitions=new List<(string JobId,bool Uncertain)>();
+        await using(var table=c.CreateCommand())
+        {
+            table.Transaction=tx;
+            table.CommandText="""
+                SELECT 1 FROM sqlite_master
+                WHERE type='table' AND name='v8_live_batch_jobs' LIMIT 1;
+                """;
+            if(await table.ExecuteScalarAsync(ct) is not null)
+            {
+                await using var q=c.CreateCommand();
+                q.Transaction=tx;
+                q.CommandText="""
+                    SELECT j.job_id,
+                       EXISTS(SELECT 1 FROM v8_dispatch_journal d
+                              WHERE d.job_id=j.job_id AND
+                                d.state IN ('Sending','Unknown','RecoveryRequired'))
+                    FROM v8_jobs j JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                    WHERE j.state IN ('Running','Stopping','WaitingSignal')
+                       OR (j.state<>'RecoveryRequired' AND EXISTS(
+                            SELECT 1 FROM v8_dispatch_journal d
+                            WHERE d.job_id=j.job_id AND d.state IN
+                                  ('Sending','Unknown','RecoveryRequired')));
+                    """;
+                await using var reader=await q.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))
+                    batchTransitions.Add((reader.GetString(0),reader.GetInt64(1)!=0));
+            }
+        }
+
         await using(var affected=c.CreateCommand())
         {
             affected.Transaction=tx;
@@ -123,6 +156,42 @@ public sealed partial class StateStore
         }
 
         await MarkPreparedAsNotSentAsync(c,tx,now,ct);
+
+        // Preserve a meaningful reason for every newly quarantined or paused
+        // live batch, so history and critical alerts do not show stale "ready"
+        // text after an unexpected engine restart.
+        foreach(var (jobId,uncertain) in batchTransitions)
+        {
+            var reason=uncertain
+                ?"后台重启时存在发送结果不明确的消息，已停止自动调度；请先人工核对。"
+                :"后台重启后任务已暂停，不会自动继续；请检查后手动恢复。";
+            await using(var plan=c.CreateCommand())
+            {
+                plan.Transaction=tx;
+                plan.CommandText="""
+                    UPDATE v8_live_batch_jobs SET detail=$reason
+                    WHERE job_id=$job;
+                    """;
+                plan.Parameters.AddWithValue("$reason",reason);
+                plan.Parameters.AddWithValue("$job",jobId);
+                await plan.ExecuteNonQueryAsync(ct);
+            }
+            await using(var log=c.CreateCommand())
+            {
+                log.Transaction=tx;
+                log.CommandText="""
+                    INSERT INTO v8_event_log(job_id,event_type,detail,created_at)
+                    VALUES($job,$type,$reason,$now);
+                    """;
+                log.Parameters.AddWithValue("$job",jobId);
+                log.Parameters.AddWithValue("$type",
+                    uncertain?"startup_recovery_required":"startup_paused");
+                log.Parameters.AddWithValue("$reason",reason);
+                log.Parameters.AddWithValue("$now",now);
+                await log.ExecuteNonQueryAsync(ct);
+            }
+        }
+
         tx.Commit();
     }
 
