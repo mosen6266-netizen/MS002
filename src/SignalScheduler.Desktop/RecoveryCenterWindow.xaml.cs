@@ -286,6 +286,35 @@ public partial class RecoveryCenterWindow : UserControl
     async void MarkSeen_Click(object sender,RoutedEventArgs e)=>await ReviewAsync("seen");
     async void MarkNotSent_Click(object sender,RoutedEventArgs e)=>await ReviewAsync("not_seen");
 
+    void CopySafeDiagnostic_Click(object sender,RoutedEventArgs e)
+    {
+        if(DispatchGrid.SelectedItem is not RecoveryDispatchItem d)
+        {
+            StatusText.Text="请先选中下方的一条发送记录。";
+            return;
+        }
+        // Shareable report intentionally excludes account, group, labels,
+        // dispatch keys, provider IDs and raw exception messages.
+        var diagnosis=FailureDiagnostics.Analyze(d.Detail,d.State);
+        var text=$"""
+            MS002 脱敏故障诊断
+            发送状态：{StatusLabels.Delivery(d.State)}
+            诊断代码：{diagnosis.Code}
+            故障类别：{diagnosis.Label}
+            发生阶段：{diagnosis.Stage}
+            证据程度：{diagnosis.Certainty}
+            建议检查：{diagnosis.NextStep}
+            时间（Unix 秒）：{d.UpdatedAt}
+            声明：此诊断不能证明 Signal 消息实际送达；不含消息正文、手机号、群组标识、密钥。
+            """;
+        try
+        {
+            Clipboard.SetText(text);
+            StatusText.Text="已复制脱敏诊断（不含账号、群组、消息和原始日志）。";
+        }
+        catch(Exception){StatusText.Text="无法复制，请确认系统剪贴板可用。";}
+    }
+
     void Copy_Click(object sender,RoutedEventArgs e)
     {
         if(DispatchGrid.SelectedItem is not RecoveryDispatchItem d)
