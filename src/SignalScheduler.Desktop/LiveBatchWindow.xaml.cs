@@ -179,6 +179,11 @@ public partial class LiveBatchWindow : UserControl
             var compact=ActualHeight<650;
             GroupsGrid.RowHeight=compact?22:29;
             GroupsGrid.ColumnHeaderHeight=compact?28:31;
+            // Keep all ten paged groups visible even at laptop-height
+            // viewports. Tasks remain accessible from the dedicated page.
+            var hideSummary=ActualHeight<640;
+            JobSummaryPanel.Visibility=hideSummary?Visibility.Collapsed:Visibility.Visible;
+            JobSummaryRow.Height=new GridLength(hideSummary?0:106);
         };
         UpdateButtons();
     }

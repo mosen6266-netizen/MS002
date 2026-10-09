@@ -21,15 +21,11 @@ internal static class UiLayoutSmoke
         try
         {
             var home=new LiveBatchWindow();
-            home.GroupsGrid.ItemsSource=new[]
-            {
-                new BatchGroupRow(new ManagedGroup("g-1",
-                    "德语业务沟通及长名称演示群组",3,true)),
-                new BatchGroupRow(new ManagedGroup("g-2",
-                    "另一个示例群组",2,false))
-            };
+            home.GroupsGrid.ItemsSource=Enumerable.Range(1,10)
+                .Select(i=>new BatchGroupRow(new ManagedGroup(
+                    "g-"+i,"群组名称示例 "+i,2,false))).ToArray();
             CheckPage(home,"首页群组选择",home.GroupsGrid,
-                new[]{50d,150d,60d},report);
+                new[]{50d,150d,60d},report,windowHeight:620);
 
             var account=new AccountGroupWindow();
             account.AccountGrid.ItemsSource=new[]
@@ -75,13 +71,13 @@ internal static class UiLayoutSmoke
     }
 
     static void CheckPage(UserControl page,string name,DataGrid grid,
-        double[] minWidths,StringBuilder report)
+        double[] minWidths,StringBuilder report,double windowHeight=810)
     {
         var window=new Window
         {
             Title="MS002 UI smoke",
             Width=1220,
-            Height=810,
+            Height=windowHeight,
             Left=-4500,
             Top=-4500,
             WindowStartupLocation=WindowStartupLocation.Manual,
@@ -103,6 +99,13 @@ internal static class UiLayoutSmoke
                 string.Join(",",widths.Select(w=>w.ToString("F0"))));
             if(grid.ActualWidth<500)
                 throw new InvalidOperationException($"{name}: grid surface collapsed.");
+            if(name=="首页群组选择")
+            {
+                var required=10*grid.RowHeight+grid.ColumnHeaderHeight;
+                if(grid.ActualHeight<required-1)
+                    throw new InvalidOperationException(
+                        $"首页每页十行不可完整显示：{grid.ActualHeight:F0} < {required:F0}");
+            }
             for(var i=0;i<minWidths.Length;i++)
             {
                 if(i>=widths.Length || widths[i]<minWidths[i])

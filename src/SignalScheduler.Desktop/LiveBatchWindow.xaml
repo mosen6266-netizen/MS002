@@ -32,7 +32,7 @@
    <RowDefinition Height="8"/>
    <RowDefinition Height="*"/>
    <RowDefinition Height="9"/>
-   <RowDefinition Height="106"/>
+   <RowDefinition x:Name="JobSummaryRow" Height="106"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <Grid Grid.Row="0">
@@ -181,7 +181,7 @@
     </Grid>
    </Border>
   </Grid>
-  <Border Grid.Row="4" Background="#10273C" BorderBrush="#34526D"
+  <Border x:Name="JobSummaryPanel" Grid.Row="4" Background="#10273C" BorderBrush="#34526D"
    BorderThickness="1" CornerRadius="8" Padding="8">
    <Grid>
     <Grid.RowDefinitions>
