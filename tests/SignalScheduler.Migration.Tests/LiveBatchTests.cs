@@ -777,6 +777,57 @@ public sealed class LiveBatchTests
             DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
     }
 
+    [Fact]
+    public async Task TwentyGroupsCrashWithOneInFlightQuarantinesOnlyThatGroup()
+    {
+        var (store,db)=await NewStoreAsync();
+        const string account="+49123";
+        var groups=Enumerable.Range(1,20)
+            .Select(i=>new SignalGroupCatalogItem(account,"mixed-crash-"+i,
+                "授权测试群 "+i,true,Array.Empty<string>())).ToArray();
+        await store.SyncSignalCatalogAsync(new[]{account},groups,new[]{account},Ct);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"第一条"),Step(1,"第二条")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,
+            groups.Select(x=>x.GroupId).ToArray(),true),Ct);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        Assert.Equal(20,due.Count);
+        var sending=due.Single(x=>x.Dispatch.GroupId=="mixed-crash-1");
+        await store.ReserveAsync(sending.Dispatch,Ct);
+        await store.MarkSendingAsync(sending.Dispatch,Ct);
+
+        var root=Path.GetDirectoryName(db)!;
+        var restarted=new StateStore(RuntimePaths.ForTesting(root,db));
+        await restarted.InitializeAsync(Ct);
+        var jobs=await restarted.ListLiveBatchAsync(Ct);
+        Assert.Equal(20,jobs.Count);
+        Assert.Equal("RecoveryRequired",
+            jobs.Single(x=>x.GroupId=="mixed-crash-1").State);
+        Assert.All(jobs.Where(x=>x.GroupId!="mixed-crash-1"),
+            x=>Assert.Equal("Paused",x.State));
+        Assert.All(jobs,x=>Assert.Equal(0,x.Cursor));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal WHERE state='RecoveryRequired'"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_recovery_required'"));
+        Assert.Equal("19",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+
+        // Multiple Engine restarts must not duplicate recovery events or
+        // silently release any of the quarantined or paused group jobs.
+        var again=new StateStore(RuntimePaths.ForTesting(root,db));
+        await again.InitializeAsync(Ct);
+        Assert.Empty(await again.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_recovery_required'"));
+        Assert.Equal("19",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
