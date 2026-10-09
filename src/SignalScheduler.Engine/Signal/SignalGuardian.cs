@@ -30,6 +30,8 @@ public sealed class SignalGuardian : BackgroundService
     DateTimeOffset? _firstFailure;
     int _restartCount;
     int _consecutiveFailures;
+    volatile string _lastDaemonErrorCategory="";
+    long _lastDaemonErrorAtMs;
     SignalGuardianSnapshot _snapshot=new(
         "starting","等待 Signal Guardian 启动","",false,0,DateTimeOffset.UtcNow,Array.Empty<string>());
 
@@ -50,7 +52,9 @@ public sealed class SignalGuardian : BackgroundService
         {
             _snapshot=new SignalGuardianSnapshot(
                 state,detail,version,owns,_restartCount,DateTimeOffset.UtcNow,
-                accounts ?? _snapshot.LiveAccounts);
+                accounts ?? _snapshot.LiveAccounts,
+                _lastDaemonErrorCategory,
+                Interlocked.Read(ref _lastDaemonErrorAtMs));
         }
     }
 
@@ -318,6 +322,12 @@ public sealed class SignalGuardian : BackgroundService
         _lastOutput=DateTimeOffset.UtcNow;
         var sanitized=SanitizeDaemonDiagnostic(line);
         if(sanitized is null)return;
+        if(sanitized.StartsWith("ERROR ",StringComparison.Ordinal))
+        {
+            _lastDaemonErrorCategory=sanitized;
+            Interlocked.Exchange(ref _lastDaemonErrorAtMs,
+                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        }
 
         try
         {
