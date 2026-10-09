@@ -241,15 +241,19 @@
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="群组" Width="1.2*" Binding="{Binding GroupName}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="状态" Width="88" Binding="{Binding StateDisplay}"
+    <DataGridTextColumn Header="任务状态" Width="94" Binding="{Binding StateDisplay}"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="当前阶段" Width="130" Binding="{Binding Phase}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="进度" Width="72" Binding="{Binding Progress}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="下句倒计时" Width="100" Binding="{Binding NextCountdown}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="预计剩余时间" Width="140" Binding="{Binding RemainingEstimate}"
+    <DataGridTextColumn Header="剩余时间估算" Width="176" Binding="{Binding RemainingEstimate}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="下次发送" Width="88" Binding="{Binding NextSend}"
+    <DataGridTextColumn Header="最早完成时间" Width="172" Binding="{Binding EarliestFinish}"
+     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTextColumn Header="下次发送" Width="130" Binding="{Binding NextSend}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTemplateColumn Header="详情" Width="1.4*">
      <DataGridTemplateColumn.CellTemplate>
