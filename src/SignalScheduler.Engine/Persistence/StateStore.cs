@@ -164,7 +164,7 @@ public sealed partial class StateStore
         {
             var reason=uncertain
                 ?"后台重启时存在发送结果不明确的消息，已停止自动调度；请先人工核对。"
-                :"后台重启后任务已暂停，不会自动继续；请检查后手动恢复。";
+                :"异常暂停：后台程序重启后任务已暂停，不会自动继续；请检查后手动恢复。";
             await using(var plan=c.CreateCommand())
             {
                 plan.Transaction=tx;
