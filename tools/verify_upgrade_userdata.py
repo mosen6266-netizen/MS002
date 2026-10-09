@@ -58,7 +58,10 @@ def snapshot(root: Path) -> dict:
     if not dbpath.is_file():
         raise AssertionError("User data database missing after upgrade")
     with sqlite3.connect(str(dbpath), timeout=20) as con:
-        state = {key: con.execute(query, params).fetchall()
+        # sqlite3 returns tuple rows, while JSON round-tripping yields lists.
+        # Canonicalize rows before writing AND comparing the snapshots; without
+        # this the test reports differences even on an untouched database.
+        state = {key: [list(row) for row in con.execute(query, params).fetchall()]
                  for key, (query, params) in QUERIES.items()}
     for key, rows in state.items():
         if not rows:
