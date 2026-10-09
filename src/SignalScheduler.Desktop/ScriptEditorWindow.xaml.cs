@@ -222,9 +222,16 @@ public partial class ScriptEditorWindow : UserControl
     async Task ReloadScriptsAsync(bool loadFirst=false,string? selectId=null)
     {
         var oldId=selectId??_scriptId;
+        var generation=_scriptLoadGeneration;
+        var editorSignature=ComputeDraftSignature();
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.ScriptList,8000);
+            // A background list refresh must not overwrite a new script or
+            // invalidate edits made while the IPC request was pending.
+            if(generation!=_scriptLoadGeneration ||
+               editorSignature!=ComputeDraftSignature() ||
+               oldId!=(selectId??_scriptId))return;
             var scripts=ReadData<List<ScriptEditorSummary>>(raw);
             _loading=true;
             _scriptView=CollectionViewSource.GetDefaultView(scripts);
