@@ -15,6 +15,8 @@ public partial class RecoveryCenterWindow : UserControl
     bool _pauseInProgress;
     string? _selectedEvidenceJob;
     string? _selectedEvidenceDispatch;
+    RecoveryOverview? _displayedDispatchOverview;
+    string? _displayedDispatchJobId;
 
     public RecoveryCenterWindow()
     {
@@ -129,9 +131,17 @@ public partial class RecoveryCenterWindow : UserControl
             return;
         }
         var job=JobsGrid.SelectedItem as RecoveryJobItem;
-        DispatchGrid.ItemsSource=job is null
-            ?Array.Empty<RecoveryDispatchItem>()
-            :_overview.Dispatches.Where(x=>x.JobId==job.JobId).ToArray();
+        // Updating buttons after a review/pause must not recreate the grid:
+        // replacing ItemsSource loses selection and clears the evidence field.
+        if(!ReferenceEquals(_displayedDispatchOverview,_overview) ||
+           _displayedDispatchJobId!=job?.JobId)
+        {
+            _displayedDispatchOverview=_overview;
+            _displayedDispatchJobId=job?.JobId;
+            DispatchGrid.ItemsSource=job is null
+                ?Array.Empty<RecoveryDispatchItem>()
+                :_overview.Dispatches.Where(x=>x.JobId==job.JobId).ToArray();
+        }
         PauseButton.IsEnabled=job is {IsLegacy:false} &&
             (job.State is "Running" or "WaitingSignal" or "Stopping") &&
             _snapshotFresh && !_refreshing && !_reviewInProgress && !_pauseInProgress;
