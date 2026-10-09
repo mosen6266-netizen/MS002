@@ -440,11 +440,10 @@ public sealed partial class StateStore
     public async Task<int> PauseUnfinalizedConfirmedBatchesAsync(CancellationToken ct)
     {
         await using var c=Open();
-        using var tx=c.BeginTransaction();
         var affected=new List<string>();
         await using(var query=c.CreateCommand())
         {
-            query.Transaction=tx;
+            // Fast read-only check first. The common case takes no write lock.
             query.CommandText="""
                 SELECT j.job_id FROM v8_jobs j
                 JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
@@ -461,6 +460,8 @@ public sealed partial class StateStore
             while(await reader.ReadAsync(ct))
                 affected.Add(reader.GetString(0));
         }
+        if(affected.Count==0)return 0;
+        using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         const string detail="发现已确认发送，但剧本进度或提醒尚未写入；任务已安全暂停，需人工核对。";
         var paused=0;
@@ -470,7 +471,15 @@ public sealed partial class StateStore
             freeze.Transaction=tx;
             freeze.CommandText="""
                 UPDATE v8_jobs SET state='Paused',updated_at=$now
-                WHERE job_id=$job AND state='Running';
+                WHERE job_id=$job AND state='Running' AND cursor>0
+                  AND NOT EXISTS(
+                    SELECT 1 FROM v8_dispatch_journal d
+                    JOIN v8_event_log e ON e.dispatch_key=d.dispatch_key
+                    WHERE d.job_id=v8_jobs.job_id AND d.cursor=v8_jobs.cursor-1
+                      AND d.state='Confirmed'
+                      AND e.event_type IN
+                        ('batch_step_confirmed','batch_reminder_pause','batch_completed')
+                  );
                 """;
             freeze.Parameters.AddWithValue("$now",now);
             freeze.Parameters.AddWithValue("$job",jobId);
