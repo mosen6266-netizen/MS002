@@ -53,7 +53,11 @@ public partial class RecoveryCenterWindow : UserControl
             MarkSeenButton.IsEnabled=false;
             MarkNotSentButton.IsEnabled=false;
         }
-        finally{_refreshing=false;}
+        finally
+        {
+            _refreshing=false;
+            if(_snapshotFresh)UpdateSelection();
+        }
     }
 
     void TasksFilterChanged(object sender,RoutedEventArgs e)
