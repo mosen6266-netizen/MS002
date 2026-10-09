@@ -756,6 +756,7 @@ public sealed partial class StateStore
                     "上条消息缺少完整的发送与剧本进度核对记录，不能直接恢复，请先核对。");
         }
 
+        var hasUncertainDispatch=false;
         if(request.Action!="pause")
         {
             await using var uncertain=c.CreateCommand();
@@ -766,16 +767,21 @@ public sealed partial class StateStore
                   LIMIT 1;
                 """;
             uncertain.Parameters.AddWithValue("$j",request.JobId);
-            if(await uncertain.ExecuteScalarAsync(ct) is not null)
+            hasUncertainDispatch=await uncertain.ExecuteScalarAsync(ct) is not null;
+            // Resume cannot skip unknown deliveries. Stopping a quarantined
+            // task leaves the original dispatch and event evidence intact.
+            if(hasUncertainDispatch &&
+               (request.Action=="resume" ||
+                (request.Action=="stop" && state=="Running")))
                 throw new InvalidOperationException(
-                    "存在进行中或待核对的发送，不能继续或停止并跳过。");
+                    "存在未核对的发送，不能继续；运行中发送尚未结束时也不能停止，请核对后重试。");
         }
 
         var next=request.Action switch
         {
             "pause" when state=="Running"=>"Paused",
             "resume" when state=="Paused"&&cursor<count=>"Running",
-            "stop" when state is "Running" or "Paused"=>"Stopped",
+            "stop" when state is "Running" or "Paused" or "RecoveryRequired" or "WaitingSignal"=>"Stopped",
             _=>throw new InvalidOperationException($"当前任务状态 {state} 不允许执行 {request.Action}。")
         };
 
@@ -799,7 +805,9 @@ public sealed partial class StateStore
         {
             "pause"=>"用户手动暂停，该群不会自动继续。",
             "resume"=>"用户手动继续，已确认的消息不会再次发送。",
-            _=>"用户停止此群任务，必须重新创建才能启动。"
+            _=>hasUncertainDispatch
+                ?"用户已停止此群任务；存在结果未确认的发送，原始记录仍保留在异常恢复中心，不会自动重发。"
+                :"用户停止此群任务，必须重新创建才能启动。"
         };
         await using(var plan=c.CreateCommand())
         {

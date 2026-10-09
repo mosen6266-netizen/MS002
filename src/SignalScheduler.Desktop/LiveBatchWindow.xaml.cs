@@ -458,7 +458,7 @@ public sealed class BatchJobRow : INotifyPropertyChanged
     public string StateDisplay=>StatusLabels.Task(State);
     public bool CanPause=>State=="Running";
     public bool CanResume=>State=="Paused" && Cursor<TotalSteps;
-    public bool CanStop=>State is "Running" or "Paused";
+    public bool CanStop=>State is "Running" or "Paused" or "RecoveryRequired" or "WaitingSignal";
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public void Update(LiveBatchItem item)

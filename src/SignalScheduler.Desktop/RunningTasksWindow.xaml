@@ -83,6 +83,46 @@
    SelectionMode="Single" SelectionUnit="FullRow"
    EnableRowVirtualization="True"
    SelectionChanged="MonitorGrid_SelectionChanged">
+   <DataGrid.CellStyle>
+    <Style TargetType="{x:Type DataGridCell}">
+     <Setter Property="Background" Value="Transparent"/>
+     <Setter Property="BorderBrush" Value="Transparent"/>
+     <Setter Property="Foreground" Value="#F4F8FD"/>
+     <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+       <Setter Property="BorderBrush" Value="#A9D7FF"/>
+       <Setter Property="BorderThickness" Value="0,0,0,1"/>
+      </Trigger>
+     </Style.Triggers>
+    </Style>
+   </DataGrid.CellStyle>
+   <DataGrid.RowStyle>
+    <Style TargetType="{x:Type DataGridRow}">
+     <Setter Property="Foreground" Value="#EAF4FD"/>
+     <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+       <Setter Property="BorderBrush" Value="#A9D7FF"/>
+       <Setter Property="BorderThickness" Value="1"/>
+      </Trigger>
+      <DataTrigger Binding="{Binding State}" Value="Paused">
+       <Setter Property="Background" Value="#8A2E39"/>
+       <Setter Property="Foreground" Value="#FFFFFF"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="RecoveryRequired">
+       <Setter Property="Background" Value="#AD303B"/>
+       <Setter Property="Foreground" Value="#FFFFFF"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Failed">
+       <Setter Property="Background" Value="#9E2835"/>
+       <Setter Property="Foreground" Value="#FFFFFF"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="WaitingSignal">
+       <Setter Property="Background" Value="#963540"/>
+       <Setter Property="Foreground" Value="#FFFFFF"/>
+      </DataTrigger>
+     </Style.Triggers>
+    </Style>
+   </DataGrid.RowStyle>
    <DataGrid.Columns>
     <DataGridTextColumn Header="剧本" Binding="{Binding ScriptName}" Width="2*" MinWidth="100"
      ElementStyle="{StaticResource TruncatedGridText}"/>

@@ -131,8 +131,12 @@ public sealed class LiveBatchRunner : BackgroundService
             // A receipt failure must never cause a duplicate message send.
             try
             {
+                // A large read queue must not block the first real message.
+                using var receiptTimeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                receiptTimeout.CancelAfter(TimeSpan.FromSeconds(5));
                 await _read.TrySendForGroupAsync(
-                    due.Dispatch.AccountId,due.Dispatch.GroupId,ct);
+                    due.Dispatch.AccountId,due.Dispatch.GroupId,
+                    receiptTimeout.Token);
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
             catch(Exception){ /* Receipt is best effort; dispatch remains independent. */ }

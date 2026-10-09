@@ -104,7 +104,7 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
                     jsonrpc="2.0",method="send",id=requestId,
                     @params=new{
                         account=dispatch.AccountId,
-                        groupId=dispatch.GroupId,
+                        groupIds=new[]{dispatch.GroupId},
                         message=text,
                         attachments
                     }
@@ -128,8 +128,18 @@ public sealed class SignalCliTransport : ISignalTransport, ISignalTypingTranspor
 
             if(root.TryGetProperty("error",out var error) &&
                error.ValueKind!=JsonValueKind.Null)
+            {
+                // InvalidParams is rejected before any transport send attempt.
+                var code=error.ValueKind==JsonValueKind.Object &&
+                    error.TryGetProperty("code",out var number) &&
+                    number.TryGetInt32(out var errorCode)?errorCode:0;
+                if(code is -32600 or -32601 or -32602)
+                    return new SignalSendResult(
+                        SignalDeliveryOutcome.DefinitelyNotSent,
+                        Detail:$"Signal JSON-RPC 拒绝参数（{code}），确认未发出。");
                 return new SignalSendResult(SignalDeliveryOutcome.Ambiguous,
-                    Detail:"Signal 返回错误，是否已经局部发送未知。");
+                    Detail:$"Signal 返回错误码 {code}，是否已经局部发送未知。");
+            }
 
             if(!root.TryGetProperty("result",out var result) ||
                result.ValueKind!=JsonValueKind.Object ||
