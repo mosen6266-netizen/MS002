@@ -619,6 +619,31 @@ public partial class MainWindow : Window
             var status=await SafeDataAsync(ControlCommands.Status);
             var dashboard=await SafeDataAsync(ControlCommands.Dashboard);
             var read=await SafeDataAsync(ControlCommands.ReadHealth);
+            var recovery=await SafeDataAsync(ControlCommands.RecoveryOverview);
+            var errorCounts=new Dictionary<string,int>(StringComparer.Ordinal);
+            var examinedDispatches=0;
+            // Recovery payload stays in memory; export only fixed diagnostic
+            // codes and aggregate counts, never raw error text or account data.
+            if(recovery.HasValue &&
+               recovery.Value.TryGetProperty("Dispatches",out var dispatches) &&
+               dispatches.ValueKind==JsonValueKind.Array)
+            {
+                foreach(var entry in dispatches.EnumerateArray())
+                {
+                    if(entry.ValueKind!=JsonValueKind.Object ||
+                       examinedDispatches>=100)break;
+                    examinedDispatches++;
+                    var state=entry.TryGetProperty("State",out var st) &&
+                        st.ValueKind==JsonValueKind.String?st.GetString():null;
+                    var detail=entry.TryGetProperty("Detail",out var dt) &&
+                        dt.ValueKind==JsonValueKind.String?dt.GetString():null;
+                    if(state is "Confirmed" or "Committed" or "ManuallyConfirmed")continue;
+                    var code=FailureDiagnostics.ExportableCode(detail,state);
+                    if(code=="UNKNOWN")continue;
+                    errorCounts[code]=errorCounts.GetValueOrDefault(code)+1;
+                }
+            }
+            var runtime=InstalledRuntimeCheck.Inspect(AppContext.BaseDirectory);
             var local=Environment.GetFolderPath(
                 Environment.SpecialFolder.LocalApplicationData);
             var db=Path.Combine(local,"SignalSchedulerData","data.db");
@@ -641,7 +666,12 @@ public partial class MainWindow : Window
                 dashboard.HasValue,
                 read.HasValue,
                 Count(read,"Failed"),
-                Count(read,"WaitingRetry")));
+                Count(read,"WaitingRetry"),
+                errorCounts.Select(x=>new DiagnosticCategoryCount(x.Key,x.Value)).ToArray(),
+                examinedDispatches,
+                recovery.HasValue &&
+                    recovery.Value.TryGetProperty("Dispatches",out _),
+                runtime));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
