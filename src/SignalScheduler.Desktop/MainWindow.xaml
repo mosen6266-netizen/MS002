@@ -35,6 +35,32 @@
    <Setter Property="Padding" Value="16,13"/>
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="0"/>
+   <!-- Avoid Windows' light-blue native Button hover which makes the
+        white navigation text unreadable on dark application surfaces. -->
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="NavSurface" Background="{TemplateBinding Background}"
+       CornerRadius="5" BorderThickness="0"
+       Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+        VerticalAlignment="Center" RecognizesAccessKey="True"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="NavSurface" Property="Background" Value="#245579"/>
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="NavSurface" Property="Background" Value="#174466"/>
+       </Trigger>
+       <Trigger Property="IsKeyboardFocusWithin" Value="True">
+        <Setter TargetName="NavSurface" Property="BorderBrush" Value="#7DC9FF"/>
+        <Setter TargetName="NavSurface" Property="BorderThickness" Value="1"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
   </Style>
  </Window.Resources>
  <Grid>
