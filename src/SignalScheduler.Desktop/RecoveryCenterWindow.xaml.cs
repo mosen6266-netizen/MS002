@@ -164,8 +164,9 @@ public partial class RecoveryCenterWindow : UserControl
             var result=JsonSerializer.Deserialize<PauseJobResult>(
                 root.GetProperty("Data").GetRawText())
                 ??throw new IOException("任务状态格式错误。");
-            StatusText.Text=result.Detail;
             await RefreshAsync();
+            if(_snapshotFresh)
+                StatusText.Text=$"暂停操作已确认：{result.Detail} 已重新读取最新任务状态。";
         }
         catch(Exception ex)
         {
@@ -226,9 +227,10 @@ public partial class RecoveryCenterWindow : UserControl
             var result=JsonSerializer.Deserialize<ManualDispatchReviewResult>(
                 root.GetProperty("Data").GetRawText())
                 ??throw new IOException("后台未返回有效的审计结果。");
-            StatusText.Text=$"人工核对记录已保存：{result.Detail} 当前任务：{result.JobState}。";
             EvidenceBox.Clear();
             await RefreshAsync();
+            if(_snapshotFresh)
+                StatusText.Text=$"人工核对记录已保存：{result.Detail} 当前任务：{result.JobState}。已重新读取最新任务状态。";
         }
         catch(Exception ex)
         {
