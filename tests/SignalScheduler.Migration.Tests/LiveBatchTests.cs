@@ -736,6 +736,47 @@ public sealed class LiveBatchTests
         Assert.DoesNotContain(remaining,x=>x.Dispatch.GroupId=="isolation-1");
     }
 
+    [Fact]
+    public async Task TwentyIdleGroupsAfterEngineCrashStayPausedAcrossRepeatedStartup()
+    {
+        var (store,db)=await NewStoreAsync();
+        const string account="+49123";
+        var groups=Enumerable.Range(1,20)
+            .Select(i=>new SignalGroupCatalogItem(account,"crash-"+i,
+                "授权测试群 "+i,true,Array.Empty<string>())).ToArray();
+        await store.SyncSignalCatalogAsync(new[]{account},groups,new[]{account},Ct);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"第一条"),Step(1,"第二条")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,groups.Select(g=>g.GroupId).ToArray(),true),Ct);
+        Assert.Equal(20,started.GroupCount);
+
+        // Simulate an unexpected Engine exit: no send was in flight.
+        var root=Path.GetDirectoryName(db)!;
+        var restarted=new StateStore(RuntimePaths.ForTesting(root,db));
+        await restarted.InitializeAsync(Ct);
+        var jobs=await restarted.ListLiveBatchAsync(Ct);
+        Assert.Equal(20,jobs.Count);
+        Assert.All(jobs,x=>{
+            Assert.Equal("Paused",x.State);
+            Assert.Equal(0,x.Cursor);
+        });
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+        Assert.Equal("20",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+
+        // Startup recovery must be idempotent and cannot silently resume.
+        await restarted.InitializeAsync(Ct);
+        Assert.All(await restarted.ListLiveBatchAsync(Ct),
+            x=>Assert.Equal("Paused",x.State));
+        Assert.Equal("20",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='startup_paused'"));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+    }
+
     static ScriptEditorStep Step(int i,string msg,bool pause=false)=>
         new(i,"",msg,"",pause,"确认继续",0,0);
 
