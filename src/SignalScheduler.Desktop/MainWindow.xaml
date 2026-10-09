@@ -110,6 +110,10 @@
        Margin="0,7,0,0" Foreground="#A5C3DD" TextWrapping="Wrap"/>
       <TextBlock x:Name="MigrationBadge" Text="读取本地数据中"
        Margin="0,9,0,0" Foreground="#8EAAC5" FontSize="11" TextWrapping="Wrap"/>
+      <Button x:Name="ExportDiagnosticButton" Content="导出脱敏诊断报告"
+       Click="ExportDiagnostic_Click" Margin="0,13,0,0"
+       Padding="10,8" Background="#244560"
+       ToolTip="只导出连接状态、数量、时间等安全统计；不含手机号、群名、消息正文、密钥或原始日志"/>
      </StackPanel>
     </Border>
    </Grid>
