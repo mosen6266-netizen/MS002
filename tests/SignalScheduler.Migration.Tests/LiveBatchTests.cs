@@ -142,6 +142,49 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task PreflightOnlyReadsAndDetectsConflictsBeforeDispatch()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"健康检查")});
+        var preflight=await store.PreflightLiveBatchAsync(
+            new LiveBatchPreflightRequest(script.ScriptId,new[]{"g1"}),Ct);
+        Assert.True(preflight.CanStart);
+        Assert.Equal(1,preflight.SendableRows);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_live_batch_jobs"));
+        await store.StartLiveBatchAsync(
+            new LiveBatchStartRequest(script.ScriptId,new[]{"g1"},true),Ct);
+        var afterStart=await store.PreflightLiveBatchAsync(
+            new LiveBatchPreflightRequest(script.ScriptId,new[]{"g1"}),Ct);
+        Assert.False(afterStart.CanStart);
+        Assert.Contains(afterStart.Issues,x=>x.Level=="错误" &&
+            x.Message.Contains("已有未结束的任务"));
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_live_batch_jobs"));
+    }
+
+    [Fact]
+    public async Task PreflightWarnsOnBadImageAndBlocksUnavailableAssignedAccount()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{
+            Step(0,"带坏图片的文字") with {Attachment="img:not-valid"},
+            Step(1,"指定离线账号") with {Account="+490000"}
+        });
+        var preflight=await store.PreflightLiveBatchAsync(
+            new LiveBatchPreflightRequest(script.ScriptId,new[]{"g1"}),Ct);
+        Assert.False(preflight.CanStart);
+        Assert.Contains(preflight.Issues,x=>x.Level=="提醒" &&
+            x.Message.Contains("图片"));
+        Assert.Contains(preflight.Issues,x=>x.Level=="错误" &&
+            x.Message.Contains("指定的账号"));
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_live_batch_jobs"));
+    }
+
+    [Fact]
     public async Task InvalidGroupOrOfflineRoleCausesAtomicRollback()
     {
         var (store,db)=await NewStoreAsync();
