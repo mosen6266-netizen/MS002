@@ -90,7 +90,7 @@ public partial class ScriptEditorWindow : UserControl
                 return;
             }
             if(MessageBox.Show(Window.GetWindow(this),
-                $"找到 {draft.SavedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} 的本地草稿。\\n"+
+                $"找到 {draft.SavedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} 的本地草稿。\n"+
                 "恢复后仍需手动点击保存剧本。是否恢复？",
                 "恢复未保存草稿",MessageBoxButton.YesNo,
                 MessageBoxImage.Question)!=MessageBoxResult.Yes)return;
