@@ -121,9 +121,14 @@ public static class ScriptBundleArchive
         using(var reader=index.Open())
         using(var buffer=new MemoryStream())
         {
-            reader.CopyTo(buffer);
-            if(buffer.Length>MaxManifestBytes)
-                throw new InvalidDataException("备份清单超过允许大小。");
+            var chunk=new byte[65536];
+            int n;
+            while((n=reader.Read(chunk,0,chunk.Length))>0)
+            {
+                if(buffer.Length+n>MaxManifestBytes)
+                    throw new InvalidDataException("备份清单超过允许大小。");
+                buffer.Write(chunk,0,n);
+            }
             content=buffer.ToArray();
         }
         var manifest=JsonSerializer.Deserialize<Manifest>(content,JsonOptions)
@@ -155,7 +160,16 @@ public static class ScriptBundleArchive
             {
                 using var output=File.Create(path);
                 using var input=entry.Open();
-                input.CopyTo(output);
+                var chunk=new byte[65536];
+                long extractedBytes=0;
+                int n;
+                while((n=input.Read(chunk,0,chunk.Length))>0)
+                {
+                    extractedBytes+=n;
+                    if(extractedBytes>MaxImageBytes || extractedBytes>entry.Length)
+                        throw new InvalidDataException("压缩包图片展开后超过允许大小。");
+                    output.Write(chunk,0,n);
+                }
             }
             if(new FileInfo(path).Length!=entry.Length)
                 throw new InvalidDataException("图片文件长度不匹配。");
