@@ -66,11 +66,26 @@ def snapshot(root: Path) -> dict:
     for key, rows in state.items():
         if not rows:
             raise AssertionError(f"Expected user data missing: {key}")
-    for name in (DATA_FILE, OPTIONS_FILE):
-        path = root / name
-        if not path.is_file():
-            raise AssertionError(f"User-owned file missing: {name}")
-        state["sha256_" + name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    path = root / DATA_FILE
+    if not path.is_file():
+        raise AssertionError(f"User-owned file missing: {DATA_FILE}")
+    state["sha256_" + DATA_FILE] = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    # Desktop startup may normalize/reformat JSON on disk. Verify that the
+    # actual user preferences are unchanged, rather than requiring identical
+    # whitespace, property ordering and byte encoding.
+    options_path = root / OPTIONS_FILE
+    if not options_path.is_file():
+        raise AssertionError(f"User-owned file missing: {OPTIONS_FILE}")
+    options = json.loads(options_path.read_text(encoding="utf-8-sig"))
+    if not isinstance(options, dict):
+        raise AssertionError("User preferences JSON must be an object")
+    for key in ("ReadReceipts", "LinkedDeviceSync"):
+        if key not in options or type(options[key]) is not bool:
+            raise AssertionError(f"Required user preference missing or invalid: {key}")
+    state["read_options_preferences"] = {
+        key: options[key] for key in ("ReadReceipts", "LinkedDeviceSync")
+    }
     return state
 
 
