@@ -64,7 +64,12 @@
    <Setter Property="HeadersVisibility" Value="Column"/>
    <Setter Property="CanUserAddRows" Value="False"/>
    <Setter Property="EnableRowVirtualization" Value="True"/>
-   <Setter Property="EnableColumnVirtualization" Value="True"/>
+   <!-- Column virtualization plus star-sized columns in vertically scrolling
+        WPF content can yield a zero-width viewport on some Windows systems.
+        Never virtualize desktop table columns. Row virtualization stays on. -->
+   <Setter Property="EnableColumnVirtualization" Value="False"/>
+   <Setter Property="MinColumnWidth" Value="46"/>
+   <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
   </Style>
   <!-- Custom non-editable combo popup: system native template displayed white
        text on a white face on some Windows themes. Match popup and collapsed

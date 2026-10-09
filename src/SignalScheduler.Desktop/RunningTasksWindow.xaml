@@ -65,7 +65,8 @@
      Click="NextPage_Click" Style="{StaticResource MonitorAction}"/>
    </StackPanel>
   </DockPanel>
-  <DataGrid x:Name="MonitorGrid" Height="487" Background="#11283C"
+  <DataGrid x:Name="MonitorGrid" EnableColumnVirtualization="False"
+   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Auto" Height="487" Background="#11283C"
    ColumnHeaderHeight="42" RowHeight="43"
    Foreground="#EAF4FD" BorderBrush="#34516C"
    RowBackground="#152C43" AlternatingRowBackground="#1B3851"

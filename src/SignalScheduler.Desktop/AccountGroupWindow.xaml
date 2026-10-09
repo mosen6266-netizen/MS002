@@ -80,13 +80,15 @@
       <ColumnDefinition Width="2*"/>
      </Grid.ColumnDefinitions>
      <DataGrid x:Name="AccountGrid" IsReadOnly="True" AlternationCount="2"
+       HeadersVisibility="Column" EnableColumnVirtualization="False"
+       HorizontalAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Auto"
        ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="48"
        SelectionMode="Single" SelectionChanged="AccountGrid_SelectionChanged">
       <DataGrid.Columns>
-       <DataGridTextColumn Header="账号" Binding="{Binding Account}" Width="2*"/>
-       <DataGridTextColumn Header="备注" Binding="{Binding Label}" Width="2*"/>
-       <DataGridCheckBoxColumn Header="已启用" Binding="{Binding Enabled}" Width="80"/>
-       <DataGridCheckBoxColumn Header="在线" Binding="{Binding Online}" Width="70"/>
+       <DataGridTextColumn Header="账号" Binding="{Binding Account}" Width="215" MinWidth="160"/>
+       <DataGridTextColumn Header="备注" Binding="{Binding Label}" Width="205" MinWidth="140"/>
+       <DataGridCheckBoxColumn Header="已启用" Binding="{Binding Enabled}" Width="85"/>
+       <DataGridCheckBoxColumn Header="在线" Binding="{Binding Online}" Width="80"/>
       </DataGrid.Columns>
      </DataGrid>
      <Border Grid.Column="2" Background="#10273C" BorderBrush="#2B4663"
@@ -126,6 +128,8 @@
               Background="#147747" Click="SaveGroups_Click"/>
      </DockPanel>
      <DataGrid x:Name="GroupGrid" Grid.Row="1" AlternationCount="2"
+      HeadersVisibility="Column" EnableColumnVirtualization="False"
+      ScrollViewer.HorizontalScrollBarVisibility="Auto"
       ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="48">
       <DataGrid.Columns>
        <DataGridTemplateColumn Header="选择" Width="75">
@@ -136,7 +140,7 @@
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
        </DataGridTemplateColumn>
-       <DataGridTextColumn Header="群名" Width="3*" IsReadOnly="True"
+       <DataGridTextColumn Header="群名" Width="640" MinWidth="260" IsReadOnly="True"
          Binding="{Binding Name}"/>
        <DataGridTextColumn Header="所在账号数" Width="110" IsReadOnly="True"
          Binding="{Binding MemberAccounts}"/>

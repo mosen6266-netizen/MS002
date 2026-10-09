@@ -117,16 +117,18 @@
       Background="#19374E" Foreground="#F0F7FD" CaretBrush="White"
       BorderBrush="#45708D" Padding="9,5"
       ToolTip="输入群组名称关键词，仅筛选显示，不改变已勾选的群组"/>
-    <DataGrid x:Name="GroupsGrid"
+    <DataGrid x:Name="GroupsGrid" Height="395"
+      MinColumnWidth="60" EnableColumnVirtualization="False"
+      HeadersVisibility="Column" HorizontalAlignment="Stretch"
       SelectionChanged="GroupsGrid_SelectionChanged"
        AlternationCount="2" RowHeight="45"
       ColumnHeaderHeight="43" ColumnHeaderStyle="{StaticResource DarkGridHeader}"
       AutoGenerateColumns="False" Background="#12273B" Foreground="#F0F7FD"
       RowBackground="#12273B" AlternatingRowBackground="#1B344A"
       CanUserAddRows="False" IsReadOnly="False" BorderBrush="#3C5B73"
-      ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+      ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto">
       <DataGrid.Columns>
-       <DataGridTemplateColumn Header="选择" Width="68">
+       <DataGridTemplateColumn Header="选择" Width="78">
         <DataGridTemplateColumn.CellTemplate>
          <DataTemplate>
           <CheckBox IsChecked="{Binding Selected,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
@@ -134,7 +136,7 @@
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
        </DataGridTemplateColumn>
-       <DataGridTemplateColumn Header="群名称" Width="*">
+       <DataGridTemplateColumn Header="群名称" Width="690" MinWidth="280">
         <DataGridTemplateColumn.CellTemplate>
          <DataTemplate>
           <TextBlock Text="{Binding Name}" Foreground="#EDF6FD"
@@ -143,7 +145,7 @@
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
        </DataGridTemplateColumn>
-       <DataGridTextColumn Header="账号" Width="67" IsReadOnly="True"
+       <DataGridTextColumn Header="账号" Width="95" IsReadOnly="True"
         Binding="{Binding MemberAccounts}" ElementStyle="{StaticResource TruncatedGridText}"/>
       </DataGrid.Columns>
      </DataGrid>
@@ -238,15 +240,17 @@
    <Button x:Name="NextJobsPage" Content="下一页" Click="NextJobsPage_Click" Style="{StaticResource QuietAction}"/>
   </StackPanel>
   <DataGrid x:Name="JobsGrid" Height="440" Background="#112538"
+   HeadersVisibility="Column" EnableColumnVirtualization="False"
+   ScrollViewer.HorizontalScrollBarVisibility="Auto"
    ColumnHeaderStyle="{StaticResource DarkGridHeader}" RowHeight="52"
    ColumnHeaderHeight="44" AlternationCount="2" Foreground="#EDF5FD"
    RowBackground="#142A3D" AlternatingRowBackground="#1B3147"
    AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
    SelectionChanged="JobsGrid_SelectionChanged">
    <DataGrid.Columns>
-    <DataGridTextColumn Header="剧本" Width="1.2*" Binding="{Binding ScriptName}"
+    <DataGridTextColumn Header="剧本" Width="185" Binding="{Binding ScriptName}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="群组" Width="1.2*" Binding="{Binding GroupName}"
+    <DataGridTextColumn Header="群组" Width="185" Binding="{Binding GroupName}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="任务状态" Width="94" Binding="{Binding StateDisplay}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
@@ -262,7 +266,7 @@
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="下次发送" Width="130" Binding="{Binding NextSend}"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTemplateColumn Header="详情" Width="1.4*">
+    <DataGridTemplateColumn Header="详情" Width="280">
      <DataGridTemplateColumn.CellTemplate>
       <DataTemplate>
        <TextBlock Text="{Binding Detail}" Foreground="#C3D5E6"

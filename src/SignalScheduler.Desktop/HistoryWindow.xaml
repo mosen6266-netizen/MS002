@@ -39,6 +39,8 @@
    <Button x:Name="HistoryNextButton" Content="下一页" Click="NextPage_Click" Padding="10,4" Margin="0,0,0,6"/>
   </WrapPanel>
   <DataGrid x:Name="HistoryGrid" Grid.Row="2"
+   EnableColumnVirtualization="False" HeadersVisibility="Column"
+   ScrollViewer.HorizontalScrollBarVisibility="Auto"
    SelectionChanged="HistoryGrid_SelectionChanged"
    AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
    RowHeight="43" ColumnHeaderHeight="40"
@@ -53,6 +55,8 @@
   </DataGrid>
   <TextBlock Grid.Row="4" Text="发送明细 · 消息全文及结果" FontSize="18" FontWeight="SemiBold"/>
   <DataGrid x:Name="MessagesGrid" Grid.Row="6"
+   EnableColumnVirtualization="False" HeadersVisibility="Column"
+   ScrollViewer.HorizontalScrollBarVisibility="Auto"
    AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
    RowHeight="48" ColumnHeaderHeight="40" Background="#10263A"
    Foreground="#EDF5FD" RowBackground="#132B41" AlternatingRowBackground="#1B344A">
