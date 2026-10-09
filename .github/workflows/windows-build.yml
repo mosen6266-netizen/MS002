@@ -21,6 +21,12 @@ jobs:
         with:
           dotnet-version: 8.0.414
 
+      # CI-only Python runs sqlite3 integrity snapshots before/after upgrade.
+      # The shipped installer and customer PC require no Python installation.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Generate desktop and installer icon
         shell: powershell
         run: .\tools\GenerateBrandIcon.ps1
@@ -262,6 +268,15 @@ jobs:
           }
           if (-not $ready) { throw "Engine IPC did not become ready for safe upgrade" }
 
+          # Snapshot real V8 user-facing records in the isolated runner database:
+          # remarks, edited script and revision, selected group, completed
+          # dispatch history, local preferences and a user-owned file.
+          # Expected values live OUTSIDE the app and data directories.
+          $userDataRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerData"
+          $expectedData = Join-Path $env:RUNNER_TEMP "ms002-upgrade-user-expected.json"
+          python tools/verify_upgrade_userdata.py seed "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to seed isolated upgrade preservation fixture" }
+
           $upgradeLog = Join-Path $env:RUNNER_TEMP "ms002-upgrade-setup.log"
           $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon","/LOG=$upgradeLog") -Wait -PassThru
           if ($upgrade.ExitCode -ne 0) {
@@ -276,9 +291,15 @@ jobs:
           if (Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue) { throw "Engine still running after safe upgrade handshake" }
           if (Get-Process "java" -ErrorAction SilentlyContinue) { throw "Engine-owned Java still running after safe upgrade handshake" }
 
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "User data changed or disappeared during in-place upgrade" }
+
           $uninstall = Join-Path $testRoot "unins000.exe"
           if (Test-Path $uninstall) {
             $u = Start-Process -FilePath $uninstall -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait -PassThru
+            if ($u.ExitCode -ne 0) { throw "Uninstaller exited with $($u.ExitCode)" }
+            python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+            if ($LASTEXITCODE -ne 0) { throw "Uninstall erased user-owned profile data" }
           }
 
       - name: Hash installer
