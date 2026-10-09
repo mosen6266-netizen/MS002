@@ -817,6 +817,9 @@ public partial class ScriptEditorWindow : UserControl
             StatusText.Text="请先选中包含图片附件的那条消息。";
             return;
         }
+        var currentScript=_scriptId;
+        var generation=_scriptLoadGeneration;
+        var originalReference=row.Attachment;
         try
         {
             // Imported V7 scripts can still contain local file paths instead of
@@ -831,13 +834,27 @@ public partial class ScriptEditorWindow : UserControl
                 var migrated=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
                     ControlCommands.ImageImport,25000,
                     new ImageImportRequest(row.Attachment)));
+                if(generation!=_scriptLoadGeneration || currentScript!=_scriptId ||
+                   !_steps.Contains(row) || row.Attachment!=originalReference)
+                {
+                    StatusText.Text="图片迁移期间编辑内容已变化，没有覆盖新附件。";
+                    return;
+                }
                 row.Attachment=migrated.Reference;
                 _dirty=true;
                 StatusText.Text="已恢复旧版图片，请保存剧本以保留新的附件引用。";
             }
+            var expectedReference=row.Attachment;
             var info=ReadData<ImageAttachmentInfo>(await MainWindow.SendAsync(
                 ControlCommands.ImageLookup,15000,
-                new ImageLookupRequest(row.Attachment)));
+                new ImageLookupRequest(expectedReference)));
+            if(generation!=_scriptLoadGeneration || currentScript!=_scriptId ||
+               !_steps.Contains(row) || row.Attachment!=expectedReference ||
+               info.Reference!=expectedReference)
+            {
+                StatusText.Text="预览期间选中内容已变化，请重新打开图片。";
+                return;
+            }
             var bitmap=new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption=BitmapCacheOption.OnLoad;

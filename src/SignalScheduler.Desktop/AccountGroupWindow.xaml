@@ -54,9 +54,9 @@
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="14"/>
-   <RowDefinition Height="Auto"/>
-   <RowDefinition Height="12"/>
    <RowDefinition Height="*"/>
+   <RowDefinition Height="12"/>
+   <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
   <DockPanel Grid.Row="0" LastChildFill="False">
    <StackPanel DockPanel.Dock="Left">

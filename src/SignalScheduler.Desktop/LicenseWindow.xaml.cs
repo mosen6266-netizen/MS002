@@ -9,6 +9,7 @@ namespace SignalScheduler.Desktop;
 
 public partial class LicenseWindow : UserControl
 {
+    bool _activating;
     public LicenseWindow()
     {
         InitializeComponent();
@@ -71,6 +72,7 @@ public partial class LicenseWindow : UserControl
 
     async void Activate_Click(object sender,RoutedEventArgs e)
     {
+        if(_activating)return;
         var card=KeyBox.Password.Trim();
         if(string.IsNullOrWhiteSpace(card))
         {
@@ -82,6 +84,7 @@ public partial class LicenseWindow : UserControl
             "确认卡密激活",MessageBoxButton.YesNo,MessageBoxImage.Warning)
             !=MessageBoxResult.Yes) return;
 
+        _activating=true;
         try
         {
             var raw=await MainWindow.SendAsync(ControlCommands.LicenseActivate,20000,
@@ -99,6 +102,7 @@ public partial class LicenseWindow : UserControl
         {
             // Never keep the user's key visible in an input control.
             KeyBox.Clear();
+            _activating=false;
         }
     }
 

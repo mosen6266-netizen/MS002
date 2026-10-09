@@ -399,8 +399,7 @@ public partial class LiveBatchWindow : UserControl
 
     async void Start_Click(object sender,RoutedEventArgs e)
     {
-        if(_busy ||
-           ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
+        if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
         GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
         GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
         var ids=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
@@ -409,61 +408,46 @@ public partial class LiveBatchWindow : UserControl
             StatusText.Text="一次请勾选 1～20 个群组。";
             return;
         }
-        // Preflight is read-only. The transactional start remains the final
-        // authority if online status or membership changes after this check.
-        LiveBatchPreflightResult readiness;
+        // Lock before the first await to prevent overlapping real-send starts.
+        _busy=true;
+        UpdateButtons();
         try
         {
-            readiness=await ReadPreflightAsync(script.ScriptId,ids);
-        }
-        catch(Exception ex)
-        {
-            StatusText.Text="启动前检查失败："+ex.Message;
-            return;
-        }
-        if(!readiness.CanStart)
-        {
-            StatusText.Text="启动已阻止，请先解决运行条件检查中的错误。";
-            MessageBox.Show(Window.GetWindow(this),FormatPreflight(readiness),
-                "无法启动任务",MessageBoxButton.OK,MessageBoxImage.Warning);
-            return;
-        }
-
-        // Inspect all old V7 image references before any irreversible send.
-        // If unavailable attachments would be omitted, require separate
-        // explicit approval and show their original message indices.
-        LiveBatchMediaInspection media;
-        try
-        {
-            var inspection=await MainWindow.SendAsync(ControlCommands.LiveBatchInspect,30000,
-                new LiveBatchMediaInspectionRequest(script.ScriptId));
-            media=Unwrap<LiveBatchMediaInspection>(inspection);
-        }
-        catch(Exception ex)
-        {
-            StatusText.Text="无法检查剧本附件："+ex.Message;
-            return;
-        }
-        var mediaProblems=media.Issues.Count>0;
-        var warning=mediaProblems
-            ?"\n\n检测到旧图片无法使用：\n"+
-             string.Join("\n",media.Issues.Take(8)
-                .Select(x=>$"第 {x.Position} 条：{x.Action}"))+
-             (media.Issues.Count>8?$"\n另有 {media.Issues.Count-8} 条":"")+
-             "\n\n继续运行将按上述方式忽略失效图片，但不修改原剧本。"
-            :"";
-        var preview=$"剧本：{script.Name}\n"+
-            $"实际可发送：{media.SendableRows} 条 / 原有 {media.TotalRows} 条\n"+
-            $"选中群组：{ids.Length} 个\n"+
-            "这些内容将真实发送到选定群组，确定开始？"+warning;
-        if(MessageBox.Show(Window.GetWindow(this),preview,
-            mediaProblems?"确认旧图片缺失处理与真实发送":"确认真实发送",
-            MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
-            return;
-
-        _busy=true;UpdateButtons();
-        try
-        {
+            var readiness=await ReadPreflightAsync(script.ScriptId,ids);
+            if(!readiness.CanStart)
+            {
+                StatusText.Text="启动已阻止，请先解决运行条件检查中的错误。";
+                MessageBox.Show(Window.GetWindow(this),FormatPreflight(readiness),
+                    "无法启动任务",MessageBoxButton.OK,MessageBoxImage.Warning);
+                return;
+            }
+            var inspection=await MainWindow.SendAsync(ControlCommands.LiveBatchInspect,
+                30000,new LiveBatchMediaInspectionRequest(script.ScriptId));
+            var media=Unwrap<LiveBatchMediaInspection>(inspection);
+            var mediaProblems=media.Issues.Count>0;
+            var warning=mediaProblems
+                ?"\n\n检测到旧图片无法使用：\n"+
+                 string.Join("\n",media.Issues.Take(8)
+                    .Select(x=>$"第 {x.Position} 条：{x.Action}"))+
+                 (media.Issues.Count>8?$"\n另有 {media.Issues.Count-8} 条":"")+
+                 "\n\n继续运行将按上述方式忽略失效图片，但不修改原剧本。"
+                :"";
+            var preview=$"剧本：{script.Name}\n"+
+                $"实际可发送：{media.SendableRows} 条 / 原有 {media.TotalRows} 条\n"+
+                $"选中群组：{ids.Length} 个\n"+
+                "这些内容将真实发送到选定群组，确定开始？"+warning;
+            if(MessageBox.Show(Window.GetWindow(this),preview,
+                mediaProblems?"确认旧图片缺失处理与真实发送":"确认真实发送",
+                MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
+                return;
+            var selectedNow=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
+            if((ScriptBox.SelectedItem as ScriptEditorSummary)?.ScriptId!=script.ScriptId ||
+               !ids.SequenceEqual(selectedNow))
+            {
+                StatusText.Text="确认期间剧本或群组已变化，本次启动取消；请重新检查。";
+                return;
+            }
+            // Final authorization, dispatch and duplicate checks are in the engine.
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchStart,
                 60000,new LiveBatchStartRequest(script.ScriptId,ids,true,mediaProblems));
             var started=Unwrap<LiveBatchStartResult>(raw);
@@ -471,17 +455,20 @@ public partial class LiveBatchWindow : UserControl
                 $"每群 {started.MessageCount} 条。可在下表逐群暂停、继续或停止。";
             await LoadJobsAsync();
         }
-        catch(Exception ex){StatusText.Text=$"启动失败：{ex.Message}。未完成的事务不会被视为成功。";}
-        finally
+        catch(Exception ex)
         {
-            _busy=false;
-            UpdateButtons();
+            StatusText.Text=$"启动失败或结果尚未确认：{ex.Message}。"+
+                "请先检查运行任务和恢复中心，勿重复点击启动。";
         }
+        finally{_busy=false;UpdateButtons();}
     }
 
     async Task ControlAsync(string action,BatchJobRow? selected)
     {
         if(_busy || selected is null)return;
+        _busy=true;UpdateButtons();
+        try
+        {
         if(action is "resume" or "stop")
         {
             var msg=action=="resume"
@@ -491,16 +478,13 @@ public partial class LiveBatchWindow : UserControl
                 MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
                 return;
         }
-        _busy=true;UpdateButtons();
-        try
-        {
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchControl,
                 15000,new LiveBatchControlRequest(selected.JobId,action));
             var result=Unwrap<LiveBatchItem>(raw);
             StatusText.Text=$"群「{result.GroupName}」当前状态：{result.State}。{result.Detail}";
             await LoadJobsAsync();
         }
-        catch(Exception ex){StatusText.Text=$"操作失败：{ex.Message}。可先去恢复中心检查。";}
+        catch(Exception ex){StatusText.Text=$"操作结果不确定：{ex.Message}。请先到恢复中心核对，勿重复操作。";}
         finally{_busy=false;UpdateButtons();}
     }
 

@@ -14,6 +14,8 @@ public partial class AccountGroupWindow : UserControl
     readonly ObservableCollection<GroupSelectionRow> _groups=new();
     readonly ObservableCollection<ManagedAccount> _accounts=new();
     bool _loading;
+    bool _refreshing;
+    bool _savingGroups;
 
     public AccountGroupWindow()
     {
@@ -38,29 +40,53 @@ public partial class AccountGroupWindow : UserControl
 
     async Task RefreshAsync()
     {
+        if(_refreshing || _savingGroups)return;
+        _refreshing=true;
         try
         {
-            var selected=(AccountGrid.SelectedItem as ManagedAccount)?.Account;
             var raw=await MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,10000);
             var snapshot=Unwrap<AccountGroupOverview>(raw);
+            // Capture after IPC: user may have edited while the call was pending.
+            var currentAccount=AccountGrid.SelectedItem as ManagedAccount;
+            var selected=currentAccount?.Account;
+            var unsavedLabel=AccountLabel.Text;
+            var unsavedEnabled=AccountEnabled.IsChecked==true;
+            var hasAccountEdits=currentAccount is not null &&
+                (unsavedLabel!=currentAccount.Label || unsavedEnabled!=currentAccount.Enabled);
+            var editedGroups=_groups.Where(x=>x.Selected!=x.SavedSelected)
+                .ToDictionary(x=>x.GroupId,x=>x.Selected,StringComparer.Ordinal);
             _loading=true;
-            _accounts.Clear();
-            foreach(var account in snapshot.Accounts) _accounts.Add(account);
-            _groups.Clear();
-            foreach(var group in snapshot.Groups)
-                _groups.Add(new GroupSelectionRow(group));
-            AccountGrid.SelectedItem=_accounts.FirstOrDefault(x=>x.Account==selected)
-                ??_accounts.FirstOrDefault();
-            _loading=false;
+            try
+            {
+                _accounts.Clear();
+                foreach(var account in snapshot.Accounts)_accounts.Add(account);
+                _groups.Clear();
+                foreach(var group in snapshot.Groups)
+                {
+                    var row=new GroupSelectionRow(group);
+                    if(editedGroups.TryGetValue(row.GroupId,out var value))row.Selected=value;
+                    _groups.Add(row);
+                }
+                AccountGrid.SelectedItem=_accounts.FirstOrDefault(x=>x.Account==selected)
+                    ??_accounts.FirstOrDefault();
+            }
+            finally{_loading=false;}
             ShowSelectedAccount();
-            StatusText.Text=$"已读取 {_accounts.Count} 个账号、{_groups.Count} 个不同群组。";
+            if(hasAccountEdits &&
+                (AccountGrid.SelectedItem as ManagedAccount)?.Account==selected)
+            {
+                AccountLabel.Text=unsavedLabel;
+                AccountEnabled.IsChecked=unsavedEnabled;
+            }
+            StatusText.Text=$"已读取 {_accounts.Count} 个账号、{_groups.Count} 个不同群组。"+
+                (hasAccountEdits || editedGroups.Count>0
+                    ?" 未保存的修改已保留，请核对后保存。":"");
         }
         catch(Exception ex)
         {
-            _loading=false;
-            SaveAccountButton.IsEnabled=false;
-            StatusText.Text=$"刷新失败：{ex.Message}";
+            StatusText.Text=$"刷新失败：{ex.Message}。现有表单内容仍保留。";
         }
+        finally{_refreshing=false;}
     }
 
     async void Refresh_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
@@ -89,7 +115,7 @@ public partial class AccountGroupWindow : UserControl
 
     async void SaveAccount_Click(object sender,RoutedEventArgs e)
     {
-        if(AccountGrid.SelectedItem is not ManagedAccount account) return;
+        if(_refreshing || AccountGrid.SelectedItem is not ManagedAccount account)return;
         var label=AccountLabel.Text.Trim();
         if(label.Length==0)
         {
@@ -129,6 +155,8 @@ public partial class AccountGroupWindow : UserControl
 
     async void SaveGroups_Click(object sender,RoutedEventArgs e)
     {
+        if(_refreshing || _savingGroups)return;
+        _savingGroups=true;
         GroupGrid.CommitEdit(DataGridEditingUnit.Cell,true);
         GroupGrid.CommitEdit(DataGridEditingUnit.Row,true);
         var ids=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
@@ -137,12 +165,16 @@ public partial class AccountGroupWindow : UserControl
             var raw=await MainWindow.SendAsync(
                 ControlCommands.SetSelectedGroups,10000,new UpdateGroupSelection(ids));
             var count=Unwrap<int>(raw);
+            var selectedIds=ids.ToHashSet(StringComparer.Ordinal);
+            foreach(var group in _groups)
+                group.MarkSaved(selectedIds.Contains(group.GroupId));
             StatusText.Text=$"已保存 {count} 个群组的选择。关闭软件后仍会保留，不会自动启动发送。";
         }
         catch(Exception ex)
         {
             StatusText.Text=$"群组选择保存失败：{ex.Message}。请检查后重新保存。";
         }
+        finally{_savingGroups=false;}
     }
 
     void Close_Click(object sender,RoutedEventArgs e)=>
@@ -159,7 +191,11 @@ public sealed class GroupSelectionRow : INotifyPropertyChanged
         Name=group.Name;
         MemberAccounts=group.MemberAccounts;
         _selected=group.Selected;
+        SavedSelected=group.Selected;
     }
+
+    public bool SavedSelected {get;private set;}
+    public void MarkSaved(bool saved)=>SavedSelected=saved;
 
     public string GroupId {get;}
     public string Name {get;}
