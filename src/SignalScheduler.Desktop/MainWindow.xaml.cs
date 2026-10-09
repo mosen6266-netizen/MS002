@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     readonly Queue<string> _criticalQueue=new();
     bool _criticalDialogOpen;
     bool _hasLiveJobs;
+    bool _exportingDiagnostic;
     string? _signalIssue;
     string _currentPage="home";
 
@@ -459,6 +460,108 @@ public partial class MainWindow : Window
     {
         AlertPanel.Visibility=AlertPanel.Visibility==Visibility.Visible
             ?Visibility.Collapsed:Visibility.Visible;
+    }
+
+    // Never export a raw IPC payload, database, log, account label or path.
+    // Only specifically allowlisted fields are copied to a safe report DTO.
+    async void ExportDiagnostic_Click(object sender,RoutedEventArgs e)
+    {
+        if(_exportingDiagnostic)return;
+        var picker=new Microsoft.Win32.SaveFileDialog
+        {
+            Title="保存 MS002 脱敏诊断报告",
+            Filter="文本报告 (*.txt)|*.txt",
+            FileName="MS002_脱敏诊断_"+DateTime.Now.ToString("yyyyMMdd_HHmmss")+".txt",
+            AddExtension=true,
+            OverwritePrompt=true
+        };
+        if(picker.ShowDialog(this)!=true)return;
+        _exportingDiagnostic=true;
+        ExportDiagnosticButton.IsEnabled=false;
+        try
+        {
+            async Task<JsonElement?> SafeDataAsync(string command)
+            {
+                try
+                {
+                    var raw=await SendAsync(command,5000);
+                    if(string.IsNullOrWhiteSpace(raw))return null;
+                    using var doc=JsonDocument.Parse(raw);
+                    var root=doc.RootElement;
+                    if(root.ValueKind!=JsonValueKind.Object ||
+                       !root.TryGetProperty("Ok",out var ok) ||
+                       ok.ValueKind!=JsonValueKind.True ||
+                       !root.TryGetProperty("Data",out var data) ||
+                       data.ValueKind!=JsonValueKind.Object)return null;
+                    return data.Clone();
+                }
+                catch(Exception){return null;}
+            }
+
+            static int Count(JsonElement? data,string key)
+            {
+                if(!data.HasValue ||
+                   !data.Value.TryGetProperty(key,out var value) ||
+                   !value.TryGetInt32(out var count))return 0;
+                return Math.Max(0,count);
+            }
+
+            static long Number(JsonElement? data,string key)
+            {
+                if(!data.HasValue ||
+                   !data.Value.TryGetProperty(key,out var value) ||
+                   !value.TryGetInt64(out var number))return 0;
+                return Math.Max(0,number);
+            }
+
+            static string State(JsonElement? data,string key)
+            {
+                if(!data.HasValue ||
+                   !data.Value.TryGetProperty(key,out var value) ||
+                   value.ValueKind!=JsonValueKind.String)return "";
+                return value.GetString()??"";
+            }
+
+            var status=await SafeDataAsync(ControlCommands.Status);
+            var dashboard=await SafeDataAsync(ControlCommands.Dashboard);
+            var read=await SafeDataAsync(ControlCommands.ReadHealth);
+            var local=Environment.GetFolderPath(
+                Environment.SpecialFolder.LocalApplicationData);
+            var db=Path.Combine(local,"SignalSchedulerData","data.db");
+            var report=SafeDiagnosticReport.Render(new SafeDiagnosticSnapshot(
+                DateTimeOffset.Now,
+                typeof(MainWindow).Assembly.GetName().Version?.ToString()??"",
+                status.HasValue,
+                State(status,"signal"),
+                Count(dashboard,"Accounts"),
+                Count(dashboard,"EnabledAccounts"),
+                Count(dashboard,"Groups"),
+                Count(dashboard,"Scripts"),
+                Count(dashboard,"Jobs"),
+                Count(dashboard,"RecoveryJobs"),
+                State(read,"StreamState"),
+                Count(read,"Pending"),
+                Count(read,"Attempted"),
+                Number(read,"LastEventMs"),
+                File.Exists(db)));
+            await File.WriteAllTextAsync(picker.FileName,report,
+                new System.Text.UTF8Encoding(true));
+            MessageBox.Show(this,
+                "脱敏诊断报告已保存。\n"+
+                "报告不包含手机号、群名、账号备注、剧本正文、授权密钥或原始日志。\n"+
+                "如果后台不可用，相应状态会显示为未知。",
+                "诊断报告",MessageBoxButton.OK,MessageBoxImage.Information);
+        }
+        catch(Exception)
+        {
+            MessageBox.Show(this,"无法保存诊断报告，请检查磁盘空间和保存位置的写入权限。",
+                "诊断报告保存失败",MessageBoxButton.OK,MessageBoxImage.Warning);
+        }
+        finally
+        {
+            _exportingDiagnostic=false;
+            ExportDiagnosticButton.IsEnabled=true;
+        }
     }
 
     void ClearAlerts_Click(object sender,RoutedEventArgs e)
