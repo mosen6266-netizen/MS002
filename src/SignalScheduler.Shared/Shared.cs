@@ -197,6 +197,12 @@ public sealed record LivePilotItem(
 
 /// <summary>Explicit user-started native script dispatch; group IDs must be saved/selected.</summary>
 public sealed record LiveBatchStartRequest(string ScriptId,IReadOnlyList<string> GroupIds,bool ConfirmRealSend,bool SkipUnavailableImages=false);
+public sealed record LiveBatchPreflightRequest(
+    string ScriptId,IReadOnlyList<string> GroupIds);
+public sealed record LiveBatchPreflightIssue(string Level,string Message);
+public sealed record LiveBatchPreflightResult(
+    string ScriptName,int SelectedGroups,int SendableRows,
+    IReadOnlyList<LiveBatchPreflightIssue> Issues,bool CanStart);
 public sealed record LiveBatchMediaInspectionRequest(string ScriptId);
 public sealed record LiveBatchMediaIssue(int Position,string Problem,string Action);
 public sealed record LiveBatchMediaInspection(
@@ -267,6 +273,7 @@ public static class ControlCommands
     public const string LivePilotPlan="live-pilot-plan";
     public const string LivePilotList="live-pilot-list";
     public const string LivePilotControl="live-pilot-control";
+    public const string LiveBatchPreflight="live-batch-preflight";
     public const string LiveBatchStart="live-batch-start";
     public const string LiveBatchInspect="live-batch-inspect";
     public const string LiveBatchList="live-batch-list";
