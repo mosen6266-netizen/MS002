@@ -49,10 +49,17 @@ public partial class LiveBatchWindow : UserControl
                 ?DateTimeOffset.FromUnixTimeMilliseconds(health.LastEventMs)
                     .ToLocalTime().ToString("MM-dd HH:mm:ss")
                 :"没有捕获到群消息";
+            var lastFailure=health.LastFailureMs>0
+                ?DateTimeOffset.FromUnixTimeMilliseconds(health.LastFailureMs)
+                    .ToLocalTime().ToString("MM-dd HH:mm:ss")
+                :"没有记录";
             ReadHealthLabel.Text=$"监听：{health.StreamState} · 最近消息：{last} · "+
-                $"待处理：{health.Pending}（其中等待重试 {health.WaitingRetry}） · "+
-                $"已请求：{health.Attempted} · 最终失败：{health.Failed}"+
-                (string.IsNullOrWhiteSpace(health.LastError)?"":$" · 故障：{health.LastError}");
+                $"待处理：{health.Pending}（等待重试 {health.WaitingRetry}） · "+
+                $"回执被接口接受：{health.Attempted} · 尝试失败：{health.Failed} · "+
+                $"结果未知：{health.Unknown} · 上次监听故障：{lastFailure}"+
+                (string.IsNullOrWhiteSpace(health.LastFailureType)?""
+                    :$"（{health.LastFailureType}）")+
+                "。以上均不代表其他设备未读数已清零。";
         }
         catch(Exception ex){ReadHealthLabel.Text="已读状态检查失败："+ex.Message;}
     }
