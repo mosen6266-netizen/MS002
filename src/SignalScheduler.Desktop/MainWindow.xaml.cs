@@ -543,7 +543,9 @@ public partial class MainWindow : Window
                 Count(read,"Pending"),
                 Count(read,"Attempted"),
                 Number(read,"LastEventMs"),
-                File.Exists(db)));
+                File.Exists(db),
+                dashboard.HasValue,
+                read.HasValue));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
