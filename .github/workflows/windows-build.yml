@@ -276,6 +276,10 @@ jobs:
           $expectedData = Join-Path $env:RUNNER_TEMP "ms002-upgrade-user-expected.json"
           python tools/verify_upgrade_userdata.py seed "$userDataRoot" "$expectedData"
           if ($LASTEXITCODE -ne 0) { throw "Failed to seed isolated upgrade preservation fixture" }
+          # Baseline must compare equal BEFORE installing anything. If not,
+          # the preservation checker itself is broken (not evidence of data loss).
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "CI fixture self-check failed before upgrade" }
 
           $upgradeLog = Join-Path $env:RUNNER_TEMP "ms002-upgrade-setup.log"
           $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon","/LOG=$upgradeLog") -Wait -PassThru
