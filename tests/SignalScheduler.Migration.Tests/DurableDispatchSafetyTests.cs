@@ -159,6 +159,45 @@ public sealed class DurableDispatchSafetyTests
     }
 
     [Fact]
+    public async Task OfflineAccountAfterReservationPausesBeforeIrreversibleSend()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        var d=Identity();
+        await store.ReserveAsync(d,NoCancel);
+        await using(var c=new SqliteConnection($"Data Source={db}"))
+        {
+            await c.OpenAsync();
+            await using var q=c.CreateCommand();
+            q.CommandText="UPDATE v8_signal_accounts SET online=0 WHERE account='+49123456789'";
+            Assert.Equal(1,await q.ExecuteNonQueryAsync());
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.MarkSendingAsync(d,NoCancel));
+        Assert.Equal("DefinitelyNotSent",await ValueAsync(db,
+            "SELECT state FROM v8_dispatch_journal"));
+        Assert.Equal("Paused",await ValueAsync(db,
+            "SELECT state FROM v8_jobs"));
+        Assert.Equal("0",await ValueAsync(db,"SELECT cursor FROM v8_jobs"));
+    }
+
+    [Fact]
+    public async Task UnavailableTransportDoesNotReserveOrAdvanceMessage()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        var transport=new NotReadyTransport();
+        var engine=new DurableTaskEngine(store,transport);
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            engine.DispatchAsync(Identity(),"never sent",NoCancel));
+        Assert.Equal(0,transport.SendCount);
+        Assert.Equal("0",await ValueAsync(db,
+            "SELECT COUNT(*) FROM v8_dispatch_journal"));
+        Assert.Equal("Running",await ValueAsync(db,"SELECT state FROM v8_jobs"));
+        Assert.Equal("0",await ValueAsync(db,"SELECT cursor FROM v8_jobs"));
+    }
+
+    [Fact]
     public async Task AmbiguousSend_FailsClosed_AndStopsTask()
     {
         var (store,db)=await NewStoreAsync();
@@ -336,6 +375,18 @@ public sealed class DurableDispatchSafetyTests
         await using var q=c.CreateCommand();
         q.CommandText=sql;
         return Convert.ToString(await q.ExecuteScalarAsync());
+    }
+
+    sealed class NotReadyTransport : ISignalTransport
+    {
+        public bool IsReady=>false;
+        public int SendCount{get;private set;}
+        public Task<SignalSendResult> SendAsync(
+            DispatchIdentity d,string content,CancellationToken ct)
+        {
+            SendCount++;
+            throw new InvalidOperationException("Transport must not be called.");
+        }
     }
 
     sealed class FakeTransport : ISignalTransport
