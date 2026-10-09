@@ -3,7 +3,7 @@ using System.Collections.ObjectModel;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
- using System.Windows.Threading;
+using System.Windows.Threading;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Desktop;
@@ -40,7 +40,8 @@ public partial class RunningTasksWindow : UserControl
             if(AutoRefreshCheck.IsChecked==true)await RefreshAsync();
         };
         _clock.Tick+=(_,_)=>{
-            foreach(var row in _jobs)row.RefreshCountdown();
+            // Only visible cells need per-second WPF notifications.
+            foreach(var row in _pageRows)row.RefreshCountdown();
             if(_snapshotFresh && _lastSuccessfulRefreshMs>0 &&
                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()-_lastSuccessfulRefreshMs>15000)
             {
@@ -79,6 +80,7 @@ public partial class RunningTasksWindow : UserControl
         var pages=Math.Max(1,(matching.Length+PageSize-1)/PageSize);
         _page=Math.Clamp(_page,0,pages-1);
         var pageRows=matching.Skip(_page*PageSize).Take(PageSize).ToArray();
+        foreach(var row in pageRows)row.RefreshCountdown();
         // Minimal changes: leave existing visual rows in place whenever
         // they still belong to the current page (preserves scroll/focus).
         for(var i=0;i<pageRows.Length;i++)
