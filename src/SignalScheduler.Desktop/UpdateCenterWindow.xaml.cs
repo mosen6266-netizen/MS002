@@ -14,7 +14,7 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-beta.5";
+    const string CurrentProductVersion="8.0.0-beta.6";
     static readonly string Api="https://api.github.com/repos/"+Repo;
     readonly HttpClient _http=new(){Timeout=Timeout.InfiniteTimeSpan};
     bool _checking;
