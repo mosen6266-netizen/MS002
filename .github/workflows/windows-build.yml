@@ -73,12 +73,15 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
           $result = Start-Process -FilePath $exe -ArgumentList '--ui-layout-smoke' -Wait -PassThru
-          $report = Join-Path $env:TEMP 'ms002-ui-layout-smoke.txt'
+          $report = Join-Path (Split-Path $exe) 'ms002-ui-layout-smoke.txt'
+          Write-Host "Layout smoke exit code: $($result.ExitCode)"
           if (Test-Path -LiteralPath $report) {
             Get-Content -LiteralPath $report
+          } else {
+            Write-Host "Layout smoke did not create its report; app may have exited before the check."
           }
-          if ($result.ExitCode -ne 0) {
-            throw "WPF layout smoke failed; DataGrid column widths collapsed"
+          if ($result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $report)) {
+            throw "WPF layout smoke failed; see process exit code and layout diagnostics above"
           }
 
       - name: Bundle pinned Java 25 and signal-cli

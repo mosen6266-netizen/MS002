@@ -17,7 +17,7 @@ internal static class UiLayoutSmoke
     public static int Run()
     {
         var report=new StringBuilder("MS002 WPF UI width/layout smoke test\n");
-        var path=Path.Combine(Path.GetTempPath(),"ms002-ui-layout-smoke.txt");
+        var path=Path.Combine(AppContext.BaseDirectory,"ms002-ui-layout-smoke.txt");
         Application.Current.ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
