@@ -30,7 +30,9 @@ public sealed record SafeDiagnosticSnapshot(
     IReadOnlyList<DiagnosticCategoryCount>? DispatchDiagnostics=null,
     int ExaminedDispatches=0,
     bool RecoveryDataAvailable=false,
-    InstalledRuntimeStatus? RuntimeStatus=null);
+    InstalledRuntimeStatus? RuntimeStatus=null,
+    string LastDaemonErrorCategory="",
+    long LastDaemonErrorAtMs=0);
 
 public sealed record DiagnosticCategoryCount(string Code,int Count);
 
@@ -103,6 +105,29 @@ public static class SafeDiagnosticReport
         sb.AppendLine($"Java 主程序：{SafeFileStatus(input.RuntimeStatus?.Java)}");
         sb.AppendLine($"signal-cli 库文件：{SafeFileStatus(input.RuntimeStatus?.SignalCli)}");
         sb.AppendLine("说明：只检查文件存在性，不证明文件未损坏，也不代表账号可正常发送。");
+        sb.AppendLine();
+        sb.AppendLine("后台最近一次异常（不能自动归因到某一任务）");
+        var daemonCode=input.LastDaemonErrorCategory;
+        var allowedDaemon=new[]{
+            "ERROR SignalSend.ServerSideErrorException",
+            "ERROR SignalAccount.AccountCheckException",
+            "ERROR SignalAccount.UntrustedIdentity",
+            "ERROR SignalSend.RpcDispatcher",
+            "ERROR SignalNetwork.Connection",
+            "ERROR SignalDaemon.OtherException"
+        };
+        sb.AppendLine("错误类型："+(allowedDaemon.Contains(daemonCode,
+            StringComparer.Ordinal)?daemonCode:"未记录"));
+        string daemonTime="未记录";
+        if(input.LastDaemonErrorAtMs>0)
+        {
+            try { daemonTime=DateTimeOffset
+                .FromUnixTimeMilliseconds(input.LastDaemonErrorAtMs)
+                .ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz"); }
+            catch(ArgumentOutOfRangeException){ }
+        }
+        sb.AppendLine("最近出现时间："+daemonTime);
+        sb.AppendLine("说明：并发任务可能同时运行，同期 daemon 错误不等于当前任务的直接原因。");
         sb.AppendLine();
         sb.AppendLine("最近发送异常分类（不含原始 RPC 内容）");
         if(!input.RecoveryDataAvailable)
