@@ -982,7 +982,6 @@ public partial class ScriptEditorWindow : UserControl
 
     void Import_Click(object sender,RoutedEventArgs e)
     {
-        if(!ConfirmDiscard()) return;
         var picker=new OpenFileDialog
         {
             Title="导入剧本 JSON",
@@ -998,7 +997,13 @@ public partial class ScriptEditorWindow : UserControl
             var draft=JsonSerializer.Deserialize<ScriptSaveRequest>(
                 data,new JsonSerializerOptions{PropertyNameCaseInsensitive=true})
                 ??throw new InvalidDataException("JSON 文件中没有有效剧本。");
-
+            if(string.IsNullOrWhiteSpace(draft.Name) || draft.Name.Length>120 ||
+               draft.Steps is null || draft.Steps.Count==0 || draft.Steps.Count>1500)
+                throw new InvalidDataException("剧本名称或消息数量无效（最多 1500 条）。");
+            // A cancelled picker or invalid file must not discard the current
+            // editor. Only ask to replace it after import validation succeeds.
+            if(!ConfirmDiscard())return;
+            ++_scriptLoadGeneration;
             _loading=true;
             _scriptId=null; // Import is always a new copy, never overwrite by ID.
             _revision=0;
