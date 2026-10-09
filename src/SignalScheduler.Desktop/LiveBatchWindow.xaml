@@ -201,9 +201,15 @@
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBlock VerticalAlignment="Center" Text="启动前会显示消息数量；旧版失效图片将先检查并提示处理方式。"
       Foreground="#B2C9DD" TextWrapping="Wrap" Margin="0,0,12,0"/>
-     <Button x:Name="StartButton" Grid.Column="1" Content="▶ 启动选中群组"
-      Style="{StaticResource RunAction}" Click="Start_Click" IsEnabled="False"
-      ToolTip="请先选择剧本及至少一个群组，启动前会再次确认"/>
+     <StackPanel Grid.Column="1" Orientation="Horizontal">
+      <Button x:Name="PreflightButton" Content="检查运行条件"
+       Click="Preflight_Click" IsEnabled="False" Margin="0,0,10,0"
+       Padding="15,10" Background="#244A66"
+       ToolTip="只检查账号、群组、图片、授权和任务冲突，不会发送任何消息"/>
+      <Button x:Name="StartButton" Content="▶ 启动选中群组"
+       Style="{StaticResource RunAction}" Click="Start_Click" IsEnabled="False"
+       ToolTip="请先选择剧本及至少一个群组，启动前会再次确认"/>
+     </StackPanel>
     </Grid>
    </StackPanel>
   </Border>
