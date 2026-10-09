@@ -36,6 +36,18 @@
    <Setter Property="AlternatingRowBackground" Value="#162E45"/>
    <Setter Property="BorderBrush" Value="#2C4660"/>
    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+   <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Auto"/>
+   <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto"/>
+  </Style>
+  <Style TargetType="DataGridRow">
+   <Setter Property="Foreground" Value="#EAF2FF"/>
+   <Setter Property="Background" Value="#0D2135"/>
+   <Style.Triggers>
+    <Trigger Property="IsSelected" Value="True">
+     <Setter Property="Background" Value="#23669B"/>
+     <Setter Property="Foreground" Value="White"/>
+    </Trigger>
+   </Style.Triggers>
   </Style>
  </UserControl.Resources>
  <Grid Margin="22">
@@ -44,7 +56,7 @@
    <RowDefinition Height="14"/>
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="12"/>
-   <RowDefinition Height="Auto"/>
+   <RowDefinition Height="*"/>
   </Grid.RowDefinitions>
   <DockPanel Grid.Row="0" LastChildFill="False">
    <StackPanel DockPanel.Dock="Left">
@@ -58,7 +70,7 @@
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
-  <TabControl Grid.Row="2" x:Name="ManagementTabs" Height="635" Background="#0C1C2E"
+  <TabControl Grid.Row="2" x:Name="ManagementTabs" MinHeight="200" Background="#0C1C2E"
               Foreground="#EDF5FF" BorderBrush="#2D4660">
    <TabItem Header="账号管理" Padding="12,8">
     <Grid Margin="14">
