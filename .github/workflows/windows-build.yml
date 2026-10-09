@@ -71,6 +71,29 @@ jobs:
           $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
           New-Item -ItemType Directory -Force $runtime | Out-Null
 
+          # The pinned GitHub release assets are large. Invoke-WebRequest can
+          # terminate on a transient TCP reset. Use curl.exe with HTTP/1.1,
+          # bounded retries, and a clean file on every retry; checksum checks
+          # below still reject corrupted or substituted assets.
+          function Save-ReleaseAsset {
+            param([string]$AssetUrl,[string]$Destination)
+            $curl = (Get-Command curl.exe -ErrorAction Stop).Source
+            for ($attempt=1; $attempt -le 4; $attempt++) {
+              Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+              & $curl --fail --location --silent --show-error --http1.1 --connect-timeout 30 --max-time 600 --output $Destination $AssetUrl
+              $exitCode = $LASTEXITCODE
+              if ($exitCode -eq 0 -and (Test-Path -LiteralPath $Destination) -and
+                  (Get-Item -LiteralPath $Destination).Length -gt 0) {
+                return
+              }
+              if ($attempt -lt 4) {
+                Write-Warning "Release asset download interrupted (attempt $attempt/4, curl exit $exitCode); retrying."
+                Start-Sleep -Seconds ([int][Math]::Min(40,5*[Math]::Pow(2,$attempt-1)))
+              }
+            }
+            throw "Release asset download failed after 4 attempts (no unverified runtime will be packaged)."
+          }
+
           # signal-cli: pin a specific signed GitHub release and verify GitHub's asset digest when present.
           $signalVersion = "0.14.9"
           $release = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/AsamK/signal-cli/releases/tags/v$signalVersion"
@@ -78,7 +101,7 @@ jobs:
           $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
           if (-not $asset) { throw "signal-cli asset not found: $assetName" }
           $signalArchive = Join-Path $pwd "signal-cli.tar.gz"
-          Invoke-WebRequest -UseBasicParsing -Uri $asset.browser_download_url -OutFile $signalArchive
+          Save-ReleaseAsset -AssetUrl $asset.browser_download_url -Destination $signalArchive
           if ($asset.digest -and $asset.digest -match "^sha256:(.+)$") {
             $actual = (Get-FileHash $signalArchive -Algorithm SHA256).Hash.ToLowerInvariant()
             $expected = $Matches[1].ToLowerInvariant()
@@ -102,8 +125,8 @@ jobs:
           if (-not $jreAsset -or -not $jreChecksumAsset) { throw "Pinned Temurin JRE assets not found" }
           $jreArchive = Join-Path $pwd "temurin-jre.zip"
           $jreChecksumFile = Join-Path $pwd "temurin-jre.sha256.txt"
-          Invoke-WebRequest -UseBasicParsing -Uri $jreAsset.browser_download_url -OutFile $jreArchive
-          Invoke-WebRequest -UseBasicParsing -Uri $jreChecksumAsset.browser_download_url -OutFile $jreChecksumFile
+          Save-ReleaseAsset -AssetUrl $jreAsset.browser_download_url -Destination $jreArchive
+          Save-ReleaseAsset -AssetUrl $jreChecksumAsset.browser_download_url -Destination $jreChecksumFile
           $jreHash = (Get-FileHash $jreArchive -Algorithm SHA256).Hash.ToLowerInvariant()
           $expectedJreHash = $null
           if ($jreAsset.digest -and $jreAsset.digest -match "^sha256:(?<hash>[0-9a-fA-F]{64})$") {
