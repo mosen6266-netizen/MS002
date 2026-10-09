@@ -20,21 +20,19 @@ public sealed class LiveBatchRunner : BackgroundService
     readonly SignalGuardian _guardian;
     readonly DurableTaskEngine _engine;
     readonly ISignalTypingTransport _typing;
-    readonly SignalReadCoordinator _read;
     readonly LiveBatchQueueTelemetry _queueTelemetry;
     readonly ConcurrentDictionary<string,SemaphoreSlim> _accountLocks=new();
     readonly SemaphoreSlim _slots=new(4,4);
 
     public LiveBatchRunner(StateStore store,LicenseManager license,
         SignalGuardian guardian,DurableTaskEngine engine,ISignalTypingTransport typing,
-        SignalReadCoordinator read,LiveBatchQueueTelemetry queueTelemetry)
+        LiveBatchQueueTelemetry queueTelemetry)
     {
         _store=store;
         _license=license;
         _guardian=guardian;
         _engine=engine;
         _typing=typing;
-        _read=read;
         _queueTelemetry=queueTelemetry;
     }
 
@@ -125,11 +123,6 @@ public sealed class LiveBatchRunner : BackgroundService
                     return;
                 }
             }
-
-            // Targeted read receipts are best effort and never advance the dispatch journal.
-            try{await _read.TrySendForGroupAsync(due.Dispatch.AccountId,due.Dispatch.GroupId,ct);}
-            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-            catch { /* Send the scheduled message even if read receipts fail. */ }
 
             await SimulateTypingAsync(due,ct);
 

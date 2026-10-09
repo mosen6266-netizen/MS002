@@ -18,8 +18,9 @@ public sealed class SignalGuardian : BackgroundService
         "INFO","WARN","ERROR","FATAL","Exception","Connection","Socket","SSL","HTTP","failed","unable","timeout","Timeout"
     };
 
-    // Read receipt preference is applied when this daemon is launched.
-    // An already-running daemon needs a normal restart to pick up changes.
+    // Global read receipts: the multi-account daemon sends receipts for
+    // every account's incoming data messages, independent of script dispatch.
+    // A daemon already running needs a normal restart to pick up changes.
     bool ReadReceiptsEnabled()
     {
         try

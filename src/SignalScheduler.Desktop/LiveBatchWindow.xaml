@@ -159,10 +159,10 @@
        FontWeight="SemiBold" Foreground="#8FE4BD" VerticalAlignment="Center"/>
      </Grid>
      <CheckBox x:Name="ReadReceiptToggle" Grid.Row="6"
-      Content="自动发送新消息已读回执" IsChecked="True"
+      Content="全部账号自动已读（新消息）" IsChecked="True"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
       Foreground="#EAF5FE" FontSize="13"
-      ToolTip="后台自动监听并处理新收到的消息，不要求先发送群消息"/>
+      ToolTip="对所有已登录账号独立处理新收到的消息，不受剧本、群组选择或发言顺序影响；不代表历史未读清零"/>
      <CheckBox x:Name="LinkedReadSyncToggle" Visibility="Collapsed"
       IsChecked="False" IsEnabled="False" Grid.Row="7"/>
      <StackPanel Grid.Row="7" VerticalAlignment="Center">
