@@ -43,6 +43,7 @@ public partial class MainWindow : Window
         };
         Application.Current.MainWindow=this;
         NotificationsList.ItemsSource=_notifications;
+        Loaded+=(_,_)=>FitStartupWindowToWorkArea();
         Loaded+=async(_,_)=>
         {
             // Launch the Engine before the home page fetches scripts/groups.
@@ -55,6 +56,23 @@ public partial class MainWindow : Window
         };
         _timer.Tick+=async(_,_)=>await RefreshAsync();
         Closed+=(_,_)=>_timer.Stop();
+    }
+
+    void FitStartupWindowToWorkArea()
+    {
+        // A 1500x950 default can exceed a 1366x768 laptop's usable desktop.
+        // Shrink only the initial window, keeping resize/maximize fully usable.
+        if(WindowState!=WindowState.Normal)return;
+        var area=SystemParameters.WorkArea;
+        if(area.Width<650 || area.Height<470)return;
+        var maxWidth=area.Width-20;
+        var maxHeight=area.Height-20;
+        MinWidth=Math.Min(MinWidth,maxWidth);
+        MinHeight=Math.Min(MinHeight,maxHeight);
+        Width=Math.Min(Width,maxWidth);
+        Height=Math.Min(Height,maxHeight);
+        Left=area.Left+(area.Width-Width)/2;
+        Top=area.Top+(area.Height-Height)/2;
     }
 
     void GlobalWheel_PreviewMouseWheel(object sender,
