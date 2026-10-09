@@ -41,7 +41,9 @@ public sealed record SignalGuardianSnapshot(
     bool OwnsProcess,
     int RestartCount,
     DateTimeOffset UpdatedAt,
-    IReadOnlyList<string> LiveAccounts);
+    IReadOnlyList<string> LiveAccounts,
+    string LastDaemonErrorCategory="",
+    long LastDaemonErrorAtMs=0);
 
 public sealed record DashboardAccount(long LegacyId,string Account,string Label,bool Enabled);
 public sealed record DashboardGroup(long LegacyId,string Account,string GroupId,string Name,bool Enabled);
