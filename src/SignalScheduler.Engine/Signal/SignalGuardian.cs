@@ -18,21 +18,8 @@ public sealed class SignalGuardian : BackgroundService
         "INFO","WARN","ERROR","FATAL","Exception","Connection","Socket","SSL","HTTP","failed","unable","timeout","Timeout"
     };
 
-    // Global read receipts: the multi-account daemon sends receipts for
-    // every account's incoming data messages, independent of script dispatch.
-    // A daemon already running needs a normal restart to pick up changes.
-    bool ReadReceiptsEnabled()
-    {
-        try
-        {
-            var path=Path.Combine(_paths.DataRoot,"read-options.json");
-            if(!File.Exists(path))return true;
-            using var doc=JsonDocument.Parse(File.ReadAllText(path));
-            return !doc.RootElement.TryGetProperty("ReadReceipts",out var flag) ||
-                flag.ValueKind!=JsonValueKind.False;
-        }
-        catch{return true;}
-    }
+    // The daemon intentionally never enables global read receipts.
+    // SignalReadCoordinator is invoked solely for the due speaker/group.
 
     readonly RuntimePaths _paths;
     readonly StateStore _store;

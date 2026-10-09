@@ -58,6 +58,62 @@ internal static class UiLayoutSmoke
             CheckPage(scripts,"剧本消息表格",scripts.StepsGrid,
                 new[]{45d,105d,130d,170d},report);
 
+            // The settings/update route must load in the same fixed viewport
+            // without making network calls or requiring a GitHub login.
+            var updates=new UpdateCenterWindow();
+            var updateWindow=new Window
+            {
+                Width=1220,Height=810,Left=-4500,Top=-4500,
+                WindowStartupLocation=WindowStartupLocation.Manual,
+                ShowInTaskbar=false,ShowActivated=false,
+                WindowStyle=WindowStyle.ToolWindow,Content=updates
+            };
+            try
+            {
+                updateWindow.Show();
+                updates.UpdateLayout();
+                if(updates.CheckButton.ActualWidth<70 ||
+                   !updates.CurrentVersionText.Text.StartsWith("V8",StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        "更新页面当前版本或检查按钮无法正常显示。");
+                report.AppendLine("GitHub 检查更新页面：PASS");
+            }
+            finally{updateWindow.Close();}
+
+            // The image action must be visually distinguishable on every
+            // message row, including when the user moves the pointer.
+            var add=new Button
+            {
+                Style=(Style)scripts.FindResource("ImageRowButton"),
+                DataContext=new ScriptStepRow(),
+                Content="添加图片"
+            };
+            var view=new Button
+            {
+                Style=(Style)scripts.FindResource("ImageRowButton"),
+                DataContext=new ScriptStepRow(new ScriptEditorStep(
+                    0,"","", "img:test",false,"",5,5)),
+                Content="预览图片"
+            };
+            var colorHost=new Window
+            {
+                Width=360,Height=130,Left=-4500,Top=-4500,
+                WindowStartupLocation=WindowStartupLocation.Manual,
+                ShowInTaskbar=false,ShowActivated=false,
+                WindowStyle=WindowStyle.ToolWindow,
+                Content=new StackPanel{Children={add,view}}
+            };
+            try
+            {
+                colorHost.Show();
+                colorHost.UpdateLayout();
+                if(add.Background?.ToString()==view.Background?.ToString())
+                    throw new InvalidOperationException(
+                        "添加图片和预览图片未形成不同颜色。");
+                report.AppendLine("逐条图片状态颜色：PASS");
+            }
+            finally{colorHost.Close();}
+
             report.AppendLine("PASS: all measured columns exceed their minimum widths.");
             File.WriteAllText(path,report.ToString());
             return 0;
