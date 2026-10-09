@@ -18,6 +18,22 @@
    <Setter Property="Padding" Value="2,2"/>
    <Setter Property="Margin" Value="0,0,3,0"/>
   </Style>
+  <Style x:Key="ScriptListItem" TargetType="ListBoxItem">
+   <Setter Property="Padding" Value="8,9"/>
+   <Setter Property="Margin" Value="0,1"/>
+   <Setter Property="Foreground" Value="#F0F6FD"/>
+   <Style.Triggers>
+    <Trigger Property="IsSelected" Value="True">
+     <Setter Property="Background" Value="#276CA2"/>
+     <Setter Property="Foreground" Value="#FFFFFF"/>
+     <Setter Property="FontWeight" Value="SemiBold"/>
+    </Trigger>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="BorderBrush" Value="#7DC9FF"/>
+     <Setter Property="BorderThickness" Value="0,0,0,1"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
  </UserControl.Resources>
  <Grid Margin="18">
   <Grid.ColumnDefinitions>
@@ -49,7 +65,8 @@
     <ListBox x:Name="ScriptsList" Grid.Row="1" PreviewMouseRightButtonDown="ScriptsList_PreviewMouseRightButtonDown"
      SelectionChanged="ScriptsList_SelectionChanged"
      Background="#132B42" BorderBrush="#3C5B75"
-     HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+     HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+     ItemContainerStyle="{StaticResource ScriptListItem}">
      <ListBox.ContextMenu>
       <ContextMenu><MenuItem Header="重命名剧本" Click="RenameScript_Click"/></ContextMenu>
      </ListBox.ContextMenu>
