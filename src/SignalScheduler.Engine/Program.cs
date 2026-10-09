@@ -28,6 +28,7 @@ builder.Services.AddSingleton<SignalGuardian>();
 builder.Services.AddSingleton<SignalLinkManager>();
 builder.Services.AddSingleton<SignalCliTransport>();
 builder.Services.AddSingleton<SignalReadCoordinator>();
+builder.Services.AddSingleton<LiveBatchQueueTelemetry>();
 builder.Services.AddSingleton<ISignalTransport>(sp=>sp.GetRequiredService<SignalCliTransport>());
 builder.Services.AddSingleton<ISignalTypingTransport>(sp=>sp.GetRequiredService<SignalCliTransport>());
 builder.Services.AddSingleton<DurableTaskEngine>();
