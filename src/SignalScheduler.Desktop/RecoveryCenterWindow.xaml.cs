@@ -153,6 +153,7 @@ public partial class RecoveryCenterWindow : UserControl
         if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress ||
            JobsGrid.SelectedItem is not RecoveryJobItem job || job.IsLegacy ||
            job.State is not ("Running" or "WaitingSignal" or "Stopping")) return;
+        var confirmedSnapshot=_overview;
         var answer=MessageBox.Show(Window.GetWindow(this),
             $"确认暂停任务「{job.Name}」？\n\n如果已有消息进入发送阶段，暂停不会撤回这条消息，必须核对发送记录。",
             "确认手动暂停",MessageBoxButton.YesNo,MessageBoxImage.Warning);
@@ -161,8 +162,10 @@ public partial class RecoveryCenterWindow : UserControl
         // A modal dialog runs a nested WPF event loop. A refresh or selection
         // change may occur while confirmation is open; never act on the old row.
         if(!_snapshotFresh || _refreshing || _pauseInProgress || _reviewInProgress ||
+           !ReferenceEquals(_overview,confirmedSnapshot) ||
            (JobsGrid.SelectedItem as RecoveryJobItem)?.JobId!=job.JobId ||
-           (JobsGrid.SelectedItem as RecoveryJobItem)?.State!=job.State)
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.State!=job.State ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.Cursor!=job.Cursor)
         {
             StatusText.Text="确认期间任务列表已变化，请刷新后重新选择需要暂停的任务。";
             return;
@@ -219,6 +222,7 @@ public partial class RecoveryCenterWindow : UserControl
         var description=seen
             ?"我已经在 Signal 群中核实这条消息确实已发出；不再重发，游标前进一步。"
             :"我已经在 Signal 群中核实这条消息没有发出；留在原位置，稍后可手动继续。";
+        var confirmedSnapshot=_overview;
         var confirmation=MessageBox.Show(Window.GetWindow(this),
             $"你正在人工裁定一条真实发送的未知结果。\n\n任务：{job.JobId}\n"+
             $"发送记录：{message.DispatchKey}\n\n结论：{description}\n\n"+
@@ -229,10 +233,14 @@ public partial class RecoveryCenterWindow : UserControl
         // Do not submit an irreversible adjudication if the modal let a
         // refresh or another selection replace the reviewed dispatch.
         if(!_snapshotFresh || _refreshing || _reviewInProgress || _pauseInProgress ||
+           !ReferenceEquals(_overview,confirmedSnapshot) ||
            (JobsGrid.SelectedItem as RecoveryJobItem)?.JobId!=job.JobId ||
            (JobsGrid.SelectedItem as RecoveryJobItem)?.State!="RecoveryRequired" ||
+           (JobsGrid.SelectedItem as RecoveryJobItem)?.Cursor!=job.Cursor ||
            (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.DispatchKey!=message.DispatchKey ||
-           (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.State!="RecoveryRequired")
+           (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.Cursor!=message.Cursor ||
+           (DispatchGrid.SelectedItem as RecoveryDispatchItem)?.State!="RecoveryRequired" ||
+           EvidenceBox.Text.Trim()!=evidence)
         {
             StatusText.Text="确认期间核对记录已变化，请重新刷新并确认当前发送记录。";
             return;
