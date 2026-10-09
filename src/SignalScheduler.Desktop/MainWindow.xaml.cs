@@ -620,6 +620,7 @@ public partial class MainWindow : Window
             var dashboard=await SafeDataAsync(ControlCommands.Dashboard);
             var read=await SafeDataAsync(ControlCommands.ReadHealth);
             var recovery=await SafeDataAsync(ControlCommands.RecoveryOverview);
+            var signalDiagnostic=await SafeDataAsync(ControlCommands.SignalStatus);
             var errorCounts=new Dictionary<string,int>(StringComparer.Ordinal);
             var examinedDispatches=0;
             // Recovery payload stays in memory; export only fixed diagnostic
@@ -671,7 +672,9 @@ public partial class MainWindow : Window
                 examinedDispatches,
                 recovery.HasValue &&
                     recovery.Value.TryGetProperty("Dispatches",out _),
-                runtime));
+                runtime,
+                State(signalDiagnostic,"LastDaemonErrorCategory"),
+                Number(signalDiagnostic,"LastDaemonErrorAtMs")));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
