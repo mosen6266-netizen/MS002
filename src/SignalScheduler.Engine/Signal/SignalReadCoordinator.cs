@@ -18,6 +18,8 @@ public sealed class SignalReadCoordinator : BackgroundService
     long _lastStreamWarningMs;
     readonly HttpClient _http=new(){BaseAddress=new Uri("http://127.0.0.1:7583/"),Timeout=Timeout.InfiniteTimeSpan};
     readonly SemaphoreSlim _databaseGate=new(1,1);
+    readonly SemaphoreSlim _sendGate=new(1,1);
+    bool _initialized;
     string? _lastEventId;
     volatile string _streamState="尚未连接";
     volatile string _lastError="";
@@ -28,6 +30,8 @@ public sealed class SignalReadCoordinator : BackgroundService
     {
         var pending=0;
         var attempted=0;
+        var failed=0;
+        var waitingRetry=0;
         try
         {
             await InitializeAsync(ct);
@@ -36,12 +40,25 @@ public sealed class SignalReadCoordinator : BackgroundService
             {
                 await using var db=Open();
                 await using var q=db.CreateCommand();
-                q.CommandText="SELECT state,COUNT(*) FROM v8_read_events GROUP BY state;";
+                q.CommandText="""
+                    SELECT state,COUNT(*),
+                           SUM(CASE WHEN state='pending' AND
+                               next_retry_ms>$now THEN 1 ELSE 0 END)
+                    FROM v8_read_events GROUP BY state;
+                    """;
+                q.Parameters.AddWithValue("$now",
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                 await using var r=await q.ExecuteReaderAsync(ct);
                 while(await r.ReadAsync(ct))
                 {
-                    if(r.GetString(0)=="pending")pending+=r.GetInt32(1);
-                    if(r.GetString(0)=="attempted")attempted+=r.GetInt32(1);
+                    var state=r.GetString(0);
+                    if(state=="pending")
+                    {
+                        pending+=r.GetInt32(1);
+                        waitingRetry+=r.IsDBNull(2)?0:r.GetInt32(2);
+                    }
+                    if(state=="attempted")attempted+=r.GetInt32(1);
+                    if(state=="failed")failed+=r.GetInt32(1);
                 }
             }
             finally{_databaseGate.Release();}
@@ -54,7 +71,8 @@ public sealed class SignalReadCoordinator : BackgroundService
         }
         return new ReadHealthSnapshot(_streamState,
             Interlocked.Read(ref _lastConnectedMs),
-            Interlocked.Read(ref _lastEventMs),pending,attempted,_lastError);
+            Interlocked.Read(ref _lastEventMs),pending,attempted,_lastError,
+            failed,waitingRetry);
     }
 
 
@@ -77,9 +95,11 @@ public sealed class SignalReadCoordinator : BackgroundService
 
     async Task InitializeAsync(CancellationToken ct)
     {
+        if(_initialized)return;
         await _databaseGate.WaitAsync(ct);
         try
         {
+            if(_initialized)return;
             await using var db=Open();
             await using var q=db.CreateCommand();
             q.CommandText="""
@@ -94,6 +114,32 @@ public sealed class SignalReadCoordinator : BackgroundService
                 ON v8_read_events(account,group_id,state);
                 """;
             await q.ExecuteNonQueryAsync(ct);
+            var columns=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            await using(var info=db.CreateCommand())
+            {
+                info.CommandText="PRAGMA table_info(v8_read_events);";
+                await using var reader=await info.ExecuteReaderAsync(ct);
+                while(await reader.ReadAsync(ct))columns.Add(reader.GetString(1));
+            }
+            if(!columns.Contains("attempts"))
+            {
+                await using var alter=db.CreateCommand();
+                alter.CommandText="""
+                    ALTER TABLE v8_read_events
+                    ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0;
+                    """;
+                await alter.ExecuteNonQueryAsync(ct);
+            }
+            if(!columns.Contains("next_retry_ms"))
+            {
+                await using var alter=db.CreateCommand();
+                alter.CommandText="""
+                    ALTER TABLE v8_read_events
+                    ADD COLUMN next_retry_ms INTEGER NOT NULL DEFAULT 0;
+                    """;
+                await alter.ExecuteNonQueryAsync(ct);
+            }
+            _initialized=true;
         }
         finally{_databaseGate.Release();}
     }
@@ -197,6 +243,11 @@ public sealed class SignalReadCoordinator : BackgroundService
                         catch(JsonException){ /* Ignore non-message SSE payloads. */ }
                         data.Clear();
                     }
+                }
+                if(!ct.IsCancellationRequested)
+                {
+                    _streamState="连接中断";
+                    _lastError="事件流正常关闭，正在重新连接";
                 }
             }
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
