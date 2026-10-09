@@ -123,6 +123,42 @@ public sealed class DurableDispatchSafetyTests
     }
 
     [Fact]
+    public async Task DisabledAccountAfterReservationCannotReachTransport()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedRunningJobAsync(db);
+        var dispatch=Identity();
+        await store.ReserveAsync(dispatch,NoCancel);
+
+        // Operator disables a sending account during the prepared window.
+        await using(var c=new SqliteConnection($"Data Source={db}"))
+        {
+            await c.OpenAsync();
+            await using var q=c.CreateCommand();
+            q.CommandText="UPDATE v8_signal_accounts SET enabled=0 WHERE account='+49123456789'";
+            Assert.Equal(1,await q.ExecuteNonQueryAsync());
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.MarkSendingAsync(dispatch,NoCancel));
+        Assert.Equal("DefinitelyNotSent",await ValueAsync(db,
+            "SELECT state FROM v8_dispatch_journal"));
+        Assert.Equal("Paused",await ValueAsync(db,
+            "SELECT state FROM v8_jobs"));
+        Assert.Equal("0",await ValueAsync(db,"SELECT cursor FROM v8_jobs"));
+
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(NoCancel);
+        var transport=new FakeTransport((_,_,_)=>
+            Task.FromResult(new SignalSendResult(SignalDeliveryOutcome.Confirmed)));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            new DurableTaskEngine(restarted,transport).DispatchAsync(
+                dispatch,"test",NoCancel));
+        Assert.Equal(0,transport.SendCount);
+    }
+
+    [Fact]
     public async Task AmbiguousSend_FailsClosed_AndStopsTask()
     {
         var (store,db)=await NewStoreAsync();
