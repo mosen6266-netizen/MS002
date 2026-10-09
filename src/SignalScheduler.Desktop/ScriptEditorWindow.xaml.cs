@@ -617,12 +617,14 @@ public partial class ScriptEditorWindow : UserControl
 
     void AttachmentQuickPreview_Click(object sender,RoutedEventArgs e)
     {
-        if(sender is not Button {Tag:ScriptStepRow row} ||
-           string.IsNullOrWhiteSpace(row.Attachment))return;
+        if(sender is not Button {Tag:ScriptStepRow row})return;
         CommitGrid();
         StepsGrid.SelectedItem=row;
         StepsGrid.ScrollIntoView(row);
-        PreviewImage_Click(sender,e);
+        if(string.IsNullOrWhiteSpace(row.Attachment))
+            ImportImage_Click(sender,e);
+        else
+            PreviewImage_Click(sender,e);
     }
 
     bool SelectAttachmentRow(object sender)
@@ -665,16 +667,29 @@ public partial class ScriptEditorWindow : UserControl
             var raw=await MainWindow.SendAsync(ControlCommands.ImageCheck,30000,
                 new ImageCheckRequest(attachments));
             var results=ReadData<List<ImageCheckResult>>(raw);
-            var good=results.Count(x=>x.Status=="ok");
-            var bad=results.Where(x=>x.Status!="ok").ToArray();
-            StatusText.Text=$"图片检查：正常 {good} 个，需处理 {bad.Length} 个。";
-            if(bad.Length>0)
+            var byReference=results.ToDictionary(x=>x.Reference,StringComparer.Ordinal);
+            var good=0;
+            var problemRows=new List<string>();
+            foreach(var row in _steps)
+            {
+                if(string.IsNullOrWhiteSpace(row.Attachment))continue;
+                if(!byReference.TryGetValue(row.Attachment,out var check))
+                {
+                    row.SetImageHealth("invalid","未返回图片校验结果");
+                    problemRows.Add($"第 {row.PositionLabel} 句：未返回图片校验结果");
+                    continue;
+                }
+                row.SetImageHealth(check.Status,check.Detail);
+                if(check.Status=="ok")good++;
+                else problemRows.Add($"第 {row.PositionLabel} 句：{check.Detail}");
+            }
+            StatusText.Text=$"图片检查：正常 {good} 条消息，需处理 {problemRows.Count} 条消息。";
+            if(problemRows.Count>0)
                 MessageBox.Show(Window.GetWindow(this),
-                    "下列附件需要处理：\n"+
-                    string.Join("\n",bad.Take(15).Select(x=>
-                        $"{x.Reference[..Math.Min(32,x.Reference.Length)]}：{x.Detail}"))+
-                    (bad.Length>15?"\n其余请逐条检查。":"")+
-                    "\n可在对应消息右键“替换图片”。",
+                    "以下消息的图片需要处理：\n"+
+                    string.Join("\n",problemRows.Take(15))+
+                    (problemRows.Count>15?"\n还有其他异常，请查看附件列。":"")+
+                    "\n在对应消息的附件列右键可以替换图片。",
                     "图片完整性检查",MessageBoxButton.OK,MessageBoxImage.Warning);
         }
         catch(Exception ex)
@@ -767,6 +782,7 @@ public partial class ScriptEditorWindow : UserControl
                     Child=new Image{Source=bitmap,Stretch=Stretch.Uniform}
                 }
             };
+            row.SetImageHealth("ok","附件校验通过");
             window.ShowDialog();
             StatusText.Text="本地附件图片校验通过，已打开预览窗口。";
         }
