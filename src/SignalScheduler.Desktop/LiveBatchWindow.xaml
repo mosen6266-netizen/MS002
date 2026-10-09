@@ -219,8 +219,10 @@
    <StackPanel>
     <TextBlock Text="04 运行中的任务与历史记录" FontSize="19"
      FontWeight="SemiBold" Foreground="#F5F8FD"/>
-    <TextBlock Text="每个任务独立控制，运行状态刷新不打断滚动与选择"
-      Margin="0,4,0,0" Foreground="#AFC7DD"/>
+    <TextBlock Text="每个任务独立控制；计时每秒刷新，暂停或待核对时不再倒数。"
+      Margin="0,4,0,0" Foreground="#AFC7DD" TextWrapping="Wrap"/>
+    <TextBlock Text="剩余时间与最早完成时间只计已知间隔和输入时长，不包含网络延迟、账号等待或实际发送耗时。"
+      FontSize="11" Margin="0,4,0,0" Foreground="#90AEC8" TextWrapping="Wrap"/>
    </StackPanel>
    <TextBlock Grid.Column="1" Text="每行右侧直接操作" Foreground="#95B8D5"
     VerticalAlignment="Center"/>
