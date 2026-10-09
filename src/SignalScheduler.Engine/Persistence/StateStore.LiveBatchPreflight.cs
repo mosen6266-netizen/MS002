@@ -98,18 +98,27 @@ public sealed partial class StateStore
                     Error($"群「{groupName}」没有已加入且在线、已启用的账号。");
                     continue;
                 }
+                // A fresh database has no batch jobs table yet; absence
+                // means no conflict, not a failing health check.
                 await using(var q=c.CreateCommand())
                 {
                     q.CommandText="""
-                        SELECT 1 FROM v8_jobs j
-                        JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
-                        WHERE b.group_id=$g AND j.state IN
-                            ('Running','Paused','Sending','RecoveryRequired')
-                        LIMIT 1;
+                        SELECT 1 FROM sqlite_master
+                        WHERE type='table' AND name='v8_live_batch_jobs' LIMIT 1;
                         """;
-                    q.Parameters.AddWithValue("$g",groupId);
                     if(await q.ExecuteScalarAsync(ct) is not null)
-                        Error($"群「{groupName}」已有未结束的任务，请先处理。");
+                    {
+                        q.CommandText="""
+                            SELECT 1 FROM v8_jobs j
+                            JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
+                            WHERE b.group_id=$g AND j.state IN
+                                ('Running','Paused','Sending','RecoveryRequired')
+                            LIMIT 1;
+                            """;
+                        q.Parameters.AddWithValue("$g",groupId);
+                        if(await q.ExecuteScalarAsync(ct) is not null)
+                            Error($"群「{groupName}」已有未结束的任务，请先处理。");
+                    }
                 }
                 var bad=script.Steps
                     .Where(x=>!string.IsNullOrWhiteSpace(x.Account) &&
