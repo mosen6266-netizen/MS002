@@ -63,6 +63,32 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task LiveJobSnapshotReportsPreparedAndSendingPhasesWithoutMovingCursor()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"第一条"),Step(1,"第二条")});
+        await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var initial=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Running",initial.State);
+        Assert.Equal("",initial.DispatchState);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct));
+        await store.ReserveAsync(due.Dispatch,Ct);
+        var prepared=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Prepared",prepared.DispatchState);
+        Assert.Equal(0,prepared.Cursor);
+        await store.MarkSendingAsync(due.Dispatch,Ct);
+        var sending=Assert.Single(await store.ListLiveBatchAsync(Ct));
+        Assert.Equal("Sending",sending.DispatchState);
+        Assert.Equal(0,sending.Cursor);
+        Assert.Equal("请求发送中",LiveBatchTiming.Format(
+            sending,DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()).Phase);
+    }
+
+    [Fact]
     public async Task ReviewedSentStepCanBeManuallyResumedWithoutReplayingOriginal()
     {
         var (store,db)=await NewStoreAsync();
