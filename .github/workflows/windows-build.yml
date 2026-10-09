@@ -298,6 +298,44 @@ jobs:
           python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
           if ($LASTEXITCODE -ne 0) { throw "User data changed or disappeared during in-place upgrade" }
 
+          # Validate that a successful upgrade did not merely preserve data
+          # while leaving the actual program or bundled runtime unusable.
+          $upgradedDesktop = Join-Path $testRoot "SignalScheduler.exe"
+          $upgradedEngine = Join-Path $testRoot "Engine\\SignalScheduler.Engine.exe"
+          $upgradedJava = Join-Path $testRoot "Runtime\\signal-stack-v1\\jre\\bin\\java.exe"
+          $upgradedCp = Join-Path $testRoot "Runtime\\signal-stack-v1\\signal-cli\\lib\\*"
+          foreach ($requiredFile in @($upgradedDesktop,$upgradedEngine,$upgradedJava)) {
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+              throw "Missing installed file after upgrade: $requiredFile"
+            }
+          }
+          & $upgradedJava -classpath $upgradedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
+
+          # Run desktop from the upgraded installation rather than just from
+          # the pre-install publish output. No account or network send needed.
+          $upgradedApp = Start-Process -FilePath $upgradedDesktop -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $upgradedApp.Refresh()
+            if ($upgradedApp.HasExited) {
+              throw "Installed desktop exited after upgrade: $($upgradedApp.ExitCode)"
+            }
+          }
+          finally {
+            $upgradedApp.Refresh()
+            if (-not $upgradedApp.HasExited) {
+              $upgradedApp.CloseMainWindow() | Out-Null
+              if (-not $upgradedApp.WaitForExit(10000)) {
+                # CI-only process cleanup; production installer never force-kills.
+                Stop-Process -Id $upgradedApp.Id -Force
+              }
+            }
+          }
+          # An upgraded UI launch must not alter real user-facing records.
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "Desktop launch after upgrade modified the data fixture" }
+
           $uninstall = Join-Path $testRoot "unins000.exe"
           if (Test-Path $uninstall) {
             $u = Start-Process -FilePath $uninstall -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait -PassThru
