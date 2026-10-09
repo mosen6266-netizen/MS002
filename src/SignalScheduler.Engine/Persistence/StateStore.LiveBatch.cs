@@ -37,6 +37,10 @@ public sealed partial class StateStore
                 ON v8_live_batch_jobs(next_due_ms,created_at);
             CREATE INDEX IF NOT EXISTS idx_v8_live_batch_group
                 ON v8_live_batch_jobs(group_id);
+            CREATE INDEX IF NOT EXISTS idx_v8_live_batch_history
+                ON v8_live_batch_jobs(created_at DESC,job_id DESC);
+            CREATE INDEX IF NOT EXISTS idx_v8_dispatch_history
+                ON v8_dispatch_journal(job_id,updated_at,dispatch_key);
             """;
         await q.ExecuteNonQueryAsync(ct);
     }
