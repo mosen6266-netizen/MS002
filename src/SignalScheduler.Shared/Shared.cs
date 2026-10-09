@@ -245,7 +245,11 @@ public sealed record UpdateReadiness(
 public sealed record ControlRequest(string Command, JsonElement? Payload = null);
 public sealed record ControlResponse(bool Ok, string? Error = null, object? Data = null);
 
-public sealed record ReadHealthSnapshot(string StreamState,long LastConnectedMs,long LastEventMs,int Pending,int Attempted,string LastError,int Failed=0,int WaitingRetry=0);
+public sealed record ReadHealthSnapshot(
+    string StreamState,long LastConnectedMs,long LastEventMs,
+    int Pending,int Attempted,string LastError,int Failed=0,
+    int WaitingRetry=0,int Unknown=0,long LastFailureMs=0,
+    string LastFailureType="");
 
 public static class ControlCommands
 {
