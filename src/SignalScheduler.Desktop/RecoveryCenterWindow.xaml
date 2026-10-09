@@ -33,31 +33,31 @@
    <RowDefinition Height="Auto"/>
    <RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
-  <DockPanel Grid.Row="0">
-   <StackPanel DockPanel.Dock="Left">
-    <TextBlock Text="任务恢复中心" FontSize="25" FontWeight="Bold"/>
-    <TextBlock Text="查看发送日志、人工暂停任务。未确认消息不会自动重发。"
-               Foreground="#9DB2C9" Margin="0,6,0,0"/>
-   </StackPanel>
-   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
-               HorizontalAlignment="Right" VerticalAlignment="Center">
-    <Button Content="刷新记录" Click="Refresh_Click"/>
+  <StackPanel Grid.Row="0">
+   <TextBlock Text="任务恢复中心" FontSize="25" FontWeight="Bold"/>
+   <TextBlock Text="优先处理异常任务；所有发送结果不明确的消息必须核对，绝不会自动重发。"
+              Foreground="#9DB2C9" Margin="0,6,0,10" TextWrapping="Wrap"/>
+   <WrapPanel Orientation="Horizontal" Margin="0,0,0,8">
+    <Button Content="刷新记录" Click="Refresh_Click" Margin="0,0,6,6"/>
     <Button x:Name="PauseButton" Content="暂停选中任务" Click="Pause_Click"
-            Background="#855527" IsEnabled="False"/>
+            Background="#855527" IsEnabled="False" Margin="0,0,6,6"/>
     <Button x:Name="MarkSeenButton" Content="核实已发送" Click="MarkSeen_Click"
-            IsEnabled="False" Background="#146C4C"/>
+            IsEnabled="False" Background="#146C4C" Margin="0,0,6,6"/>
     <Button x:Name="MarkNotSentButton" Content="核实未发送" Click="MarkNotSent_Click"
-            IsEnabled="False" Background="#895729"/>
-    <Button Content="关闭" Click="Close_Click"/>
-   </StackPanel>
-  </DockPanel>
+            IsEnabled="False" Background="#895729" Margin="0,0,6,6"/>
+    <Button Content="返回首页" Click="Close_Click" Margin="0,0,6,6"/>
+   </WrapPanel>
+   <CheckBox x:Name="ShowAllTasks" Content="显示全部任务（包含正常暂停、已完成和旧版历史）"
+    IsChecked="False" Checked="TasksFilterChanged" Unchecked="TasksFilterChanged"
+    Foreground="#B7D5EE" VerticalAlignment="Center" Margin="0,0,0,2"/>
+  </StackPanel>
 
   <Grid Grid.Row="2">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="*"/>
    </Grid.RowDefinitions>
-   <TextBlock Text="任务列表（包含旧版历史任务）" FontSize="16" FontWeight="SemiBold"
+   <TextBlock Text="需要处理的任务（可勾选显示全部）" FontSize="16" FontWeight="SemiBold"
               Margin="0,0,0,10"/>
    <DataGrid x:Name="JobsGrid" Grid.Row="1" Height="320" AlternationCount="2"
              SelectionChanged="JobsGrid_SelectionChanged">
@@ -65,8 +65,10 @@
      <DataGridTextColumn Header="任务" Binding="{Binding Name}" Width="3*"
       ElementStyle="{StaticResource TruncatedGridText}"/>
      <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="2*"/>
-     <DataGridTextColumn Header="当前消息序号" Binding="{Binding Cursor}" Width="*"/>
-     <DataGridCheckBoxColumn Header="旧版记录" Binding="{Binding IsLegacy}" Width="*"/>
+     <DataGridTextColumn Header="当前消息序号" Binding="{Binding Cursor}" Width="100"/>
+     <DataGridTextColumn Header="异常原因 / 任务说明" Binding="{Binding Detail}" Width="2*"
+      ElementStyle="{StaticResource TruncatedGridText}"/>
+     <DataGridCheckBoxColumn Header="旧版记录" Binding="{Binding IsLegacy}" Width="82"/>
      <DataGridCheckBoxColumn Header="需要人工核对" Binding="{Binding NeedsReview}" Width="*"/>
     </DataGrid.Columns>
    </DataGrid>
