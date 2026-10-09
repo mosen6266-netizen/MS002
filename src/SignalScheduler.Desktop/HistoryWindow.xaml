@@ -4,8 +4,8 @@
  Background="#091827" Foreground="#F0F6FD">
  <Grid Margin="20">
   <Grid.RowDefinitions>
-   <RowDefinition Height="Auto"/><RowDefinition Height="52"/>
-   <RowDefinition Height="255"/><RowDefinition Height="14"/>
+   <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+   <RowDefinition Height="485"/><RowDefinition Height="14"/>
    <RowDefinition Height="Auto"/><RowDefinition Height="12"/>
    <RowDefinition Height="440"/><RowDefinition Height="Auto"/>
   </Grid.RowDefinitions>
@@ -18,23 +18,24 @@
    <Button Content="刷新历史" DockPanel.Dock="Right" Click="Refresh_Click"
     Background="#225277" Foreground="#F0F6FD" Padding="16,8"/>
   </DockPanel>
-  <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
-   <TextBox x:Name="HistorySearchBox" Width="220" Margin="0,0,8,0"
+  <WrapPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center"
+   Margin="0,8,0,10">
+   <TextBox x:Name="HistorySearchBox" Width="210" Margin="0,0,8,6"
     ToolTip="搜索群名或剧本名称" TextChanged="FiltersChanged"/>
-   <ComboBox x:Name="HistoryStateBox" Width="130" Margin="0,0,8,0"
+   <ComboBox x:Name="HistoryStateBox" Width="130" Margin="0,0,8,6"
     SelectionChanged="FiltersChanged">
     <ComboBoxItem Content="全部状态" Tag=""/>
     <ComboBoxItem Content="已完成" Tag="Completed"/>
     <ComboBoxItem Content="已停止" Tag="Stopped"/>
     <ComboBoxItem Content="异常停止" Tag="Failed"/>
    </ComboBox>
-   <Button Content="查询" Click="Refresh_Click" Padding="10,4"/>
+   <Button Content="查询" Click="Refresh_Click" Padding="10,4" Margin="0,0,8,6"/>
    <Button x:Name="HistoryPrevButton" Content="上一页" Click="PreviousPage_Click"
-    Margin="16,0,6,0" Padding="10,4"/>
+    Margin="0,0,6,6" Padding="10,4"/>
    <TextBlock x:Name="HistoryPageLabel" Text="第 1 / 1 页" VerticalAlignment="Center"
-    Margin="0,0,6,0" Foreground="#DCEAF8"/>
-   <Button x:Name="HistoryNextButton" Content="下一页" Click="NextPage_Click" Padding="10,4"/>
-  </StackPanel>
+    Margin="0,0,6,6" Foreground="#DCEAF8"/>
+   <Button x:Name="HistoryNextButton" Content="下一页" Click="NextPage_Click" Padding="10,4" Margin="0,0,0,6"/>
+  </WrapPanel>
   <DataGrid x:Name="HistoryGrid" Grid.Row="2"
    SelectionChanged="HistoryGrid_SelectionChanged"
    AutoGenerateColumns="False" IsReadOnly="True" CanUserAddRows="False"
