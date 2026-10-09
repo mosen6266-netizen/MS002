@@ -226,11 +226,12 @@ public partial class LiveBatchWindow : UserControl
             // This keeps scrolling, keyboard focus and per-job buttons stable
             // across the 2-second status refresh.
             var keys=new HashSet<string>(StringComparer.Ordinal);
+            var byId=_jobs.ToDictionary(x=>x.JobId,StringComparer.Ordinal);
             var position=0;
             foreach(var item in jobs)
             {
                 keys.Add(item.JobId);
-                var existing=_jobs.FirstOrDefault(x=>x.JobId==item.JobId);
+                byId.TryGetValue(item.JobId,out var existing);
                 if(existing is null)
                 {
                     existing=new BatchJobRow(item);
