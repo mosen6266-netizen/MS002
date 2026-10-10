@@ -6,7 +6,7 @@
  WindowStartupLocation="CenterOwner"
  Background="#091827" Foreground="#EAF3FF">
  <Window.Resources>
-  <Style TargetType="Button">
+  <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#173C59"/>
    <Setter Property="Foreground" Value="White"/>
    <Setter Property="BorderBrush" Value="#345878"/>
