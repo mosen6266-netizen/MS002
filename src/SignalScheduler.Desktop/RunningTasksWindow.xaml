@@ -50,9 +50,9 @@
   </Border>
   <WrapPanel Grid.Row="2" Margin="0,0,0,8" Orientation="Horizontal">
    <TextBlock Text="显示：" VerticalAlignment="Center" Margin="0,0,7,7"/>
-   <ComboBox x:Name="TaskFilter" Width="176" Margin="0,0,12,7"
+   <ComboBox x:Name="TaskFilter" Width="194" Margin="0,0,12,7"
     SelectionChanged="FilterChanged" SelectedIndex="0">
-    <ComboBoxItem Content="运行中与已暂停" Tag="active"/>
+    <ComboBoxItem Content="运行与非正常状态" Tag="active"/>
     <ComboBoxItem Content="需要人工关注" Tag="attention"/>
     <ComboBoxItem Content="已结束任务" Tag="finished"/>
     <ComboBoxItem Content="全部任务" Tag="all"/>
