@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Background="#071521" Foreground="#EAF2FF">
  <UserControl.Resources>
-  <Style TargetType="Button">
+  <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#17324E"/>
    <Setter Property="Foreground" Value="#EAF2FF"/>
    <Setter Property="BorderBrush" Value="#3A5C7B"/>
