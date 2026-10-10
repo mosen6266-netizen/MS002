@@ -103,7 +103,7 @@ public sealed class LiveBatchRunner : BackgroundService
                DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
-                    "授权未生效、已失效或已超出服务器签名的有效租期，群组已暂停。",
+                    $"授权状态：{license.State}。签名租期已结束或授权无效，群组已暂停。请在授权设置检查，确认有效后手动继续。",
                     CancellationToken.None);
                 return;
             }
@@ -154,7 +154,7 @@ public sealed class LiveBatchRunner : BackgroundService
                DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
-                    "输入等待期间授权已失效或本地签名租期结束，未发送下一条。",
+                    $"发送前授权状态：{license.State}。授权无效或签名租期已结束，未发送下一条；请先到授权设置检查。",
                     CancellationToken.None);
                 return;
             }
