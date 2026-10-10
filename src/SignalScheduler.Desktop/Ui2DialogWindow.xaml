@@ -51,16 +51,15 @@
    </ScrollViewer>
    <StackPanel Grid.Row="4" Orientation="Horizontal"
     HorizontalAlignment="Right">
-    <Button x:Name="SecondaryButton" Content="取消"
-     Background="{StaticResource Ui2SurfaceHover}"
-     Foreground="{StaticResource Ui2Text}"
-     BorderBrush="{StaticResource Ui2BorderStrong}"
-     MinWidth="104" MinHeight="40" Margin="0,0,10,0"/>
+    <!-- Destructive and normal dialogs use a consistent action order:
+         confirmation on the left in green, cancellation on the right in red. -->
     <Button x:Name="PrimaryButton" Content="确定"
-     Background="{StaticResource Ui2Selected}"
-     Foreground="{StaticResource Ui2Text}"
-     BorderBrush="{StaticResource Ui2BorderStrong}"
-     MinWidth="112" MinHeight="40" FontWeight="SemiBold"/>
+     Background="#197A52" Foreground="#FFFFFF" BorderBrush="#28996D"
+     MinWidth="112" MinHeight="40" FontWeight="SemiBold"
+     Margin="0,0,10,0"/>
+    <Button x:Name="SecondaryButton" Content="取消"
+     Background="#A63843" Foreground="#FFFFFF" BorderBrush="#D0545E"
+     MinWidth="104" MinHeight="40"/>
    </StackPanel>
   </Grid>
  </Border>
