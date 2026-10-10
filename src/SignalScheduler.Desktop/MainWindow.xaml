@@ -12,7 +12,7 @@
  </shell:WindowChrome.WindowChrome>
  <Window.Resources>
   <SolidColorBrush x:Key="PanelBackground" Color="#10243A"/>
-  <Style TargetType="Button">
+  <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#19364F"/>
    <Setter Property="Foreground" Value="White"/>
    <Setter Property="BorderBrush" Value="#365571"/>
@@ -23,7 +23,6 @@
      <Setter Property="BorderBrush" Value="#7DC9FF"/>
     </Trigger>
     <Trigger Property="IsEnabled" Value="False">
-     <Setter Property="Opacity" Value="0.62"/>
      <Setter Property="Cursor" Value="Arrow"/>
     </Trigger>
    </Style.Triggers>
