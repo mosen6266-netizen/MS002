@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using SignalScheduler.Shared;
 
@@ -32,8 +33,10 @@ internal static class UiLayoutSmoke
             var link=new LinkAccountWindow();
             link.FinishButton.ApplyTemplate();
             if(link.FinishButton.IsEnabled ||
-               link.FinishButton.Background?.ToString()!="#292E36" ||
-               link.FinishButton.Foreground?.ToString()!="#F6F7FA")
+               link.FinishButton.Background is not SolidColorBrush disabledBg ||
+               disabledBg.Color!=Color.FromRgb(41,46,54) ||
+               link.FinishButton.Foreground is not SolidColorBrush disabledFg ||
+               disabledFg.Color!=Color.FromRgb(246,247,250))
                 throw new InvalidOperationException(
                     "扫码备注完成按钮的禁用状态不是深灰底、浅色文字。");
             report.AppendLine("扫码备注按钮禁用状态：PASS");
