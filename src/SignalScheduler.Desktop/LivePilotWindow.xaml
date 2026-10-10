@@ -6,7 +6,7 @@
  WindowStartupLocation="CenterOwner"
  Background="#0A1829" Foreground="#F0F6FF">
  <Window.Resources>
-  <Style TargetType="Button">
+  <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Padding" Value="12,8"/>
    <Setter Property="Margin" Value="0,0,10,0"/>
    <Setter Property="Background" Value="#1B3D58"/>
