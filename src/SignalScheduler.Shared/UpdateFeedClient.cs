@@ -10,7 +10,7 @@ namespace SignalScheduler.Shared;
 public static class UpdateFeedClient
 {
     public const string RawUrl=
-        "https://raw.githubusercontent.com/mosen6266-netizen/MS002/updates/latest.json";
+        "https://raw.githubusercontent.com/mosen6266-netizen/MS002/ui2-updates/latest.json";
 
     public static async Task<VerifiedUpdateManifest> FetchAsync(
         HttpClient client,CancellationToken ct)
