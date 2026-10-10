@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '8.0.0-beta.15'
+            version = '8.0.0-beta.16'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -390,6 +390,26 @@ jobs:
           path: artifacts/installer/*
           if-no-files-found: error
 
+      # Publish immutable offline installer from exactly this fully tested CI run.
+      # Keep the update manifest behind this step to avoid linking unpublished files.
+      - name: Publish verified installer to GitHub Releases
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '8.0.0-beta.16'
+          $tag = "v$version"
+          $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
+          if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
+          & gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $tag already exists; bump version before publishing another build."
+          }
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "Windows 10/11 x64 中文离线安装包；已执行安装和升级数据保留测试。修复注册表安装、有效签名租期内临时断网、剧本选中高亮、群名按钮圆角及窗口控制按钮悬停。更新前请安全停止正在运行的任务。" --prerelease
+          if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
+
       # Publish only after the installer was built, installed, smoke-tested,
       # hashed and uploaded. Static raw.githubusercontent.com reads do not
       # consume the unauthenticated REST API limit (60 requests/hour).
@@ -407,7 +427,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '8.0.0-beta.15'
+            version = '8.0.0-beta.16'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
