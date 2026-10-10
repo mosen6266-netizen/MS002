@@ -679,7 +679,9 @@ public partial class MainWindow : Window
                 Number(read,"LastReceiptRpcAtMs"),
                 Count(read,"LastReceiptSelected"),
                 Count(read,"LastReceiptAccepted"),
-                Count(read,"Unknown")));
+                Count(read,"Unknown"),
+                State(read,"LastReceiptFailureCode"),
+                Number(read,"LastReceiptFailureAtMs")));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
