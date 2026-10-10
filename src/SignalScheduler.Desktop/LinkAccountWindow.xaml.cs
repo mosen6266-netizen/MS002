@@ -20,6 +20,7 @@ public partial class LinkAccountWindow : Window
     public LinkAccountWindow()
     {
         InitializeComponent();
+        Ui2WindowChrome.Attach(this);
         Loaded+=async(_,_)=>{
             try
             {
