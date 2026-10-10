@@ -16,7 +16,7 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-ui2.2";
+    const string CurrentProductVersion="8.0.0-ui2.3";
 
     const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/ui2-installer.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
