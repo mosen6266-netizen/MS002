@@ -9,6 +9,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Input;
 using Microsoft.Win32;
 using SignalScheduler.Shared;
 
@@ -27,6 +28,9 @@ public partial class ScriptEditorWindow : UserControl
     bool _dirty;
     string? _savedSignature;
     ICollectionView? _scriptView;
+    Point _scriptDragStart;
+    ScriptEditorSummary? _scriptDragItem;
+    bool _scriptReorderBusy;
     readonly DispatcherTimer _draftTimer=new(){Interval=TimeSpan.FromSeconds(12)};
     static readonly string DraftDirectory=Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -131,6 +135,75 @@ public partial class ScriptEditorWindow : UserControl
         }
         catch(IOException){ }
         catch(UnauthorizedAccessException){ }
+    }
+
+    void ScriptsList_PreviewMouseLeftButtonDown(object sender,MouseButtonEventArgs e)
+    {
+        _scriptDragStart=e.GetPosition(ScriptsList);
+        _scriptDragItem=ItemsControl.ContainerFromElement(
+            ScriptsList,e.OriginalSource as DependencyObject) is ListBoxItem item
+            ?item.DataContext as ScriptEditorSummary:null;
+    }
+
+    void ScriptsList_PreviewMouseMove(object sender,MouseEventArgs e)
+    {
+        if(_scriptReorderBusy || _bundleBusy || _scriptDragItem is null ||
+           e.LeftButton!=MouseButtonState.Pressed ||
+           !string.IsNullOrWhiteSpace(ScriptSearchBox.Text))return;
+        var p=e.GetPosition(ScriptsList);
+        if(Math.Abs(p.X-_scriptDragStart.X)<SystemParameters.MinimumHorizontalDragDistance &&
+           Math.Abs(p.Y-_scriptDragStart.Y)<SystemParameters.MinimumVerticalDragDistance)return;
+        var dragged=_scriptDragItem;
+        _scriptDragItem=null;
+        DragDrop.DoDragDrop(ScriptsList,
+            new DataObject(typeof(ScriptEditorSummary),dragged),
+            DragDropEffects.Move);
+    }
+
+    void ScriptsList_DragOver(object sender,DragEventArgs e)
+    {
+        e.Effects=!_scriptReorderBusy &&
+            string.IsNullOrWhiteSpace(ScriptSearchBox.Text) &&
+            e.Data.GetDataPresent(typeof(ScriptEditorSummary))
+            ?DragDropEffects.Move:DragDropEffects.None;
+        e.Handled=true;
+    }
+
+    async void ScriptsList_Drop(object sender,DragEventArgs e)
+    {
+        e.Handled=true;
+        if(_scriptReorderBusy || !string.IsNullOrWhiteSpace(ScriptSearchBox.Text))
+        {
+            StatusText.Text="请先清空搜索框再拖动排序，以免隐藏剧本改变顺序。";
+            return;
+        }
+        var from=e.Data.GetData(typeof(ScriptEditorSummary)) as ScriptEditorSummary;
+        var target=(ItemsControl.ContainerFromElement(ScriptsList,
+            e.OriginalSource as DependencyObject) as ListBoxItem)?.DataContext
+            as ScriptEditorSummary;
+        if(from is null || target is null || from.ScriptId==target.ScriptId)return;
+        var rows=_scriptView?.Cast<ScriptEditorSummary>().ToList();
+        if(rows is null || rows.Count<2)return;
+        var fromIndex=rows.FindIndex(x=>x.ScriptId==from.ScriptId);
+        var toIndex=rows.FindIndex(x=>x.ScriptId==target.ScriptId);
+        if(fromIndex<0 || toIndex<0)return;
+        rows.RemoveAt(fromIndex);
+        rows.Insert(toIndex,from);
+        _scriptReorderBusy=true;
+        try
+        {
+            ReadData<bool>(await MainWindow.SendAsync(
+                ControlCommands.ScriptReorder,14000,
+                new ScriptReorderRequest(rows.Select(x=>x.ScriptId).ToArray())));
+            await ReloadScriptsAsync();
+            StatusText.Text="剧本列表顺序已保存，重启后仍然有效。";
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text="排序保存失败："+ex.Message+"；列表将重新读取。";
+            await ReloadScriptsAsync();
+        }
+        finally{_scriptReorderBusy=false;}
     }
 
     void ScriptSearchBox_TextChanged(object sender,TextChangedEventArgs e)
