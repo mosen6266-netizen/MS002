@@ -61,6 +61,51 @@
     </Setter.Value>
    </Setter>
   </Style>
+  <!-- Dedicated monochrome chrome button states, independent of Windows theme. -->
+  <Style x:Key="Ui2CaptionButton" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Padding" Value="0"/>
+   <Setter Property="MinHeight" Value="0"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border x:Name="CaptionFace" Background="{TemplateBinding Background}"
+       CornerRadius="7" Margin="3">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+        TextElement.Foreground="{TemplateBinding Foreground}"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="CaptionFace" Property="Background" Value="#454950"/>
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="CaptionFace" Property="Background" Value="#656B74"/>
+       </Trigger>
+       <MultiTrigger>
+        <MultiTrigger.Conditions>
+         <Condition Property="Tag" Value="close"/>
+         <Condition Property="IsMouseOver" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter TargetName="CaptionFace" Property="Background" Value="#9C3439"/>
+       </MultiTrigger>
+       <MultiTrigger>
+        <MultiTrigger.Conditions>
+         <Condition Property="Tag" Value="close"/>
+         <Condition Property="IsPressed" Value="True"/>
+        </MultiTrigger.Conditions>
+        <Setter TargetName="CaptionFace" Property="Background" Value="#7A252A"/>
+       </MultiTrigger>
+       <Trigger Property="IsKeyboardFocusWithin" Value="True">
+        <Setter TargetName="CaptionFace" Property="BorderBrush" Value="#D0D2D7"/>
+        <Setter TargetName="CaptionFace" Property="BorderThickness" Value="1"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
  </Window.Resources>
  <Grid>
   <Grid.RowDefinitions>
@@ -90,18 +135,15 @@
     </StackPanel>
     <Button Grid.Column="1" Content="─" ToolTip="最小化" Click="Minimize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="{StaticResource Ui2Text}" FontSize="18"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource Ui2CaptionButton}" FontSize="18"/>
     <Button Grid.Column="2" x:Name="MaximizeButton" Content="□"
      ToolTip="最大化 / 还原" Click="Maximize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="{StaticResource Ui2Text}" FontSize="18"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource Ui2CaptionButton}" FontSize="18"/>
     <Button Grid.Column="3" Content="×" ToolTip="关闭程序"
      Click="WindowClose_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="{StaticResource Ui2SurfaceRaised}" Foreground="#F3F8FD" FontSize="20"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource Ui2CaptionButton}" Tag="close" FontSize="20"/>
    </Grid>
   </Border>
 
@@ -117,7 +159,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="MS002" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-ui2.0" Foreground="{StaticResource Ui2TextMuted}" Margin="0,7,0,0"/>
+     <TextBlock Text="V8.0.0-ui2.1" Foreground="{StaticResource Ui2TextMuted}" Margin="0,7,0,0"/>
      <TextBlock Text="智能消息工作台" Foreground="{StaticResource Ui2TextMuted}" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
