@@ -96,6 +96,69 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task CompletionQueuesAllLocalGroupMembersDurablyAndNeverDuplicates()
+    {
+        var (store,_)=await NewStoreAsync();
+        const string a="+49123455", b="+49123456";
+        var members=new[]{
+            new SignalGroupCatalogItem(a,"g1","完成后已读测试",true,Array.Empty<string>()),
+            new SignalGroupCatalogItem(b,"g1","完成后已读测试",true,Array.Empty<string>())
+        };
+        await store.SyncSignalCatalogAsync(new[]{a,b},members,new[]{a,b},Ct);
+        var script=await MakeScriptAsync(store,new[]{
+            new ScriptEditorStep(0,a,"唯一消息","",false,"",0,0)
+        });
+        var start=await store.StartLiveBatchAsync(new(
+            script.ScriptId,new[]{"g1"},true),Ct);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Confirmed,"receipt-test","ACK"))));
+        await engine.DispatchAsync(due.Dispatch,"test",Ct);
+        await store.ConfirmLiveBatchStepAsync(due.Dispatch,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Ct);
+
+        Assert.Equal("Completed",Assert.Single(await store.ListLiveBatchAsync(Ct)).State);
+        var first=await store.ClaimCompletionReadAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct);
+        Assert.NotNull(first);
+        await store.FinishCompletionReadAsync(first!,true,false,
+            "NO_PENDING_FOR_SPEAKER",DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Ct);
+        var second=await store.ClaimCompletionReadAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct);
+        Assert.NotNull(second);
+        Assert.NotEqual(first.Account,second!.Account);
+        await store.FinishCompletionReadAsync(second,true,false,
+            "NO_PENDING_FOR_SPEAKER",DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Ct);
+        Assert.Null(await store.ClaimCompletionReadAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct));
+    }
+
+    [Fact]
+    public async Task CompletionReadIsBoundedAndInterruptedRequestsNeverReplay()
+    {
+        var (store,_)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"完成后待已读")});
+        await store.StartLiveBatchAsync(new(script.ScriptId,new[]{"g1"},true),Ct);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct));
+        var engine=new DurableTaskEngine(store,new StubTransport((d,p,ct)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Confirmed,"receipt-test","ACK"))));
+        await engine.DispatchAsync(due.Dispatch,"test",Ct);
+        await store.ConfirmLiveBatchStepAsync(due.Dispatch,
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Ct);
+        var work=await store.ClaimCompletionReadAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,Ct);
+        Assert.NotNull(work);
+        await store.RecoverInterruptedCompletionReadsAsync(Ct);
+        Assert.Null(await store.ClaimCompletionReadAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000000,Ct));
+    }
+
+    [Fact]
     public async Task LiveJobSnapshotReportsPreparedAndSendingPhasesWithoutMovingCursor()
     {
         var (store,db)=await NewStoreAsync();
