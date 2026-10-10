@@ -1,3 +1,4 @@
+using MessageBox = SignalScheduler.Desktop.Ui2MessageBox;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
