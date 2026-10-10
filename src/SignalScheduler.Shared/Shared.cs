@@ -150,6 +150,7 @@ public sealed record ScriptSaveRequest(
     string? ScriptId,string Name,string TargetGroupId,int Revision,
     IReadOnlyList<ScriptEditorStep> Steps);
 public sealed record ScriptReadRequest(string ScriptId);
+public sealed record ScriptReorderRequest(IReadOnlyList<string> ScriptIds);
 public sealed record ScriptVersionSummary(int Revision,string Name,long SavedAt);
 public sealed record ScriptVersionRequest(string ScriptId,int Revision);
 
@@ -280,6 +281,7 @@ public static class ControlCommands
     public const string PauseJob="pause-job";
     public const string ManualDispatchReview="manual-dispatch-review";
     public const string ScriptList="script-list";
+    public const string ScriptReorder="script-reorder";
     public const string ScriptRead="script-read";
     public const string ScriptVersions="script-versions";
     public const string ScriptVersionRead="script-version-read";
