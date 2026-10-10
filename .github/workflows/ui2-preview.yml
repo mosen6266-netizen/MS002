@@ -74,6 +74,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui2-preview-validation
-          path: artifacts/ui2/ui-layout-report.txt
+          path: |
+            artifacts/ui2/ui-layout-report.txt
+            artifacts/ui2/ui2-screenshots/*.png
           if-no-files-found: warn
           retention-days: 14
