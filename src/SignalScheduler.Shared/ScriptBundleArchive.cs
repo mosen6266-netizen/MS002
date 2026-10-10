@@ -30,7 +30,7 @@ public static class ScriptBundleArchive
     public sealed record Manifest(int Version,ScriptSaveRequest[] Scripts,
         Dictionary<string,string> Images);
     public sealed record Contents(ScriptSaveRequest[] Scripts,
-        Dictionary<string,string> ImportedImagePaths);
+        Dictionary<string,string> ImportedImagePaths,int Version);
 
     static void ValidateScripts(ScriptSaveRequest[] scripts)
     {
@@ -52,11 +52,22 @@ public static class ScriptBundleArchive
     public static void Create(string destination,IReadOnlyList<ScriptSaveRequest> scripts,
         IReadOnlyDictionary<string,string> imagePaths)
     {
-        var safeScripts=scripts.Select(s=>s with{ScriptId=null,Revision=0}).ToArray();
-        ValidateScripts(safeScripts);
-        var references=safeScripts.SelectMany(s=>s.Steps)
+        // Version 2 represents Account as a remark, and removes local/group
+        // identifiers. Image references are replaced with neutral tokens so
+        // legacy absolute file paths cannot leak into an exported manifest.
+        var raw=scripts.Select(x=>x with{ScriptId=null,Revision=0,TargetGroupId=""}).ToArray();
+        ValidateScripts(raw);
+        var references=raw.SelectMany(s=>s.Steps)
             .Select(x=>x.Attachment).Where(x=>!string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.Ordinal).ToArray();
+        var portableRefs=references.Select((r,i)=>(Reference:r,Token:"image-"+(i+1)))
+            .ToDictionary(x=>x.Reference,x=>x.Token,StringComparer.Ordinal);
+        var safeScripts=raw.Select(x=>x with{
+            Steps=x.Steps.Select(step=>step with{
+                Attachment=string.IsNullOrWhiteSpace(step.Attachment)
+                    ?"":portableRefs[step.Attachment]
+            }).ToArray()
+        }).ToArray();
         if(references.Length>MaxImages)
             throw new InvalidDataException("备份包含过多图片。");
         if(references.Any(x=>!imagePaths.ContainsKey(x)))
@@ -83,14 +94,14 @@ public static class ScriptBundleArchive
                     using var read=File.OpenRead(file);
                     var digest=Convert.ToHexString(SHA256.HashData(read)).ToLowerInvariant();
                     var entryName="images/"+digest+extension;
-                    map.Add(reference,entryName);
+                    map.Add(portableRefs[reference],entryName);
                     if(!written.Add(entryName))continue;
                     var entry=archive.CreateEntry(entryName,CompressionLevel.Optimal);
                     using var target=entry.Open();
                     read.Position=0;
                     read.CopyTo(target);
                 }
-                var manifest=new Manifest(1,safeScripts,map);
+                var manifest=new Manifest(2,safeScripts,map);
                 var bytes=JsonSerializer.SerializeToUtf8Bytes(manifest,JsonOptions);
                 if(bytes.Length>MaxManifestBytes)
                     throw new InvalidDataException("剧本备份清单过大。");
@@ -133,7 +144,7 @@ public static class ScriptBundleArchive
         }
         var manifest=JsonSerializer.Deserialize<Manifest>(content,JsonOptions)
             ??throw new InvalidDataException("备份清单无法读取。");
-        if(manifest.Version!=1 || manifest.Scripts is null || manifest.Images is null)
+        if(manifest.Version is not (1 or 2) || manifest.Scripts is null || manifest.Images is null)
             throw new InvalidDataException("不支持此备份格式版本。");
         ValidateScripts(manifest.Scripts);
         if(manifest.Images.Count>MaxImages)
@@ -179,6 +190,6 @@ public static class ScriptBundleArchive
                 throw new InvalidDataException("图片 SHA256 校验失败，已拒绝导入。");
             extracted[original]=path;
         }
-        return new Contents(manifest.Scripts,extracted);
+        return new Contents(manifest.Scripts,extracted,manifest.Version);
     }
 }
