@@ -49,6 +49,31 @@
     </Trigger>
    </Style.Triggers>
   </Style>
+  <!-- Separate the tab headers from the content panel. WPF's default
+       TabControl draws the content border over the tab's lower radii. -->
+  <Style x:Key="Ui2FullRoundedTabs" TargetType="{x:Type TabControl}">
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="{x:Type TabControl}">
+      <Grid KeyboardNavigation.TabNavigation="Local">
+       <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+       </Grid.RowDefinitions>
+       <TabPanel x:Name="HeaderPanel" Grid.Row="0" IsItemsHost="True"
+        Margin="0,0,0,10" Background="Transparent" Panel.ZIndex="2"
+        KeyboardNavigation.TabIndex="1"/>
+       <Border Grid.Row="1" Background="{TemplateBinding Background}"
+        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+        CornerRadius="9" Padding="0">
+        <ContentPresenter x:Name="PART_SelectedContentHost"
+         ContentSource="SelectedContent" Margin="0"/>
+       </Border>
+      </Grid>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+  </Style>
  </UserControl.Resources>
  <Grid Margin="22">
   <Grid.RowDefinitions>
@@ -70,7 +95,7 @@
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
-  <TabControl Grid.Row="2" x:Name="ManagementTabs" MinHeight="200" Background="{StaticResource Ui2Surface}"
+  <TabControl Grid.Row="2" x:Name="ManagementTabs" Style="{StaticResource Ui2FullRoundedTabs}" MinHeight="200" Background="{StaticResource Ui2Surface}"
               Foreground="{StaticResource Ui2Text}" BorderBrush="{StaticResource Ui2SurfaceHover}">
    <TabItem Header="账号管理" Padding="12,8">
     <Grid Margin="14">
