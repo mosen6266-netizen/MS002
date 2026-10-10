@@ -37,6 +37,17 @@ public sealed class LicenseDispatchPolicyTests
             Valid("active-offline",false),Now+120));
 
     [Fact]
+    public void PerpetualCardExpiryZeroStillHonorsServerSignedLease()
+    {
+        Assert.True(LicenseDispatchPolicy.CanDispatch(
+            Valid() with {ExpiresAt=0},Now));
+        Assert.True(LicenseDispatchPolicy.CanDispatch(
+            Valid("active-offline",false) with {ExpiresAt=0},Now));
+        Assert.False(LicenseDispatchPolicy.CanDispatch(
+            Valid() with {ExpiresAt=0,LeaseUntil=Now},Now));
+    }
+
+    [Fact]
     public void CardExpiryAndMissingLicenseCannotBeOverridden() 
     {
         Assert.False(LicenseDispatchPolicy.CanDispatch(
