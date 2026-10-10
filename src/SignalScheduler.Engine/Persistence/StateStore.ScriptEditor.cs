@@ -55,6 +55,11 @@ public sealed partial class StateStore
                     script_id TEXT PRIMARY KEY,
                     deleted_at INTEGER NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS v8_editor_script_order(
+                    script_id TEXT PRIMARY KEY REFERENCES v8_editor_scripts(script_id)
+                        ON DELETE CASCADE,
+                    sort_position INTEGER NOT NULL
+                );
                 """;
             await schema.ExecuteNonQueryAsync(ct);
         }
@@ -128,6 +133,26 @@ public sealed partial class StateStore
                 await steps.ExecuteNonQueryAsync(ct);
             }
         }
+        // Upgrade existing installations without changing script revisions,
+        // messages, or the order within each script. Missing entries are
+        // appended using a stable legacy order; already sorted entries stay.
+        await using(var order=c.CreateCommand())
+        {
+            order.Transaction=tx;
+            order.CommandText="""
+                INSERT OR IGNORE INTO v8_editor_script_order(script_id,sort_position)
+                SELECT s.script_id,
+                       COALESCE((SELECT MAX(sort_position)
+                                 FROM v8_editor_script_order),0)+
+                       ROW_NUMBER() OVER(ORDER BY s.updated_at DESC,s.name,s.script_id)
+                FROM v8_editor_scripts s
+                WHERE NOT EXISTS(
+                    SELECT 1 FROM v8_editor_script_order o
+                    WHERE o.script_id=s.script_id
+                );
+                """;
+            await order.ExecuteNonQueryAsync(ct);
+        }
         tx.Commit();
     }
 
@@ -141,8 +166,9 @@ public sealed partial class StateStore
             SELECT s.script_id,s.name,s.revision,COUNT(st.step_id),s.legacy_id
             FROM v8_editor_scripts s
             LEFT JOIN v8_editor_steps st ON st.script_id=s.script_id
-            GROUP BY s.script_id,s.name,s.revision,s.legacy_id
-            ORDER BY s.updated_at DESC,s.name LIMIT 500;
+            LEFT JOIN v8_editor_script_order o ON o.script_id=s.script_id
+            GROUP BY s.script_id,s.name,s.revision,s.legacy_id,o.sort_position
+            ORDER BY o.sort_position ASC,s.script_id LIMIT 500;
             """;
         await using var r=await q.ExecuteReaderAsync(ct);
         while(await r.ReadAsync(ct))
