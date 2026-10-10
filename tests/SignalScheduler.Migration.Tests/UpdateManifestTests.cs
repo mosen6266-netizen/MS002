@@ -23,6 +23,15 @@ public sealed class UpdateManifestTests
             parsed!.RunUrl);
     }
 
+    [Fact]
+    public void Ui2ReleaseManifestIsAcceptedAndBoundToOfficialRun()
+    {
+        var ui2=Valid() with {Version="8.0.0-ui2.1",Build=715};
+        var parsed=UpdateManifestCodec.Parse(UpdateManifestCodec.Serialize(ui2));
+        Assert.Equal(ui2,parsed);
+        Assert.Equal(ui2.RunUrl,parsed!.RunUrl);
+    }
+
     [Theory]
     [InlineData("{}")]
     [InlineData("not json")]
