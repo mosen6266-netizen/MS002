@@ -4,26 +4,26 @@
  Title="单群自动实发测试 - Signal 调度台"
  Width="980" Height="750" MinWidth="850" MinHeight="650"
  WindowStartupLocation="CenterOwner"
- Background="#0A1829" Foreground="#F0F6FF">
+ Background="#111215" Foreground="#F1F2F4">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Padding" Value="12,8"/>
    <Setter Property="Margin" Value="0,0,10,0"/>
-   <Setter Property="Background" Value="#1B3D58"/>
+   <Setter Property="Background" Value="#222529"/>
    <Setter Property="Foreground" Value="White"/>
-   <Setter Property="BorderBrush" Value="#385A78"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
   </Style>
   <Style TargetType="ComboBox">
    <Setter Property="Foreground" Value="White"/>
-   <Setter Property="Background" Value="#1B3D58"/>
+   <Setter Property="Background" Value="#222529"/>
    <Setter Property="Padding" Value="8"/>
   </Style>
   <Style TargetType="DataGrid">
-   <Setter Property="Background" Value="#132D43"/>
+   <Setter Property="Background" Value="#191B1E"/>
    <Setter Property="Foreground" Value="White"/>
-   <Setter Property="RowBackground" Value="#11273D"/>
-   <Setter Property="AlternatingRowBackground" Value="#1D3A56"/>
-   <Setter Property="BorderBrush" Value="#33526D"/>
+   <Setter Property="RowBackground" Value="#191B1E"/>
+   <Setter Property="AlternatingRowBackground" Value="#222529"/>
+   <Setter Property="BorderBrush" Value="#2D3035"/>
    <Setter Property="AutoGenerateColumns" Value="False"/>
    <Setter Property="CanUserAddRows" Value="False"/>
    <Setter Property="IsReadOnly" Value="True"/>
@@ -48,8 +48,8 @@
    <TextBlock Text="一个账号 + 一个测试群 + 最多三条真实消息。每条至少间隔 15 秒；异常立即停止后续。"
     Foreground="#F2C086" TextWrapping="Wrap" Margin="0,5,0,0"/>
   </StackPanel>
-  <Border Grid.Row="2" Background="#10283C" Padding="14" CornerRadius="8"
-   BorderBrush="#33546E" BorderThickness="1">
+  <Border Grid.Row="2" Background="#191B1E" Padding="14" CornerRadius="8"
+   BorderBrush="#41454B" BorderThickness="1">
    <Grid>
     <Grid.ColumnDefinitions>
      <ColumnDefinition Width="*"/><ColumnDefinition Width="13"/>
@@ -113,6 +113,6 @@
    </DataGrid>
   </Grid>
   <TextBlock x:Name="StatusText" Grid.Row="10"
-   Text="正在读取测试资料……" TextWrapping="Wrap" Foreground="#C4D9EB"/>
+   Text="正在读取测试资料……" TextWrapping="Wrap" Foreground="#D0D2D7"/>
  </Grid>
 </Window>
