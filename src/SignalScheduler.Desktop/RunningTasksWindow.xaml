@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Background="#091827" Foreground="#EAF4FD" MinWidth="620">
  <UserControl.Resources>
-  <Style x:Key="MonitorAction" TargetType="Button">
+  <Style x:Key="MonitorAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#1C3B56"/>
    <Setter Property="Foreground" Value="#EAF4FD"/>
    <Setter Property="BorderBrush" Value="#3D6483"/>
@@ -12,7 +12,6 @@
    <Setter Property="Cursor" Value="Hand"/>
    <Style.Triggers>
     <Trigger Property="IsEnabled" Value="False">
-     <Setter Property="Opacity" Value="0.55"/>
      <Setter Property="Cursor" Value="Arrow"/>
     </Trigger>
    </Style.Triggers>
