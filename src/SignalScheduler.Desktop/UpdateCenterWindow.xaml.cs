@@ -17,7 +17,7 @@ public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
     const string CurrentProductVersion="8.0.0-beta.8";
-    const string RawManifestUrl="https://raw.githubusercontent.com/mosen6266-netizen/MS002/updates/latest.json";
+
     const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/windows-build.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
     readonly HttpClient _http=new(){Timeout=Timeout.InfiniteTimeSpan};
@@ -149,16 +149,8 @@ public partial class UpdateCenterWindow : UserControl
         LatestVersionText.Text=$"V{manifest.Version} · Build #{manifest.Build}";
     }
 
-    async Task<VerifiedUpdateManifest> ReadStaticManifestAsync(CancellationToken ct)
-    {
-        using var response=await _http.GetAsync(RawManifestUrl,ct);
-        response.EnsureSuccessStatusCode();
-        if(response.Content.Headers.ContentLength is long size && size>16384)
-            throw new InvalidDataException("更新清单大小异常");
-        var payload=await response.Content.ReadAsStringAsync(ct);
-        return UpdateManifestCodec.Parse(payload) ??
-            throw new InvalidDataException("静态版本信息尚未发布或格式不正确");
-    }
+    Task<VerifiedUpdateManifest> ReadStaticManifestAsync(CancellationToken ct)=>
+        UpdateFeedClient.FetchAsync(_http,ct);
 
     // This HEAD only checks if a published GitHub Release is present. It does
     // not download arbitrary files or consume a GitHub REST API request.
