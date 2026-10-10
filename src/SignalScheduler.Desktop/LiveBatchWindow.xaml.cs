@@ -327,8 +327,9 @@ public partial class LiveBatchWindow : UserControl
     async void Preflight_Click(object sender,RoutedEventArgs e)
     {
         if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
-        GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
-        GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
+        // CheckBox uses UpdateSourceTrigger=PropertyChanged. Committing a
+        // separate DataGrid edit here can reapply an old checkbox value.
+        // SessionGroups already contains the live, user-confirmed choices.
         var ids=_groups.Where(x=>SessionGroups.Contains(x.GroupId))
             .Select(x=>x.GroupId).ToArray();
         if(ids.Length is <1 or >20)
@@ -363,8 +364,9 @@ public partial class LiveBatchWindow : UserControl
     async void Start_Click(object sender,RoutedEventArgs e)
     {
         if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
-        GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
-        GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
+        // CheckBox uses UpdateSourceTrigger=PropertyChanged. Committing a
+        // separate DataGrid edit here can reapply an old checkbox value.
+        // SessionGroups already contains the live, user-confirmed choices.
         var ids=_groups.Where(x=>SessionGroups.Contains(x.GroupId))
             .Select(x=>x.GroupId).ToArray();
         if(ids.Length is <1 or >20)
