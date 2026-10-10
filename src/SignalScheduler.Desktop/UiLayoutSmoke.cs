@@ -38,6 +38,13 @@ internal static class UiLayoutSmoke
                     "扫码备注完成按钮的禁用状态不是深灰底、浅色文字。");
             report.AppendLine("扫码备注按钮禁用状态：PASS");
 
+            var monitor=new RunningTasksWindow();
+            if(monitor.MonitorGrid.Columns.ElementAtOrDefault(2) is not DataGridTemplateColumn ||
+               monitor.MonitorGrid.Columns[2].Header?.ToString()!="运行状态")
+                throw new InvalidOperationException(
+                    "当前运行任务缺少红绿高对比状态徽标模板。");
+            report.AppendLine("任务状态徽标列：PASS");
+
             var account=new AccountGroupWindow();
             account.AccountGrid.ItemsSource=new[]
             {
