@@ -150,6 +150,22 @@ public sealed partial class StateStore
         var created=new List<string>();
         await using var c=Open();
         using var tx=c.BeginTransaction();
+        // The imported script keeps a deterministic representative account ID.
+        // Actual group sender selection happens now, before any durable jobs
+        // exist, and is frozen individually per group to avoid accidental sends.
+        var remarks=new Dictionary<string,string>(StringComparer.Ordinal);
+        await using(var names=c.CreateCommand())
+        {
+            names.Transaction=tx;
+            names.CommandText="""
+                SELECT a.account,COALESCE(NULLIF(TRIM(pref.label),''),a.label)
+                FROM v8_signal_accounts a
+                LEFT JOIN v8_account_settings pref ON pref.account=a.account;
+                """;
+            await using var rd=await names.ExecuteReaderAsync(ct);
+            while(await rd.ReadAsync(ct))
+                remarks[rd.GetString(0)]=rd.GetString(1);
+        }
         foreach(var groupId in groups)
         {
             var eligible=new List<string>();
@@ -195,18 +211,18 @@ public sealed partial class StateStore
                         $"群「{groupName}」已有尚未结束的剧本任务，请先处理旧任务。");
             }
 
-            // Preserve explicit per-step sender assignments in the immutable
-            // task plan. A blank sender uses the first eligible group member;
-            // it never silently substitutes for an explicitly named sender.
-            var fallbackSender=eligible[0];
             var steps=sendable.Select((step,index)=>
             {
-                var sender=string.IsNullOrWhiteSpace(step.Account)
-                    ?fallbackSender:step.Account.Trim();
-                if(!eligible.Contains(sender,StringComparer.Ordinal))
+                string sender;
+                try
+                {
+                    sender=GroupAccountResolver.Resolve(step.Account,remarks,eligible);
+                }
+                catch(InvalidOperationException ex)
+                {
                     throw new ArgumentException(
-                        $"群「{groupName}」剧本第 {step.Position+1} 条指定账号「{sender}」"+
-                        "不在线、未启用或未加入该群，已取消本次启动。");
+                        $"群「{groupName}」剧本第 {step.Position+1} 条："+ex.Message,ex);
+                }
                 return step with {Account=sender,Position=index};
             }).ToArray();
 
