@@ -148,6 +148,9 @@ public partial class RunningTasksWindow : UserControl
                     "RPC_INTERNAL_ERROR"=>"Signal RPC 内部错误",
                     "RPC_TIMEOUT"=>"Signal RPC 超时",
                     "RPC_MISMATCH"=>"RPC 请求回执不匹配",
+                    "READ_STREAM_UNAVAILABLE"=>"消息接收监听已断开，本轮未能核实已读",
+                    "READ_QUEUE_INCOMPLETE"=>"待读消息未处理完，本群应暂停",
+                    "READ_PHASE_TIMEOUT"=>"发言前已读处理超时",
                     ""=>"暂无处理记录",
                     _=>health.LastReceiptRpcCode
                 };
