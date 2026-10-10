@@ -8,6 +8,66 @@
   <SolidColorBrush x:Key="BorderColor" Color="#35536D"/>
   <SolidColorBrush x:Key="TextPrimary" Color="#F1F6FD"/>
   <SolidColorBrush x:Key="TextSecondary" Color="#BACDE0"/>
+  <!-- Consistent high-contrast dark button visuals on Windows 10/11.
+       Native theme templates can turn disabled labels into unreadable gray.
+       The disabled template explicitly controls the face and the text,
+       without fading the entire button or removing the visible label. -->
+  <Style x:Key="ReadableButtonBase" TargetType="{x:Type Button}">
+   <Setter Property="Background" Value="#22445F"/>
+   <Setter Property="Foreground" Value="#F7FAFE"/>
+   <Setter Property="BorderBrush" Value="#6385A0"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Padding" Value="12,7"/>
+   <Setter Property="MinHeight" Value="28"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="SnapsToDevicePixels" Value="True"/>
+   <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="{x:Type Button}">
+      <Border x:Name="ReadableButtonFace"
+       Background="{TemplateBinding Background}"
+       BorderBrush="{TemplateBinding BorderBrush}"
+       BorderThickness="{TemplateBinding BorderThickness}"
+       CornerRadius="4" Padding="{TemplateBinding Padding}"
+       SnapsToDevicePixels="True">
+       <ContentPresenter x:Name="ReadableButtonLabel"
+        Content="{TemplateBinding Content}"
+        ContentTemplate="{TemplateBinding ContentTemplate}"
+        HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+        VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+        TextElement.Foreground="{TemplateBinding Foreground}"
+        RecognizesAccessKey="True"/>
+      </Border>
+      <ControlTemplate.Triggers>
+       <Trigger Property="IsKeyboardFocusWithin" Value="True">
+        <Setter TargetName="ReadableButtonFace" Property="BorderBrush" Value="#91D7FF"/>
+        <Setter TargetName="ReadableButtonFace" Property="BorderThickness" Value="2"/>
+       </Trigger>
+       <Trigger Property="IsMouseOver" Value="True">
+        <Setter TargetName="ReadableButtonFace" Property="BorderBrush" Value="#B1DCF5"/>
+       </Trigger>
+       <Trigger Property="IsPressed" Value="True">
+        <Setter TargetName="ReadableButtonFace" Property="BorderBrush" Value="#C6E7FC"/>
+        <Setter TargetName="ReadableButtonFace" Property="Opacity" Value="0.86"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="ReadableButtonFace" Property="Background" Value="#333C47"/>
+        <Setter TargetName="ReadableButtonFace" Property="BorderBrush" Value="#677888"/>
+        <Setter TargetName="ReadableButtonFace" Property="Opacity" Value="1"/>
+        <Setter TargetName="ReadableButtonLabel" Property="TextElement.Foreground" Value="#F6F8FC"/>
+       </Trigger>
+      </ControlTemplate.Triggers>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+   <Style.Triggers>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Cursor" Value="Arrow"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
+  <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ReadableButtonBase}"/>
   <Style x:Key="DarkGridHeader" TargetType="DataGridColumnHeader">
    <Setter Property="Background" Value="#213C56"/>
    <Setter Property="Foreground" Value="#F5F8FC"/>
