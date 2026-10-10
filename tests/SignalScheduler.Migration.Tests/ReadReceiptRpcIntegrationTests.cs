@@ -109,7 +109,10 @@ public sealed class ReadReceiptRpcIntegrationTests
             Assert.Equal(4,health.LastReceiptSelected);
             Assert.Equal(4,health.LastReceiptAccepted);
         }
-        finally{Directory.Delete(t.Directory,true);}
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
     }
 
     [Theory]
@@ -133,7 +136,10 @@ public sealed class ReadReceiptRpcIntegrationTests
             await after.TrySendForGroupAsync("account","group",CancellationToken.None);
             Assert.Single(t.Handler.Calls); // no automatic retry of a failure or unknown result
         }
-        finally{Directory.Delete(t.Directory,true);}
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
     }
 
     [Fact]
@@ -147,7 +153,10 @@ public sealed class ReadReceiptRpcIntegrationTests
             Assert.Equal("NO_PENDING_FOR_SPEAKER",
                 (await t.Read.GetHealthAsync(CancellationToken.None)).LastReceiptRpcCode);
         }
-        finally{Directory.Delete(t.Directory,true);}
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
     }
 
     [Fact]
