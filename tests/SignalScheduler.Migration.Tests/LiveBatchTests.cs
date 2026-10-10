@@ -421,6 +421,85 @@ public sealed class LiveBatchTests
         Assert.Equal(1,sends);
         await Assert.ThrowsAsync<InvalidOperationException>(()=>
             store.ControlLiveBatchAsync(new(jobId,"resume"),Ct));
+
+        // This was the regression: on the next application launch the old
+        // RecoveryRequired dispatch used to resurrect the stopped job.
+        var restarted=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await restarted.InitializeAsync(Ct);
+        await restarted.InitializeLiveBatchAsync(Ct);
+        Assert.Equal("Stopped",
+            Assert.Single(await restarted.ListLiveBatchAsync(Ct)).State);
+        Assert.False(LiveTaskMonitor.IsCurrent(
+            Assert.Single(await restarted.ListLiveBatchAsync(Ct))));
+        Assert.Single((await restarted.ListLiveBatchHistoryPageAsync(
+            new LiveBatchHistoryPageRequest(0,10),Ct)).Jobs);
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Empty(await restarted.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+60000,20,Ct));
+        // Simulate the Guardian's own restart path after user explicitly stopped.
+        await restarted.TryPrepareGuardianRestartAsync(true,Ct);
+        Assert.Equal("Stopped",
+            Assert.Single(await restarted.ListLiveBatchAsync(Ct)).State);
+        await restarted.InitializeAsync(Ct);
+        Assert.Equal("Stopped",
+            Assert.Single(await restarted.ListLiveBatchAsync(Ct)).State);
+        Assert.Equal(1,sends);
+    }
+
+    [Fact]
+    public async Task OldBuildResurrectedJobIsReconciledFromDurableUserStopEvent()
+    {
+        var (store,db)=await NewStoreAsync();
+        await SeedAsync(store);
+        var script=await MakeScriptAsync(store,new[]{Step(0,"消息一")});
+        var started=await store.StartLiveBatchAsync(
+            new(script.ScriptId,new[]{"g1"},true),Ct);
+        var jobId=Assert.Single(started.JobIds);
+        var due=Assert.Single(await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,10,Ct));
+        var transport=new DurableTaskEngine(store,new StubTransport((_,_,_)=>
+            Task.FromResult(new SignalSendResult(
+                SignalDeliveryOutcome.Ambiguous,Detail:"模拟未知结果"))));
+        await transport.DispatchAsync(due.Dispatch,"test",Ct);
+        await store.ControlLiveBatchAsync(new(jobId,"stop"),Ct);
+
+        // Emulate the old buggy startup, which changed Stopped back to
+        // RecoveryRequired because of a preserved uncertain journal entry.
+        await using(var dbConn=new SqliteConnection($"Data Source={db}"))
+        {
+            await dbConn.OpenAsync(Ct);
+            await using var q=dbConn.CreateCommand();
+            q.CommandText="UPDATE v8_jobs SET state='RecoveryRequired' WHERE job_id=$job";
+            q.Parameters.AddWithValue("$job",jobId);
+            await q.ExecuteNonQueryAsync(Ct);
+        }
+        var upgraded=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await upgraded.InitializeAsync(Ct);
+        Assert.Equal("Stopped",
+            Assert.Single(await upgraded.ListLiveBatchAsync(Ct)).State);
+        Assert.Equal("1",await ScalarAsync(db,
+            "SELECT COUNT(*) FROM v8_event_log WHERE event_type='batch_stop'"));
+        Assert.Equal("RecoveryRequired",await ScalarAsync(db,
+            "SELECT state FROM v8_dispatch_journal LIMIT 1"));
+        Assert.Single((await upgraded.ListLiveBatchHistoryPageAsync(
+            new LiveBatchHistoryPageRequest(0,10),Ct)).Jobs);
+
+        // Repair must work on a daemon-restart path, too, even if the app
+        // hasn't fully restarted yet.
+        await using(var dbConn=new SqliteConnection($"Data Source={db}"))
+        {
+            await dbConn.OpenAsync(Ct);
+            await using var q=dbConn.CreateCommand();
+            q.CommandText="UPDATE v8_jobs SET state='RecoveryRequired' WHERE job_id=$job";
+            q.Parameters.AddWithValue("$job",jobId);
+            await q.ExecuteNonQueryAsync(Ct);
+        }
+        await upgraded.TryPrepareGuardianRestartAsync(true,Ct);
+        Assert.Equal("Stopped",
+            Assert.Single(await upgraded.ListLiveBatchAsync(Ct)).State);
     }
 
     [Fact]
