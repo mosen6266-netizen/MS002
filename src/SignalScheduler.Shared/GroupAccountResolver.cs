@@ -26,7 +26,7 @@ public static class GroupAccountResolver
 
         if(!knownRemarks.TryGetValue(requested,out var remark) ||
            string.IsNullOrWhiteSpace(remark))
-            throw new InvalidOperationException("剧本指定账号未找到本机备注，无法匹配该群组。");
+            throw new InvalidOperationException("剧本指定的账号未找到本机备注，无法匹配该群组。");
 
         var matches=eligibleAccounts.Where(account=>
             knownRemarks.TryGetValue(account,out var label) &&
