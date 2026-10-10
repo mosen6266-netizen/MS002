@@ -5,7 +5,7 @@
  WindowStartupLocation="CenterOwner" ResizeMode="CanMinimize"
  Background="#0A192A" Foreground="#F0F5FC">
  <Window.Resources>
-  <Style TargetType="Button">
+  <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#203F5A"/>
    <Setter Property="Foreground" Value="#FFFFFF"/>
    <Style.Triggers>
@@ -15,7 +15,7 @@
     </Trigger>
    </Style.Triggers>
   </Style>
-  <Style x:Key="FinishAccountButton" TargetType="Button">
+  <Style x:Key="FinishAccountButton" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#117D5B"/>
    <Setter Property="Foreground" Value="#FFFFFF"/>
    <Setter Property="BorderBrush" Value="#2EA981"/>
