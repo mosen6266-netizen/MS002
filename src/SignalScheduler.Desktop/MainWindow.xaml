@@ -5,22 +5,22 @@
  Title="Signal 调度台" Icon="pack://application:,,,/signal-brand.png" Width="1500" Height="950" MinWidth="1050" MinHeight="700"
  WindowStartupLocation="CenterScreen" Closing="MainWindow_Closing"
  WindowStyle="None" ResizeMode="CanResize"
- Background="#091523" Foreground="#EAF2FF">
+ Background="#111215" Foreground="#F1F2F4">
  <shell:WindowChrome.WindowChrome>
   <shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="7"
    GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
  </shell:WindowChrome.WindowChrome>
  <Window.Resources>
-  <SolidColorBrush x:Key="PanelBackground" Color="#10243A"/>
+  <SolidColorBrush x:Key="PanelBackground" Color="#191B1E"/>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
-   <Setter Property="Background" Value="#19364F"/>
+   <Setter Property="Background" Value="#222529"/>
    <Setter Property="Foreground" Value="White"/>
-   <Setter Property="BorderBrush" Value="#365571"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
    <Setter Property="Padding" Value="12,9"/>
    <Setter Property="Cursor" Value="Hand"/>
    <Style.Triggers>
     <Trigger Property="IsKeyboardFocusWithin" Value="True">
-     <Setter Property="BorderBrush" Value="#7DC9FF"/>
+     <Setter Property="BorderBrush" Value="#D0D2D7"/>
     </Trigger>
     <Trigger Property="IsEnabled" Value="False">
      <Setter Property="Cursor" Value="Arrow"/>
@@ -47,13 +47,13 @@
       </Border>
       <ControlTemplate.Triggers>
        <Trigger Property="IsMouseOver" Value="True">
-        <Setter TargetName="NavSurface" Property="Background" Value="#245579"/>
+        <Setter TargetName="NavSurface" Property="Background" Value="#2D3035"/>
        </Trigger>
        <Trigger Property="IsPressed" Value="True">
-        <Setter TargetName="NavSurface" Property="Background" Value="#174466"/>
+        <Setter TargetName="NavSurface" Property="Background" Value="#2D3035"/>
        </Trigger>
        <Trigger Property="IsKeyboardFocusWithin" Value="True">
-        <Setter TargetName="NavSurface" Property="BorderBrush" Value="#7DC9FF"/>
+        <Setter TargetName="NavSurface" Property="BorderBrush" Value="#D0D2D7"/>
         <Setter TargetName="NavSurface" Property="BorderThickness" Value="1"/>
        </Trigger>
       </ControlTemplate.Triggers>
@@ -72,8 +72,8 @@
    <ColumnDefinition Width="*"/>
   </Grid.ColumnDefinitions>
 
-  <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#101D30"
-   BorderBrush="#2C4864" BorderThickness="0,0,0,1">
+  <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#191B1E"
+   BorderBrush="#2D3035" BorderThickness="0,0,0,1">
    <Grid>
     <Grid.ColumnDefinitions>
      <ColumnDefinition Width="*"/>
@@ -83,30 +83,30 @@
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
      <Image Source="pack://application:,,,/signal-brand.png"
       Width="22" Height="22" Margin="0,0,11,0"/>
-     <TextBlock Text="Signal 调度台" Foreground="#EAF4FD"
+     <TextBlock Text="Signal 调度台" Foreground="#F1F2F4"
       FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-     <TextBlock Text="  /  MS002" Foreground="#7196B4"
+     <TextBlock Text="  /  MS002" Foreground="#777D85"
       FontSize="12" VerticalAlignment="Center"/>
     </StackPanel>
     <Button Grid.Column="1" Content="─" ToolTip="最小化" Click="Minimize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#E8F2FC" FontSize="18"
+     Background="Transparent" Foreground="#F1F2F4" FontSize="18"
      BorderThickness="0" Padding="0"/>
     <Button Grid.Column="2" x:Name="MaximizeButton" Content="□"
      ToolTip="最大化 / 还原" Click="Maximize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#E8F2FC" FontSize="18"
+     Background="Transparent" Foreground="#F1F2F4" FontSize="18"
      BorderThickness="0" Padding="0"/>
     <Button Grid.Column="3" Content="×" ToolTip="关闭程序"
      Click="WindowClose_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="#243149" Foreground="#F3F8FD" FontSize="20"
+     Background="#222529" Foreground="#F3F8FD" FontSize="20"
      BorderThickness="0" Padding="0"/>
    </Grid>
   </Border>
 
-  <Border Grid.Row="1" Grid.Column="0" Background="#081523"
-   BorderBrush="#20354F" BorderThickness="0,0,1,0">
+  <Border Grid.Row="1" Grid.Column="0" Background="#111215"
+   BorderBrush="#222529" BorderThickness="0,0,1,0">
    <Grid Margin="16,22">
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
@@ -117,8 +117,8 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-beta.15" Foreground="#8EACC8" Margin="0,7,0,0"/>
-     <TextBlock Text="桌面消息管理" Foreground="#7390AC" Margin="0,4,0,0"/>
+     <TextBlock Text="V8.0.0-beta.15" Foreground="#A9ADB4" Margin="0,7,0,0"/>
+     <TextBlock Text="桌面消息管理" Foreground="#777D85" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button x:Name="HomeNav" Content="⌂   首页 · 快速开始" Tag="home"
@@ -132,7 +132,7 @@
        ToolTip="查看所有群组任务，角标只统计正在运行的群任务">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
        <TextBlock x:Name="TaskNavLabel" Text="◷   当前运行任务"
-        Foreground="#F1F7FF" VerticalAlignment="Center"/>
+        Foreground="#F1F2F4" VerticalAlignment="Center"/>
        <Border x:Name="TaskNavBadge" Background="#187A62"
         CornerRadius="12" MinWidth="27" MinHeight="23"
         Padding="6,2" Margin="8,0,0,0"
@@ -152,33 +152,33 @@
      <Button x:Name="UpdateNav" Content="↻   检查更新" Tag="update"
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
     </StackPanel>
-    <Border Grid.Row="4" Background="#10273C" CornerRadius="8" Padding="12">
+    <Border Grid.Row="4" Background="#191B1E" CornerRadius="8" Padding="12">
      <StackPanel>
       <TextBlock x:Name="EngineBadge" Text="● 后台连接中"
        Foreground="#E8C16A" FontWeight="SemiBold" TextWrapping="Wrap"/>
       <TextBlock x:Name="SignalStatusText" Text="Signal 检查中…"
-       Foreground="#A5C3DD" Margin="0,7,0,0" TextWrapping="Wrap"/>
+       Foreground="#D0D2D7" Margin="0,7,0,0" TextWrapping="Wrap"/>
       <TextBlock x:Name="AccountsCountText" Text="账号检查中"
-       Margin="0,7,0,0" Foreground="#A5C3DD" TextWrapping="Wrap"/>
+       Margin="0,7,0,0" Foreground="#D0D2D7" TextWrapping="Wrap"/>
       <TextBlock x:Name="MigrationBadge" Text="读取本地数据中"
-       Margin="0,9,0,0" Foreground="#8EAAC5" FontSize="11" TextWrapping="Wrap"/>
+       Margin="0,9,0,0" Foreground="#A9ADB4" FontSize="11" TextWrapping="Wrap"/>
       <Button x:Name="ExportDiagnosticButton" Content="导出脱敏诊断报告"
        Click="ExportDiagnostic_Click" Margin="0,13,0,0"
-       Padding="10,8" Background="#244560"
+       Padding="10,8" Background="#2D3035"
        ToolTip="只导出连接状态、数量、时间等安全统计；不含手机号、群名、消息正文、密钥或原始日志"/>
      </StackPanel>
     </Border>
    </Grid>
   </Border>
 
-  <Grid Grid.Row="1" Grid.Column="1" Background="#0A1828">
+  <Grid Grid.Row="1" Grid.Column="1" Background="#111215">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="*"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
-   <Border Background="#0D2135" BorderBrush="#263F56"
+   <Border Background="#191B1E" BorderBrush="#222529"
     BorderThickness="0,0,0,1" Padding="22,15">
     <Grid>
      <Grid.ColumnDefinitions>
@@ -190,7 +190,7 @@
         FontWeight="Bold"/>
       <TextBlock x:Name="PageSubtitle"
        Text="选择剧本、勾选群组，确认后直接启动。每个群的状态单独保存。"
-       FontSize="12" Foreground="#AAC4DC" Margin="0,5,0,0"
+       FontSize="12" Foreground="#D0D2D7" Margin="0,5,0,0"
        TextWrapping="Wrap"/>
      </StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -204,7 +204,7 @@
    </Border>
 
    <Border x:Name="AlertStrip" Grid.Row="1" Visibility="Collapsed"
-     Background="#403123" BorderBrush="#986638" BorderThickness="0,0,0,1"
+     Background="#222529" BorderBrush="#986638" BorderThickness="0,0,0,1"
      Padding="18,8">
     <DockPanel>
      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
@@ -221,13 +221,13 @@
    <Grid Grid.Row="2">
     <ScrollViewer x:Name="WorkspaceScroll"
       VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled"
-      CanContentScroll="False" Background="#091827" PanningMode="VerticalOnly"
+      CanContentScroll="False" Background="#111215" PanningMode="VerticalOnly"
       Focusable="False">
      <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch"
       VerticalContentAlignment="Stretch"/>
     </ScrollViewer>
     <Border x:Name="AlertPanel" Visibility="Collapsed" Panel.ZIndex="6"
-      Background="#10273C" BorderBrush="#B17D48" BorderThickness="1"
+      Background="#191B1E" BorderBrush="#B17D48" BorderThickness="1"
       CornerRadius="8" Width="470" MaxWidth="470"
       HorizontalAlignment="Right" VerticalAlignment="Top"
       Margin="12" Padding="16">
@@ -244,7 +244,7 @@
         Click="ToggleAlerts_Click" Padding="8,3"/>
       </DockPanel>
       <ListBox x:Name="NotificationsList" Grid.Row="2"
-       Background="#10273C" Foreground="#EFD8BD"
+       Background="#191B1E" Foreground="#EFD8BD"
        BorderThickness="0" FontSize="12"/>
       <Button Grid.Row="3" Content="清空当前提示" Click="ClearAlerts_Click"
        Margin="0,12,0,0" Padding="10,7"/>
@@ -252,15 +252,15 @@
     </Border>
    </Grid>
 
-   <Border Grid.Row="3" BorderBrush="#223B53" BorderThickness="0,1,0,0"
-    Background="#0D2135" Padding="18,8">
+   <Border Grid.Row="3" BorderBrush="#222529" BorderThickness="0,1,0,0"
+    Background="#191B1E" Padding="18,8">
     <Grid>
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBlock x:Name="BottomStatusText"
-      Text="准备就绪" FontSize="12" Foreground="#AFC7DF"
+      Text="准备就绪" FontSize="12" Foreground="#D0D2D7"
       TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
      <TextBlock x:Name="RuntimeVersionText" Grid.Column="1"
-      Text="Signal 运行环境检查中" FontSize="11" Foreground="#809EBB"/>
+      Text="Signal 运行环境检查中" FontSize="11" Foreground="#A9ADB4"/>
     </Grid>
    </Border>
   </Grid>
