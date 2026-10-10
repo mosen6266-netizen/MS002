@@ -15,6 +15,37 @@
     </Trigger>
    </Style.Triggers>
   </Style>
+  <Style x:Key="FinishAccountButton" TargetType="Button">
+   <Setter Property="Background" Value="#117D5B"/>
+   <Setter Property="Foreground" Value="#FFFFFF"/>
+   <Setter Property="BorderBrush" Value="#2EA981"/>
+   <Setter Property="BorderThickness" Value="1"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template">
+    <Setter.Value>
+     <ControlTemplate TargetType="Button">
+      <Border Background="{TemplateBinding Background}"
+       BorderBrush="{TemplateBinding BorderBrush}"
+       BorderThickness="{TemplateBinding BorderThickness}"
+       CornerRadius="6" Padding="{TemplateBinding Padding}">
+       <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+        RecognizesAccessKey="True" TextElement.Foreground="{TemplateBinding Foreground}"/>
+      </Border>
+     </ControlTemplate>
+    </Setter.Value>
+   </Setter>
+   <Style.Triggers>
+    <Trigger Property="IsEnabled" Value="False">
+     <Setter Property="Background" Value="#292E36"/>
+     <Setter Property="Foreground" Value="#F6F7FA"/>
+     <Setter Property="BorderBrush" Value="#444C57"/>
+     <Setter Property="Cursor" Value="Arrow"/>
+    </Trigger>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Background" Value="#18976D"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
  </Window.Resources>
  <Grid Margin="28,24">
   <Grid.RowDefinitions>
@@ -62,7 +93,7 @@
     Padding="14,9" MinHeight="40" Margin="0,0,10,0"/>
    <Button x:Name="FinishButton" Content="保存备注并完成"
     Click="Finish_Click" IsEnabled="False"
-    Background="#13805C" Foreground="White"
+    Style="{StaticResource FinishAccountButton}"
     Padding="17,9" MinHeight="40" Margin="0,0,10,0"/>
    <Button Content="取消" Click="Close_Click"
     Background="#1B344D" Foreground="White"
