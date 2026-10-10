@@ -27,6 +27,10 @@ public sealed class SignalReadCoordinator : BackgroundService
     long _lastEventMs;
     long _lastFailureMs;
     volatile string _lastFailureType="";
+    volatile string _lastReceiptRpcCode="";
+    long _lastReceiptRpcAtMs;
+    volatile int _lastReceiptSelected;
+    volatile int _lastReceiptAccepted;
 
     public async Task<ReadHealthSnapshot> GetHealthAsync(CancellationToken ct)
     {
@@ -77,7 +81,9 @@ public sealed class SignalReadCoordinator : BackgroundService
             Interlocked.Read(ref _lastConnectedMs),
             Interlocked.Read(ref _lastEventMs),pending,attempted,_lastError,
             failed,waitingRetry,unknown,
-            Interlocked.Read(ref _lastFailureMs),_lastFailureType);
+            Interlocked.Read(ref _lastFailureMs),_lastFailureType,
+            _lastReceiptRpcCode,Interlocked.Read(ref _lastReceiptRpcAtMs),
+            _lastReceiptSelected,_lastReceiptAccepted);
     }
 
 
@@ -144,6 +150,17 @@ public sealed class SignalReadCoordinator : BackgroundService
                     """;
                 await alter.ExecuteNonQueryAsync(ct);
             }
+            // The RPC could have been accepted when the process died.
+            // Never infer success or auto-retry these claimed timestamps.
+            await using(var recover=db.CreateCommand())
+            {
+                recover.CommandText="""
+                    UPDATE v8_read_events
+                    SET state='unknown',detail='RPC_INTERRUPTED'
+                    WHERE state='inflight';
+                    """;
+                await recover.ExecuteNonQueryAsync(ct);
+            }
             // Recover the terminal attempt left uncertain by an abrupt exit.
             // This is NOT a confirmed failure: the remote RPC may have been
             // accepted before the process died. Do not retry it automatically.
@@ -174,6 +191,38 @@ public sealed class SignalReadCoordinator : BackgroundService
                     INSERT OR IGNORE INTO v8_read_stream_status(id) VALUES(1);
                     """;
                 await schema.ExecuteNonQueryAsync(ct);
+            }
+            // Persist last receipt outcome independently of the SSE health
+            // status; "stream connected" never means "receipt accepted".
+            await using(var schema=db.CreateCommand())
+            {
+                schema.CommandText="""
+                    CREATE TABLE IF NOT EXISTS v8_read_rpc_status(
+                        id INTEGER PRIMARY KEY CHECK(id=1),
+                        code TEXT NOT NULL DEFAULT '',
+                        when_ms INTEGER NOT NULL DEFAULT 0,
+                        selected INTEGER NOT NULL DEFAULT 0,
+                        accepted INTEGER NOT NULL DEFAULT 0
+                    );
+                    INSERT OR IGNORE INTO v8_read_rpc_status(id) VALUES(1);
+                    """;
+                await schema.ExecuteNonQueryAsync(ct);
+            }
+            await using(var restore=db.CreateCommand())
+            {
+                restore.CommandText="""
+                    SELECT code,when_ms,selected,accepted
+                    FROM v8_read_rpc_status WHERE id=1;
+                    """;
+                await using var reader=await restore.ExecuteReaderAsync(ct);
+                if(await reader.ReadAsync(ct))
+                {
+                    _lastReceiptRpcCode=ReadReceiptRpcContract.IsSafeCode(reader.GetString(0))
+                        ?reader.GetString(0):"";
+                    Interlocked.Exchange(ref _lastReceiptRpcAtMs,reader.GetInt64(1));
+                    _lastReceiptSelected=reader.GetInt32(2);
+                    _lastReceiptAccepted=reader.GetInt32(3);
+                }
             }
             await using(var health=db.CreateCommand())
             {
@@ -332,9 +381,8 @@ public sealed class SignalReadCoordinator : BackgroundService
         }
     }
 
-    // Drain receipts independently of outgoing script sends. Previously the
-    // queued incoming messages were never processed when no group was sending.
-    // A single lightweight worker processes due receipts for up to 12 groups.
+    // Listen to received messages and enqueue routing-only data. NEVER send
+    // read receipts from the background subscriber; the due speaker owns them.
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         try{await InitializeAsync(ct);}
@@ -414,10 +462,13 @@ public sealed class SignalReadCoordinator : BackgroundService
 
     public async Task TrySendForGroupAsync(string account,string group,CancellationToken ct)
     {
-        if(!ReadReceiptsEnabled())return;
-        // Receipts are initiated by the due message's actual speaker only.
-        // Wait for the narrow RPC gate so the relevant group's attempt is not
-        // silently skipped because another speaker is in progress.
+        if(!ReadReceiptsEnabled())
+        {
+            await RecordReceiptStatusAsync("READ_DISABLED",0,0,CancellationToken.None);
+            return;
+        }
+        // The only trigger is the actual next speaker of this exact group.
+        // Never send a global read from the stream worker or other accounts.
         await _sendGate.WaitAsync(ct);
         try
         {
@@ -428,119 +479,174 @@ public sealed class SignalReadCoordinator : BackgroundService
             try
             {
                 await using var db=Open();
-                await using var q=db.CreateCommand();
-                q.CommandText="""
+                await using var query=db.CreateCommand();
+                query.CommandText="""
                     SELECT author,timestamp_ms,attempts
                     FROM v8_read_events
                     WHERE account=$a AND group_id=$g AND state='pending'
                       AND next_retry_ms<=$now AND attempts<$max
-                    ORDER BY next_retry_ms,timestamp_ms LIMIT $limit;
+                    ORDER BY timestamp_ms LIMIT $limit;
                     """;
-                q.Parameters.AddWithValue("$a",account);
-                q.Parameters.AddWithValue("$g",group);
-                q.Parameters.AddWithValue("$now",now);
-                q.Parameters.AddWithValue("$max",ReadReceiptRetryPolicy.MaxAttempts);
-                q.Parameters.AddWithValue("$limit",ReadReceiptRetryPolicy.MaxReceiptsPerSend);
-                await using(var r=await q.ExecuteReaderAsync(ct))
-                {
-                    while(await r.ReadAsync(ct))
-                        pending.Add((r.GetString(0),r.GetInt64(1),r.GetInt32(2)+1));
-                }
-
-                // Reserve each attempt durably before the network request.
-                // A crash cannot silently reset the retry counter.
-                foreach(var item in pending)
-                {
-                    await using var claim=db.CreateCommand();
-                    claim.CommandText="""
-                        UPDATE v8_read_events
-                        SET attempts=$attempt,next_retry_ms=$next,detail=$detail
-                        WHERE account=$a AND group_id=$g AND author=$sender
-                          AND timestamp_ms=$timestamp AND state='pending';
-                        """;
-                    claim.Parameters.AddWithValue("$attempt",item.Attempt);
-                    claim.Parameters.AddWithValue("$next",
-                        now+(long)ReadReceiptRetryPolicy.NextDelay(item.Attempt).TotalMilliseconds);
-                    claim.Parameters.AddWithValue("$detail","已请求发送回执，等待接口响应");
-                    claim.Parameters.AddWithValue("$a",account);
-                    claim.Parameters.AddWithValue("$g",group);
-                    claim.Parameters.AddWithValue("$sender",item.Author);
-                    claim.Parameters.AddWithValue("$timestamp",item.Timestamp);
-                    await claim.ExecuteNonQueryAsync(ct);
-                }
+                query.Parameters.AddWithValue("$a",account);
+                query.Parameters.AddWithValue("$g",group);
+                query.Parameters.AddWithValue("$now",now);
+                query.Parameters.AddWithValue("$max",ReadReceiptRetryPolicy.MaxAttempts);
+                query.Parameters.AddWithValue("$limit",ReadReceiptRetryPolicy.MaxReceiptsPerSend);
+                await using var rows=await query.ExecuteReaderAsync(ct);
+                while(await rows.ReadAsync(ct))
+                    pending.Add((rows.GetString(0),rows.GetInt64(1),rows.GetInt32(2)+1));
             }
             finally{_databaseGate.Release();}
 
-            foreach(var item in pending)
+            var groups=pending.GroupBy(x=>x.Author,StringComparer.Ordinal)
+                .Take(ReadReceiptRetryPolicy.MaxAuthorsPerSpeaker).ToList();
+            var selected=groups.Sum(x=>x.Count());
+            var accepted=0;
+            var lastCode=selected==0?"NO_PENDING_FOR_SPEAKER":"RPC_NOT_STARTED";
+
+            foreach(var authorGroup in groups)
             {
-                var state="pending";
-                var detail="已读回执请求尚未得到成功确认";
+                ct.ThrowIfCancellationRequested();
+                var items=authorGroup.ToArray();
+                // Claim only one author's timestamps immediately before RPC.
+                // A process exit never silently turns an in-flight read into
+                // an assumed successful one or silently retries it.
+                await _databaseGate.WaitAsync(ct);
+                try
+                {
+                    await using var db=Open();
+                    await using var transaction=await db.BeginTransactionAsync(ct);
+                    foreach(var item in items)
+                    {
+                        await using var claim=db.CreateCommand();
+                        claim.Transaction=(SqliteTransaction)transaction;
+                        claim.CommandText="""
+                            UPDATE v8_read_events
+                            SET state='inflight',attempts=$attempt,
+                                next_retry_ms=$next,detail='RPC_INFLIGHT'
+                            WHERE account=$a AND group_id=$g AND author=$sender
+                              AND timestamp_ms=$timestamp AND state='pending'
+                              AND attempts=$previous;
+                            """;
+                        claim.Parameters.AddWithValue("$attempt",item.Attempt);
+                        claim.Parameters.AddWithValue("$previous",item.Attempt-1);
+                        claim.Parameters.AddWithValue("$next",now+
+                            (long)ReadReceiptRetryPolicy.NextDelay(item.Attempt).TotalMilliseconds);
+                        claim.Parameters.AddWithValue("$a",account);
+                        claim.Parameters.AddWithValue("$g",group);
+                        claim.Parameters.AddWithValue("$sender",item.Author);
+                        claim.Parameters.AddWithValue("$timestamp",item.Timestamp);
+                        if(await claim.ExecuteNonQueryAsync(ct)!=1)
+                            throw new InvalidOperationException("Read receipt claim changed before RPC");
+                    }
+                    await transaction.CommitAsync(ct);
+                }
+                finally{_databaseGate.Release();}
+
+                var check=new ReceiptRpcCheck(ReceiptRpcStatus.Uncertain,"RPC_NOT_CONFIRMED");
                 try
                 {
                     var id=Guid.NewGuid().ToString("N");
                     using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
                     timeout.CancelAfter(ReadReceiptRetryPolicy.RpcTimeout);
-                    using var response=await _http.PostAsJsonAsync("api/v1/rpc",new{
-                        jsonrpc="2.0",method="sendReceipt",id,
-                        @params=new{
-                            account,recipient=item.Author,
-                            targetTimestamps=new[]{item.Timestamp},type="read"
-                        }
-                    },timeout.Token);
+                    using var response=await _http.PostAsJsonAsync("api/v1/rpc",
+                        ReadReceiptRpcContract.Request(account,authorGroup.Key,
+                            items.Select(x=>x.Timestamp).ToArray(),id),timeout.Token);
                     var raw=await response.Content.ReadAsStringAsync(timeout.Token);
-                    using var doc=JsonDocument.Parse(raw);
-                    var root=doc.RootElement;
-                    if(response.IsSuccessStatusCode &&
-                       String(root,"id")==id &&
-                       (!root.TryGetProperty("error",out var error) ||
-                        error.ValueKind==JsonValueKind.Null))
-                    {
-                        state="attempted";
-                        detail="Signal RPC 已接受已读回执（不代表其他设备清零）";
-                    }
+                    check=ReadReceiptRpcContract.Check((int)response.StatusCode,raw,id);
                 }
-                catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-                catch(Exception ex)
+                catch(OperationCanceledException) when(ct.IsCancellationRequested)
                 {
-                    detail="回执尝试失败："+ex.GetType().Name;
-                    // Avoid logging one stack trace per message for a daemon outage.
-                    if(item.Attempt==1 || item.Attempt==ReadReceiptRetryPolicy.MaxAttempts)
-                        _logger.LogWarning(ex,
-                            "Read receipt attempt {Attempt}/{Max} failed; outgoing dispatch proceeds",
-                            item.Attempt,ReadReceiptRetryPolicy.MaxAttempts);
+                    // On shutdown the 'inflight' marker remains and is
+                    // quarantined at startup, never blindly retried.
+                    throw;
+                }
+                catch(OperationCanceledException)
+                {
+                    check=new(ReceiptRpcStatus.Uncertain,"RPC_TIMEOUT");
+                }
+                catch(HttpRequestException)
+                {
+                    check=new(ReceiptRpcStatus.Uncertain,"RPC_NETWORK_ERROR");
+                }
+                catch(Exception ex) when(ex is IOException or JsonException)
+                {
+                    check=new(ReceiptRpcStatus.Uncertain,"RPC_RESPONSE_ERROR");
                 }
 
-                if(state!="attempted" &&
-                   item.Attempt>=ReadReceiptRetryPolicy.MaxAttempts)
-                {
-                    state="failed";
-                    detail="已达到最多 "+ReadReceiptRetryPolicy.MaxAttempts+
-                        " 次重试，未确认已读回执成功";
-                }
-
-                await _databaseGate.WaitAsync(ct);
+                // A rejected request is definitely not accepted by the RPC.
+                // An ambiguous response is quarantined, not counted as read.
+                var finalState=check.Status switch {
+                    ReceiptRpcStatus.Accepted=>"attempted",
+                    ReceiptRpcStatus.Rejected=>"failed",
+                    _=>"unknown"
+                };
+                if(check.Status==ReceiptRpcStatus.Accepted)accepted+=items.Length;
+                lastCode=check.Code;
+                await _databaseGate.WaitAsync(CancellationToken.None);
                 try
                 {
                     await using var db=Open();
-                    await using var q=db.CreateCommand();
-                    q.CommandText="""
-                        UPDATE v8_read_events SET state=$state,detail=$detail
-                        WHERE account=$a AND group_id=$g AND author=$sender
-                          AND timestamp_ms=$timestamp AND attempts=$attempt;
-                        """;
-                    q.Parameters.AddWithValue("$state",state);
-                    q.Parameters.AddWithValue("$detail",detail);
-                    q.Parameters.AddWithValue("$a",account);
-                    q.Parameters.AddWithValue("$g",group);
-                    q.Parameters.AddWithValue("$sender",item.Author);
-                    q.Parameters.AddWithValue("$timestamp",item.Timestamp);
-                    q.Parameters.AddWithValue("$attempt",item.Attempt);
-                    await q.ExecuteNonQueryAsync(ct);
+                    await using var transaction=await db.BeginTransactionAsync(CancellationToken.None);
+                    foreach(var item in items)
+                    {
+                        await using var update=db.CreateCommand();
+                        update.Transaction=(SqliteTransaction)transaction;
+                        update.CommandText="""
+                            UPDATE v8_read_events SET state=$state,detail=$code
+                            WHERE account=$a AND group_id=$g AND author=$author
+                              AND timestamp_ms=$timestamp AND state='inflight'
+                              AND attempts=$attempt;
+                            """;
+                        update.Parameters.AddWithValue("$state",finalState);
+                        update.Parameters.AddWithValue("$code",check.Code);
+                        update.Parameters.AddWithValue("$a",account);
+                        update.Parameters.AddWithValue("$g",group);
+                        update.Parameters.AddWithValue("$author",item.Author);
+                        update.Parameters.AddWithValue("$timestamp",item.Timestamp);
+                        update.Parameters.AddWithValue("$attempt",item.Attempt);
+                        await update.ExecuteNonQueryAsync(CancellationToken.None);
+                    }
+                    await transaction.CommitAsync(CancellationToken.None);
                 }
                 finally{_databaseGate.Release();}
             }
+            await RecordReceiptStatusAsync(lastCode,selected,accepted,
+                CancellationToken.None);
         }
         finally{_sendGate.Release();}
+    }
+
+    async Task RecordReceiptStatusAsync(string code,int selected,int accepted,CancellationToken ct)
+    {
+        // All strings are fixed internal codes, not daemon/error response text.
+        _lastReceiptRpcCode=ReadReceiptRpcContract.IsSafeCode(code)
+            ?code:"RPC_UNCLASSIFIED";
+        _lastReceiptSelected=selected;
+        _lastReceiptAccepted=accepted;
+        var now=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        Interlocked.Exchange(ref _lastReceiptRpcAtMs,now);
+        try
+        {
+            await InitializeAsync(ct);
+            await _databaseGate.WaitAsync(ct);
+            try
+            {
+                await using var db=Open();
+                await using var update=db.CreateCommand();
+                update.CommandText="""
+                    UPDATE v8_read_rpc_status SET code=$c,when_ms=$t,
+                        selected=$s,accepted=$a WHERE id=1;
+                    """;
+                update.Parameters.AddWithValue("$c",_lastReceiptRpcCode);
+                update.Parameters.AddWithValue("$t",now);
+                update.Parameters.AddWithValue("$s",selected);
+                update.Parameters.AddWithValue("$a",accepted);
+                await update.ExecuteNonQueryAsync(ct);
+            }
+            finally{_databaseGate.Release();}
+        }
+        catch(Exception) { /* Diagnostics failure must not affect real send. */ }
     }
 
 }
