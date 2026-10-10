@@ -1201,10 +1201,17 @@ public partial class ScriptEditorWindow : UserControl
                 "确认批量备份范围",MessageBoxButton.YesNo,
                 MessageBoxImage.Information)!=MessageBoxResult.Yes)return;
         }
+        var one=(sender as Button)?.Tag as string=="single";
+        var chosen=ScriptsList.SelectedItem as ScriptEditorSummary;
+        if(one && chosen is null)
+        {
+            StatusText.Text="请先从左侧选中一个剧本，再点击导出选中剧本。";
+            return;
+        }
         var picker=new SaveFileDialog
         {
-            Title="备份全部已保存剧本及图片",
-            FileName="Signal-剧本图片完整备份.zip",
+            Title=one?"导出选中剧本（备注、图片与设置）":"导出全部剧本（备注、图片与设置）",
+            FileName=one?"Signal-剧本-"+chosen!.Name+".zip":"Signal-全部剧本完整备份.zip",
             Filter="ZIP 备份 (*.zip)|*.zip",
             AddExtension=true
         };
@@ -1215,6 +1222,8 @@ public partial class ScriptEditorWindow : UserControl
             StatusText.Text="正在读取已保存剧本及验证附件…";
             var catalog=ReadData<List<ScriptEditorSummary>>(
                 await MainWindow.SendAsync(ControlCommands.ScriptList,10000));
+            if(one)
+                catalog=catalog.Where(x=>x.ScriptId==chosen!.ScriptId).ToList();
             if(catalog.Count is <1 or >ScriptBundleArchive.MaxScripts)
                 throw new InvalidDataException("剧本数量超出完整备份支持范围（1～500）。");
             var scripts=new List<ScriptSaveRequest>();
@@ -1251,7 +1260,13 @@ public partial class ScriptEditorWindow : UserControl
                     imagePaths[reference]=reference;
                 }
             }
-            ScriptBundleArchive.Create(picker.FileName,scripts,imagePaths);
+            var localAccounts=ReadData<AccountGroupOverview>(
+                await MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,10000));
+            // Preserve author choices using ONLY unique human-defined remarks;
+            // no Signal phone/account IDs or target group IDs enter the ZIP.
+            var portable=PortableAccountMapping.ToRemarks(
+                scripts,localAccounts.Accounts);
+            ScriptBundleArchive.Create(picker.FileName,portable,imagePaths);
             StatusText.Text=$"完整备份成功：{scripts.Count} 个剧本、{imagePaths.Count} 张图片。";
         }
         catch(Exception ex)
@@ -1281,10 +1296,24 @@ public partial class ScriptEditorWindow : UserControl
         {
             StatusText.Text="正在检查完整备份及图片哈希…";
             var data=ScriptBundleArchive.ExtractValidated(picker.FileName,staging);
+            var localAccounts=ReadData<AccountGroupOverview>(
+                await MainWindow.SendAsync(ControlCommands.AccountGroupCatalog,10000));
+            if(data.Version==1 && data.Scripts.Any(x=>x.Steps.Any(
+                step=>!string.IsNullOrWhiteSpace(step.Account))))
+                throw new InvalidDataException(
+                    "旧版 ZIP 使用账号号码而非备注，无法跨电脑安全匹配。请在原电脑用新版重新导出。");
+            // Resolve all accounts BEFORE importing any images or scripts.
+            // If a label is missing or duplicated, nothing gets imported.
+            var resolved=data.Version==2
+                ?PortableAccountMapping.ResolveRemarks(data.Scripts,localAccounts.Accounts)
+                :data.Scripts.Select(x=>x with{
+                    ScriptId=null,Revision=0,TargetGroupId=""
+                }).ToArray();
             var answer=MessageBox.Show(Window.GetWindow(this),
-                $"备份包含 {data.Scripts.Length} 个剧本、{data.ImportedImagePaths.Count} 张图片。"+
-                "\n将作为新剧本导入，不覆盖现有剧本。原账号和群组仍需在本机检查。确定恢复？",
-                "确认完整备份恢复",MessageBoxButton.YesNo,MessageBoxImage.Warning);
+                $"备份包含 {resolved.Length} 个剧本、{data.ImportedImagePaths.Count} 张图片。"+
+                "\n所有发言账号备注均已在本机唯一匹配。"+
+                "\n剧本将作为新副本导入，群组需在本机选择，不会复制其他电脑的群组。确定导入？",
+                "确认导入可移植剧本",MessageBoxButton.YesNo,MessageBoxImage.Question);
             if(answer!=MessageBoxResult.Yes)return;
 
             var imported=new Dictionary<string,string>(StringComparer.Ordinal);
@@ -1297,7 +1326,7 @@ public partial class ScriptEditorWindow : UserControl
                     throw new IOException("图片导入未返回有效的引用。");
                 imported[item.Key]=info.Reference;
             }
-            foreach(var script in data.Scripts)
+            foreach(var script in resolved)
             {
                 var steps=script.Steps.Select((step,i)=>step with
                 {
@@ -1306,10 +1335,9 @@ public partial class ScriptEditorWindow : UserControl
                         ?""
                         :imported[step.Attachment]
                 }).ToArray();
-                // Account IDs and group IDs may differ on another installation.
-                // Keep script content and author choices; operator must review.
-                var request=new ScriptSaveRequest(null,script.Name,
-                    script.TargetGroupId,0,steps);
+                // The step accounts have already been mapped to THIS
+                // computer's Signal IDs using the unique remarks.
+                var request=new ScriptSaveRequest(null,script.Name,"",0,steps);
                 ReadData<ScriptEditorDocument>(await MainWindow.SendAsync(
                     ControlCommands.ScriptSave,30000,request));
                 completed++;
@@ -1317,7 +1345,7 @@ public partial class ScriptEditorWindow : UserControl
             }
             await ReloadScriptsAsync();
             StatusText.Text=$"已恢复 {completed} 个新剧本及 {imported.Count} 张图片。" +
-                " 请核对本机账号、群组及附件后再运行。";
+                " 已按相同账号备注绑定；启动前请核对本机群组。";
         }
         catch(Exception ex)
         {
