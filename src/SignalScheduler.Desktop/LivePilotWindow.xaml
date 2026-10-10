@@ -4,7 +4,7 @@
  Title="单群自动实发测试 - Signal 调度台"
  Width="980" Height="750" MinWidth="850" MinHeight="650"
  WindowStartupLocation="CenterOwner"
- Background="#111215" Foreground="#F1F2F4">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Padding" Value="12,8"/>
@@ -48,8 +48,8 @@
    <TextBlock Text="一个账号 + 一个测试群 + 最多三条真实消息。每条至少间隔 15 秒；异常立即停止后续。"
     Foreground="#F2C086" TextWrapping="Wrap" Margin="0,5,0,0"/>
   </StackPanel>
-  <Border Grid.Row="2" Background="#191B1E" Padding="14" CornerRadius="8"
-   BorderBrush="#41454B" BorderThickness="1">
+  <Border Grid.Row="2" Background="{StaticResource Ui2Surface}" Padding="14" CornerRadius="8"
+   BorderBrush="{StaticResource Ui2BorderStrong}" BorderThickness="1">
    <Grid>
     <Grid.ColumnDefinitions>
      <ColumnDefinition Width="*"/><ColumnDefinition Width="13"/>
@@ -113,6 +113,6 @@
    </DataGrid>
   </Grid>
   <TextBlock x:Name="StatusText" Grid.Row="10"
-   Text="正在读取测试资料……" TextWrapping="Wrap" Foreground="#D0D2D7"/>
+   Text="正在读取测试资料……" TextWrapping="Wrap" Foreground="{StaticResource Ui2TextSecondary}"/>
  </Grid>
 </Window>
