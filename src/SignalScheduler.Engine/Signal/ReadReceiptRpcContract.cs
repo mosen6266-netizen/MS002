@@ -18,6 +18,15 @@ public static class ReadReceiptRpcContract
             @params=new {account,recipient,targetTimestamps=timestamps,type="read"}
         };
 
+    public static bool IsSafeCode(string? code)=>code is
+        "READ_DISABLED" or "NO_PENDING_FOR_SPEAKER" or
+        "RPC_NOT_STARTED" or "RPC_NOT_CONFIRMED" or "RPC_ACCEPTED" or
+        "RPC_EMPTY_RESPONSE" or "RPC_MISMATCH" or "RPC_INTERNAL_ERROR" or
+        "RPC_ERROR_OTHER" or "RPC_HTTP_ERROR" or "RPC_NO_RESULT" or
+        "RPC_INVALID_JSON" or "RPC_TIMEOUT" or "RPC_NETWORK_ERROR" or
+        "RPC_RESPONSE_ERROR" or "RPC_UNCLASSIFIED" or "RPC_INTERRUPTED" or
+        "RPC_REJECTED_-32600" or "RPC_REJECTED_-32601" or "RPC_REJECTED_-32602";
+
     public static ReceiptRpcCheck Check(int httpStatus,string? body,string id)
     {
         if(string.IsNullOrWhiteSpace(body))
