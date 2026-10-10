@@ -63,6 +63,39 @@ public sealed class LiveBatchTests
     }
 
     [Fact]
+    public async Task DuplicateRemarkResolvesToActualMemberIndependentlyForEachGroup()
+    {
+        var (store,_)=await NewStoreAsync();
+        const string a="+491110001";
+        const string b="+491110002";
+        var members=new[]{
+            new SignalGroupCatalogItem(a,"g1","群1",true,Array.Empty<string>()),
+            new SignalGroupCatalogItem(b,"g2","群2",true,Array.Empty<string>())
+        };
+        await store.SyncSignalCatalogAsync(new[]{a,b},members,new[]{a,b},Ct);
+        var before=await store.GetAccountGroupOverviewAsync(Ct);
+        foreach(var account in before.Accounts)
+            await store.UpdateManagedAccountAsync(new UpdateManagedAccount(
+                account.Account,"1号",true,account.Revision),Ct);
+
+        // On another machine import can save a representative ID a for role 1号.
+        var script=await MakeScriptAsync(store,new[]{
+            new ScriptEditorStep(0,a,"第一条","",false,"",0,0)
+        });
+        var pre=await store.PreflightLiveBatchAsync(
+            new LiveBatchPreflightRequest(script.ScriptId,new[]{"g1","g2"}),Ct);
+        Assert.True(pre.CanStart,string.Join(" | ",pre.Issues.Select(x=>x.Message)));
+
+        var started=await store.StartLiveBatchAsync(
+            new LiveBatchStartRequest(script.ScriptId,new[]{"g1","g2"},true),Ct);
+        Assert.Equal(2,started.GroupCount);
+        var due=await store.FindDueLiveBatchAsync(
+            DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()+1000,20,Ct);
+        Assert.Equal(a,due.Single(x=>x.Dispatch.GroupId=="g1").Dispatch.AccountId);
+        Assert.Equal(b,due.Single(x=>x.Dispatch.GroupId=="g2").Dispatch.AccountId);
+    }
+
+    [Fact]
     public async Task LiveJobSnapshotReportsPreparedAndSendingPhasesWithoutMovingCursor()
     {
         var (store,db)=await NewStoreAsync();
