@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using SignalScheduler.Shared;
 
@@ -16,9 +17,13 @@ namespace SignalScheduler.Desktop;
 /// </summary>
 internal static class UiLayoutSmoke
 {
+    static string? _previewFolder;
+
     public static int Run(string path)
     {
-        var report=new StringBuilder("MS002 WPF UI width/layout smoke test\n");
+        var report=new StringBuilder("MS002 WPF UI 2.0 layout and screenshot verification\n");
+        _previewFolder=Path.Combine(Path.GetDirectoryName(path)??Path.GetTempPath(),"ui2-screenshots");
+        Directory.CreateDirectory(_previewFolder);
         Application.Current.ShutdownMode=ShutdownMode.OnExplicitShutdown;
         try
         {
@@ -128,7 +133,21 @@ internal static class UiLayoutSmoke
                 VerifyReadableButton(updates.CheckButton,"检查更新（可用）",true,report);
                 report.AppendLine("GitHub 检查更新页面：PASS");
             }
-            finally{updateWindow.Close();}
+            finally
+            {
+                CapturePreview(updates,"updates");
+                updateWindow.Close();
+            }
+
+            // Monitor screen displays no real user data in UI smoke mode.
+            var monitorHost=new Window{
+                Width=1220,Height=810,Left=-4500,Top=-4500,
+                WindowStartupLocation=WindowStartupLocation.Manual,
+                ShowInTaskbar=false,ShowActivated=false,
+                WindowStyle=WindowStyle.ToolWindow,Content=monitor
+            };
+            try{monitorHost.Show();monitor.UpdateLayout();CapturePreview(monitor,"running-tasks");}
+            finally{monitorHost.Close();}
 
             // Regression samples for button styles owned by independent
             // pages. Catch pages that accidentally bypass the global WPF
@@ -259,6 +278,21 @@ internal static class UiLayoutSmoke
         }
     }
 
+    static void CapturePreview(FrameworkElement page,string name)
+    {
+        if(string.IsNullOrWhiteSpace(_previewFolder))return;
+        page.UpdateLayout();
+        var w=(int)Math.Ceiling(page.ActualWidth);
+        var h=(int)Math.Ceiling(page.ActualHeight);
+        if(w<500 || h<300)return;
+        var snapshot=new RenderTargetBitmap(w,h,96,96,PixelFormats.Pbgra32);
+        snapshot.Render(page);
+        var image=new PngBitmapEncoder();
+        image.Frames.Add(BitmapFrame.Create(snapshot));
+        using var file=File.Create(Path.Combine(_previewFolder,name+".png"));
+        image.Save(file);
+    }
+
     static void CheckPage(UserControl page,string name,DataGrid grid,
         double[] minWidths,StringBuilder report,double windowHeight=810)
     {
@@ -284,6 +318,13 @@ internal static class UiLayoutSmoke
             page.UpdateLayout();
             grid.UpdateLayout();
             var widths=grid.Columns.Select(c=>c.ActualWidth).ToArray();
+            CapturePreview(page,name switch{
+                "首页群组选择"=>"home-groups",
+                "账号管理"=>"accounts",
+                "群组管理"=>"account-groups",
+                "剧本消息表格"=>"scripts",
+                _=>"page"
+            });
             report.AppendLine($"{name}: grid={grid.ActualWidth:F0}, columns="+
                 string.Join(",",widths.Select(w=>w.ToString("F0"))));
             if(grid.ActualWidth<500)
