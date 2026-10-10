@@ -7,7 +7,7 @@
  WindowStyle="None" ResizeMode="CanResize"
  Background="#111215" Foreground="#F1F2F4">
  <shell:WindowChrome.WindowChrome>
-  <shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="7"
+  <shell:WindowChrome CaptionHeight="52" ResizeBorderThickness="7"
    GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
  </shell:WindowChrome.WindowChrome>
  <Window.Resources>
@@ -28,10 +28,10 @@
    </Style.Triggers>
   </Style>
   <Style x:Key="NavButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-   <Setter Property="Margin" Value="0,0,0,7"/>
+   <Setter Property="Margin" Value="0,0,0,5"/>
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="FontSize" Value="14"/>
-   <Setter Property="Padding" Value="16,13"/>
+   <Setter Property="Padding" Value="15,11"/>
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="0"/>
    <!-- Avoid Windows' light-blue native Button hover which makes the
@@ -40,14 +40,14 @@
     <Setter.Value>
      <ControlTemplate TargetType="Button">
       <Border x:Name="NavSurface" Background="{TemplateBinding Background}"
-       CornerRadius="5" BorderThickness="0"
+       CornerRadius="9" BorderThickness="0"
        Padding="{TemplateBinding Padding}">
        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
         VerticalAlignment="Center" RecognizesAccessKey="True"/>
       </Border>
       <ControlTemplate.Triggers>
        <Trigger Property="IsMouseOver" Value="True">
-        <Setter TargetName="NavSurface" Property="Background" Value="#2D3035"/>
+        <Setter TargetName="NavSurface" Property="Background" Value="{StaticResource Ui2SurfaceHover}"/>
        </Trigger>
        <Trigger Property="IsPressed" Value="True">
         <Setter TargetName="NavSurface" Property="Background" Value="#2D3035"/>
@@ -64,15 +64,15 @@
  </Window.Resources>
  <Grid>
   <Grid.RowDefinitions>
-   <RowDefinition Height="44"/>
+   <RowDefinition Height="52"/>
    <RowDefinition Height="*"/>
   </Grid.RowDefinitions>
   <Grid.ColumnDefinitions>
-   <ColumnDefinition x:Name="NavigationColumn" Width="215"/>
+   <ColumnDefinition x:Name="NavigationColumn" Width="232"/>
    <ColumnDefinition Width="*"/>
   </Grid.ColumnDefinitions>
 
-  <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#191B1E"
+  <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource Ui2Sidebar}"
    BorderBrush="#2D3035" BorderThickness="0,0,0,1">
    <Grid>
     <Grid.ColumnDefinitions>
@@ -105,7 +105,7 @@
    </Grid>
   </Border>
 
-  <Border Grid.Row="1" Grid.Column="0" Background="#111215"
+  <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Ui2Sidebar}"
    BorderBrush="#222529" BorderThickness="0,0,1,0">
    <Grid Margin="16,22">
     <Grid.RowDefinitions>
@@ -116,9 +116,9 @@
      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <StackPanel>
-     <TextBlock Text="Signal 调度台" FontSize="22" FontWeight="Bold"/>
+     <TextBlock Text="MS002" FontSize="22" FontWeight="Bold"/>
      <TextBlock Text="V8.0.0-beta.15" Foreground="#A9ADB4" Margin="0,7,0,0"/>
-     <TextBlock Text="桌面消息管理" Foreground="#777D85" Margin="0,4,0,0"/>
+     <TextBlock Text="智能消息工作台" Foreground="#777D85" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button x:Name="HomeNav" Content="⌂   首页 · 快速开始" Tag="home"
@@ -171,7 +171,7 @@
    </Grid>
   </Border>
 
-  <Grid Grid.Row="1" Grid.Column="1" Background="#111215">
+  <Grid Grid.Row="1" Grid.Column="1" Background="{StaticResource Ui2Canvas}">
    <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="Auto"/>
@@ -186,7 +186,7 @@
       <ColumnDefinition Width="Auto"/>
      </Grid.ColumnDefinitions>
      <StackPanel>
-      <TextBlock x:Name="PageTitle" Text="首页 · 直接开始" FontSize="23"
+      <TextBlock x:Name="PageTitle" Text="工作台 / 快速开始" FontSize="23"
         FontWeight="Bold"/>
       <TextBlock x:Name="PageSubtitle"
        Text="选择剧本、勾选群组，确认后直接启动。每个群的状态单独保存。"
