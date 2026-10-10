@@ -37,7 +37,8 @@ public sealed record SafeDiagnosticSnapshot(
     long LastReceiptRpcAtMs=0,
     int LastReceiptSelected=0,
     int LastReceiptAccepted=0,
-    int UnknownReadReceipts=0);
+    int UnknownReadReceipts=0,
+    string LastReceiptFailureCode="",long LastReceiptFailureAtMs=0);
 
 public sealed record DiagnosticCategoryCount(string Code,int Count);
 
@@ -131,6 +132,8 @@ public static class SafeDiagnosticReport
             }catch(ArgumentOutOfRangeException){}
         }
         sb.AppendLine("最近处理时间："+receiptTime);
+        sb.AppendLine("最近一次失败代码："+(receiptCodes.Contains(input.LastReceiptFailureCode,
+            StringComparer.Ordinal)?input.LastReceiptFailureCode:"未记录"));
         sb.AppendLine("说明：RPC 确认接收不保证另一端显示已读；不存在待处理事件不等于全部已读。");
         sb.AppendLine();
         sb.AppendLine("安装运行文件检查（只读）");
