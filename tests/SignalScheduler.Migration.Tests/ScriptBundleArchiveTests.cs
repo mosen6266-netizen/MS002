@@ -36,8 +36,18 @@ public sealed class ScriptBundleArchiveTests
                 Path.Combine(root,"staging"));
             Assert.Equal(2,contents.Scripts.Length);
             Assert.All(contents.Scripts,s=>Assert.Null(s.ScriptId));
+            Assert.Equal(2,contents.Version);
             Assert.Single(contents.ImportedImagePaths);
-            Assert.Equal(bytes,File.ReadAllBytes(contents.ImportedImagePaths[reference]));
+            var portableReference=contents.Scripts[0].Steps[0].Attachment;
+            Assert.StartsWith("image-",portableReference);
+            Assert.Equal(bytes,File.ReadAllBytes(contents.ImportedImagePaths[portableReference]));
+            using(var zip=ZipFile.OpenRead(bundle))
+            using(var reader=new StreamReader(zip.GetEntry("manifest.json")!.Open()))
+            {
+                var manifest=reader.ReadToEnd();
+                Assert.DoesNotContain("img:original",manifest);
+                Assert.DoesNotContain(png,manifest);
+            }
         }
         finally{Directory.Delete(root,true);}
     }
