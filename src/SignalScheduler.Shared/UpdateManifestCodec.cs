@@ -17,7 +17,7 @@ public sealed record VerifiedUpdateManifest(
 public static class UpdateManifestCodec
 {
     static readonly Regex VersionPattern=new(
-        @"^8\.\d{1,4}\.\d{1,4}-(?:alpha|beta|rc)\.\d{1,5}$",
+        @"^8\.\d{1,4}\.\d{1,4}-(?:(?:alpha|beta|rc)\.\d{1,5}|ui2\.\d{1,5})$",
         RegexOptions.CultureInvariant|RegexOptions.Compiled);
     static readonly Regex CommitPattern=new(
         "^[a-fA-F0-9]{40}$",RegexOptions.CultureInvariant|RegexOptions.Compiled);
