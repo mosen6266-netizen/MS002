@@ -133,7 +133,7 @@ public sealed class LiveBatchRunner : BackgroundService
             {
                 // A large read queue must not block the first real message.
                 using var receiptTimeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
-                receiptTimeout.CancelAfter(TimeSpan.FromSeconds(5));
+                receiptTimeout.CancelAfter(ReadReceiptRetryPolicy.MaxPhase);
                 await _read.TrySendForGroupAsync(
                     due.Dispatch.AccountId,due.Dispatch.GroupId,
                     receiptTimeout.Token);
