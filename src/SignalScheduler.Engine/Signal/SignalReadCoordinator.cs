@@ -258,6 +258,28 @@ public sealed class SignalReadCoordinator : BackgroundService
                     Interlocked.Exchange(ref _lastReceiptFailureAtMs,reader.GetInt64(1));
                 }
             }
+            // Resume from the last event durably processed, never from an
+            // id received before its data was saved. The daemon keeps a small
+            // in-memory replay window for Last-Event-ID reconnects.
+            await using(var cursor=db.CreateCommand())
+            {
+                cursor.CommandText="""
+                    CREATE TABLE IF NOT EXISTS v8_read_stream_cursor(
+                        id INTEGER PRIMARY KEY CHECK(id=1),
+                        last_event_id TEXT NOT NULL DEFAULT ''
+                    );
+                    INSERT OR IGNORE INTO v8_read_stream_cursor(id) VALUES(1);
+                    """;
+                await cursor.ExecuteNonQueryAsync(ct);
+            }
+            await using(var loadCursor=db.CreateCommand())
+            {
+                loadCursor.CommandText=
+                    "SELECT last_event_id FROM v8_read_stream_cursor WHERE id=1;";
+                var val=await loadCursor.ExecuteScalarAsync(ct) as string;
+                if(!string.IsNullOrWhiteSpace(val))
+                    _lastEventId=val;
+            }
             await using(var health=db.CreateCommand())
             {
                 health.CommandText="""
@@ -360,6 +382,23 @@ public sealed class SignalReadCoordinator : BackgroundService
         finally{_databaseGate.Release();}
     }
 
+    async Task PersistEventCursorAsync(string? eventId,CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(eventId) || eventId.Length>256 ||
+           eventId.Contains('\r') || eventId.Contains('\n'))return;
+        await _databaseGate.WaitAsync(ct);
+        try
+        {
+            await using var db=Open();
+            await using var q=db.CreateCommand();
+            q.CommandText="UPDATE v8_read_stream_cursor SET last_event_id=$id WHERE id=1;";
+            q.Parameters.AddWithValue("$id",eventId);
+            await q.ExecuteNonQueryAsync(ct);
+            _lastEventId=eventId;
+        }
+        finally{_databaseGate.Release();}
+    }
+
     async Task RecordStreamTransitionAsync(
         bool connected,string failureType,CancellationToken ct)
     {
@@ -441,19 +480,31 @@ public sealed class SignalReadCoordinator : BackgroundService
                 await using var stream=await response.Content.ReadAsStreamAsync(ct);
                 using var reader=new StreamReader(stream);
                 var data=new System.Text.StringBuilder();
+                string? pendingEventId=null;
                 while(!ct.IsCancellationRequested)
                 {
                     var line=await reader.ReadLineAsync(ct);
                     if(line is null)break;
                     if(line.StartsWith("id:",StringComparison.Ordinal))
-                        _lastEventId=line[3..].Trim();
+                        pendingEventId=line[3..].Trim();
                     else if(line.StartsWith("data:",StringComparison.Ordinal))
                         data.Append(line[5..].TrimStart());
                     else if(line.Length==0 && data.Length>0)
                     {
-                        try{await SaveEventAsync(data.ToString(),ct);}
-                        catch(JsonException){ /* Ignore non-message SSE payloads. */ }
+                        try
+                        {
+                            await SaveEventAsync(data.ToString(),ct);
+                            await PersistEventCursorAsync(pendingEventId,ct);
+                        }
+                        catch(JsonException)
+                        {
+                            // Malformed events contain no safe routing data.
+                            // Do not advance the cursor until successfully
+                            // parsed; reconnect can replay without data loss.
+                            throw new InvalidDataException("SSE_EVENT_INVALID_JSON");
+                        }
                         data.Clear();
+                        pendingEventId=null;
                     }
                 }
                 if(!ct.IsCancellationRequested)
