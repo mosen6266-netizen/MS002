@@ -1,0 +1,391 @@
+name: MS002 UI2 Optional Installer
+on:
+  push:
+    branches: [ ui/v2-monochrome ]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+concurrency:
+  group: ui2-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.414
+
+      # CI-only Python runs sqlite3 integrity snapshots before/after upgrade.
+      # The shipped installer and customer PC require no Python installation.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate desktop and installer icon
+        shell: powershell
+        run: .\tools\GenerateBrandIcon.ps1
+
+      - name: Restore
+        run: dotnet restore SignalScheduler.V8.sln
+
+      - name: Build
+        run: dotnet build SignalScheduler.V8.sln -c Release --no-restore
+
+      - name: Tests
+        run: dotnet test tests/SignalScheduler.Migration.Tests/SignalScheduler.Migration.Tests.csproj -c Release --no-build
+
+      - name: Publish desktop
+        run: dotnet publish src/SignalScheduler.Desktop/SignalScheduler.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Desktop
+
+      - name: Publish engine
+        run: dotnet publish src/SignalScheduler.Engine/SignalScheduler.Engine.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish/Engine
+
+      - name: Stamp installed GitHub build number
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $info = @{
+            version = '8.0.0-ui2.0'
+            build = [int]${{ github.run_number }}
+            sourceSha = '${{ github.sha }}'
+          } | ConvertTo-Json -Compress
+          $target = Join-Path $pwd 'artifacts/publish/Desktop/build-info.json'
+          [System.IO.File]::WriteAllText($target, $info, [System.Text.UTF8Encoding]::new($false))
+          Write-Host "Packaged update metadata: $info"
+
+      - name: WPF main window startup smoke test
+        shell: powershell
+        run: |
+          # Catch runtime XAML parsing/template errors that dotnet build alone
+          # cannot catch. This launch is on an isolated CI machine without
+          # Signal accounts and sends no messages.
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
+          if (-not (Test-Path $exe)) { throw 'Published desktop EXE missing' }
+          $app = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $app.Refresh()
+            if ($app.HasExited) {
+              throw "WPF desktop exited during startup: $($app.ExitCode)"
+            }
+          } finally {
+            $app.Refresh()
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+          }
+
+      - name: WPF table column layout smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/publish/Desktop/SignalScheduler.exe'
+          $report = Join-Path $env:RUNNER_TEMP 'ms002-ui-layout-smoke.txt'
+          Remove-Item -LiteralPath $report -Force -ErrorAction SilentlyContinue
+          $result = Start-Process -FilePath $exe -ArgumentList @('--ui-layout-smoke',"$report") -Wait -PassThru
+          Write-Host "Layout smoke exit code: $($result.ExitCode)"
+          if (Test-Path -LiteralPath $report) {
+            Get-Content -LiteralPath $report
+          } else {
+            Write-Host "Layout smoke did not create its report; app may have exited before the check."
+          }
+          if ($result.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $report)) {
+            Write-Host "Latest .NET Runtime error events:"
+            Get-WinEvent -FilterHashtable @{
+              LogName='Application'; StartTime=(Get-Date).AddMinutes(-8); Id=1026
+            } -ErrorAction SilentlyContinue |
+              Select-Object -First 4 -ExpandProperty Message | Out-String | Write-Host
+            throw "WPF layout smoke failed; see process exit code and layout diagnostics above"
+          }
+
+      - name: Bundle pinned Java 25 and signal-cli
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ghHeaders = @{ "User-Agent" = "MS002-CI"; "Authorization" = "Bearer $env:GITHUB_TOKEN"; "Accept" = "application/vnd.github+json" }
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
+          New-Item -ItemType Directory -Force $runtime | Out-Null
+
+          # The pinned GitHub release assets are large. Invoke-WebRequest can
+          # terminate on a transient TCP reset. Use curl.exe with HTTP/1.1,
+          # bounded retries, and a clean file on every retry; checksum checks
+          # below still reject corrupted or substituted assets.
+          function Save-ReleaseAsset {
+            param([string]$AssetUrl,[string]$Destination)
+            $curl = (Get-Command curl.exe -ErrorAction Stop).Source
+            for ($attempt=1; $attempt -le 4; $attempt++) {
+              Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+              & $curl --fail --location --silent --show-error --http1.1 --connect-timeout 30 --max-time 600 --output $Destination $AssetUrl
+              $exitCode = $LASTEXITCODE
+              if ($exitCode -eq 0 -and (Test-Path -LiteralPath $Destination) -and
+                  (Get-Item -LiteralPath $Destination).Length -gt 0) {
+                return
+              }
+              if ($attempt -lt 4) {
+                Write-Warning "Release asset download interrupted (attempt $attempt/4, curl exit $exitCode); retrying."
+                Start-Sleep -Seconds ([int][Math]::Min(40,5*[Math]::Pow(2,$attempt-1)))
+              }
+            }
+            throw "Release asset download failed after 4 attempts (no unverified runtime will be packaged)."
+          }
+
+          # signal-cli: pin a specific signed GitHub release and verify GitHub's asset digest when present.
+          $signalVersion = "0.14.9"
+          $release = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/AsamK/signal-cli/releases/tags/v$signalVersion"
+          $assetName = "signal-cli-$signalVersion.tar.gz"
+          $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+          if (-not $asset) { throw "signal-cli asset not found: $assetName" }
+          $signalArchive = Join-Path $pwd "signal-cli.tar.gz"
+          Save-ReleaseAsset -AssetUrl $asset.browser_download_url -Destination $signalArchive
+          if ($asset.digest -and $asset.digest -match "^sha256:(.+)$") {
+            $actual = (Get-FileHash $signalArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expected = $Matches[1].ToLowerInvariant()
+            if ($actual -ne $expected) { throw "signal-cli SHA256 mismatch" }
+          }
+          $signalExtract = Join-Path $pwd "signal-cli-extract"
+          New-Item -ItemType Directory -Force $signalExtract | Out-Null
+          tar -xzf $signalArchive -C $signalExtract
+          $signalRoot = Get-ChildItem $signalExtract -Directory | Where-Object { $_.Name -like "signal-cli-*" } | Select-Object -First 1
+          if (-not $signalRoot) { throw "signal-cli extraction failed" }
+          Move-Item $signalRoot.FullName (Join-Path $runtime "signal-cli")
+          if (-not (Test-Path (Join-Path $runtime "signal-cli/bin/signal-cli.bat"))) { throw "signal-cli.bat missing" }
+
+          # Eclipse Temurin JRE 25: pin 25.0.4.1+1 and verify the checksum asset from the official GitHub release.
+          $jreVersion = "25.0.4.1+1"
+          $jreTag = [uri]::EscapeDataString("jdk-$jreVersion")
+          $temurinRelease = Invoke-RestMethod -Headers $ghHeaders -Uri "https://api.github.com/repos/adoptium/temurin25-binaries/releases/tags/$jreTag"
+          $jreAssetName = "OpenJDK25U-jre_x64_windows_hotspot_25.0.4.1_1.zip"
+          $jreAsset = $temurinRelease.assets | Where-Object { $_.name -eq $jreAssetName } | Select-Object -First 1
+          $jreChecksumAsset = $temurinRelease.assets | Where-Object { $_.name -eq "$jreAssetName.sha256.txt" } | Select-Object -First 1
+          if (-not $jreAsset -or -not $jreChecksumAsset) { throw "Pinned Temurin JRE assets not found" }
+          $jreArchive = Join-Path $pwd "temurin-jre.zip"
+          $jreChecksumFile = Join-Path $pwd "temurin-jre.sha256.txt"
+          Save-ReleaseAsset -AssetUrl $jreAsset.browser_download_url -Destination $jreArchive
+          Save-ReleaseAsset -AssetUrl $jreChecksumAsset.browser_download_url -Destination $jreChecksumFile
+          $jreHash = (Get-FileHash $jreArchive -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expectedJreHash = $null
+          if ($jreAsset.digest -and $jreAsset.digest -match "^sha256:(?<hash>[0-9a-fA-F]{64})$") {
+            $expectedJreHash = $Matches["hash"].ToLowerInvariant()
+          } else {
+            $checksumText = (Get-Content -Raw $jreChecksumFile)
+            $match = [regex]::Match($checksumText, "(?i)(?<hash>[0-9a-f]{64})")
+            if (-not $match.Success) { throw "Unable to parse Temurin SHA256" }
+            $expectedJreHash = $match.Groups["hash"].Value.ToLowerInvariant()
+          }
+          if ($jreHash -ne $expectedJreHash) {
+            throw "Temurin JRE SHA256 mismatch actual=$jreHash expected=$expectedJreHash"
+          }
+          $jreExtract = Join-Path $pwd "jre-extract"
+          Expand-Archive -Force $jreArchive $jreExtract
+          $jreRoot = Get-ChildItem $jreExtract -Directory | Select-Object -First 1
+          if (-not $jreRoot) { throw "Temurin JRE extraction failed" }
+          Move-Item $jreRoot.FullName (Join-Path $runtime "jre")
+          if (-not (Test-Path (Join-Path $runtime "jre/bin/java.exe"))) { throw "java.exe missing" }
+
+          # Runtime smoke test before installer packaging.
+          & (Join-Path $runtime "jre/bin/java.exe") -version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled Java failed" }
+          $bundledJava = Join-Path $runtime "jre\bin\java.exe"
+          $bundledCp = Join-Path $runtime "signal-cli\lib\*"
+          & $bundledJava -classpath $bundledCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli direct-Java runtime failed" }
+
+      - name: Signal JSON-RPC daemon smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
+          $java = Join-Path $runtime "jre/bin/java.exe"
+          $cp = Join-Path $runtime "signal-cli/lib/*"
+          $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
+          $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
+          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $ok = $false
+            for ($i=0; $i -lt 45; $i++) {
+              Start-Sleep -Milliseconds 750
+              if ($proc.HasExited) { break }
+              try {
+                $body = @{ jsonrpc = "2.0"; method = "listAccounts"; id = 1 } | ConvertTo-Json -Compress
+                $reply = Invoke-RestMethod -Method Post -ContentType "application/json" -Body $body -Uri "http://127.0.0.1:7583/api/v1/rpc" -TimeoutSec 3
+                if ($reply.jsonrpc -eq "2.0" -and $null -ne $reply.result) { $ok = $true; break }
+              } catch {}
+            }
+            if (-not $ok) {
+              if (Test-Path $stdout) { Get-Content $stdout -Tail 100 }
+              if (Test-Path $stderr) { Get-Content $stderr -Tail 100 }
+              throw "signal-cli daemon JSON-RPC smoke test failed"
+            }
+          } finally {
+            if ($proc -and -not $proc.HasExited) { Stop-Process -Id $proc.Id -Force }
+            Get-Process "java" -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
+
+      - name: Install pinned Inno Setup
+        shell: powershell
+        run: choco install innosetup --version=6.7.1 -y --no-progress
+
+      - name: Build installer
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force artifacts/installer | Out-Null
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DPublishRoot=$pwd\artifacts\publish" "/DOutputRoot=$pwd\artifacts\installer" "installer\SignalScheduler.UI2.iss"
+
+      - name: Installer smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V8*.exe | Select-Object -First 1
+          if (-not $setup) { throw "Installer not found" }
+          $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV8-CI-Smoke"
+          $install = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
+          if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
+          Start-Sleep -Seconds 2
+          if (-not (Test-Path (Join-Path $testRoot "SignalScheduler.exe"))) { throw "Desktop executable missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "signal-brand.ico"))) { throw "Brand icon missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
+          if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
+
+          $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
+          $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
+          & $installedJava -classpath $installedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
+
+          $desktop = [Environment]::GetFolderPath("Desktop")
+          $programs = [Environment]::GetFolderPath("Programs")
+          if (-not (Test-Path (Join-Path $desktop "Signal Auto Scheduler.lnk"))) { throw "Desktop shortcut missing" }
+          if (-not (Test-Path (Join-Path $programs "Signal Auto Scheduler\Signal Auto Scheduler.lnk"))) { throw "Start Menu shortcut missing" }
+
+          # Upgrade smoke test: leave Engine + its Java/signal-cli running, then reinstall.
+          # The installer must close them through the safe IPC handshake without an English
+          # Restart Manager prompt or a force-kill on safe-protocol builds.
+          $engineExe = Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"
+          $engineProc = Start-Process -FilePath $engineExe -ArgumentList @("--background") -PassThru -WindowStyle Hidden
+          # Startup may hold the single-instance mutex before IPC becomes ready,
+          # especially while the bundled Java daemon initializes. Require an
+          # actual pipe response instead of assuming that five seconds suffice.
+          $ready = $false
+          for ($probe = 1; $probe -le 24; $probe++) {
+            if ($engineProc.HasExited) { throw "Engine exited before upgrade smoke test" }
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut,[System.IO.Pipes.PipeOptions]::Asynchronous)
+            try {
+              $pipe.Connect(800)
+              # NamedPipeClientStream.ReadTimeout is not supported for this
+              # asynchronous pipe on all Windows runners; setting it throws
+              # SetValueInvocationException before the first ping is sent.
+              # Bound ReadLineAsync explicitly instead and fail closed.
+              $writer = [System.IO.StreamWriter]::new($pipe)
+              $writer.AutoFlush = $true
+              $reader = [System.IO.StreamReader]::new($pipe)
+              $writer.WriteLine('{"Command":"ping"}')
+              $readTask = $reader.ReadLineAsync()
+              if (-not $readTask.Wait(3000)) {
+                throw "Engine IPC ping timed out after 3 seconds"
+              }
+              $reply = $readTask.Result
+              if ($reply -and ((ConvertFrom-Json -InputObject $reply).Ok -eq $true)) {
+                $ready = $true
+                break
+              }
+            }
+            catch {
+              if ($probe -eq 24) { Write-Warning "Engine ping failed: $($_.Exception.ToString())" }
+            }
+            finally { $pipe.Dispose() }
+            Start-Sleep -Milliseconds 500
+          }
+          if (-not $ready) { throw "Engine IPC did not become ready for safe upgrade" }
+
+          # Snapshot real V8 user-facing records in the isolated runner database:
+          # remarks, edited script and revision, selected group, completed
+          # dispatch history, local preferences and a user-owned file.
+          # Expected values live OUTSIDE the app and data directories.
+          $userDataRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerData"
+          $expectedData = Join-Path $env:RUNNER_TEMP "ms002-upgrade-user-expected.json"
+          python tools/verify_upgrade_userdata.py seed "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "Failed to seed isolated upgrade preservation fixture" }
+          # Baseline must compare equal BEFORE installing anything. If not,
+          # the preservation checker itself is broken (not evidence of data loss).
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "CI fixture self-check failed before upgrade" }
+
+          $upgradeLog = Join-Path $env:RUNNER_TEMP "ms002-upgrade-setup.log"
+          $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon","/LOG=$upgradeLog") -Wait -PassThru
+          if ($upgrade.ExitCode -ne 0) {
+            if (Test-Path $upgradeLog) {
+              Write-Host "Installer preparation failure diagnostics:"
+              Get-Content -LiteralPath $upgradeLog -Tail 70
+            }
+            throw "In-place upgrade exited with $($upgrade.ExitCode)"
+          }
+          Start-Sleep -Seconds 2
+
+          if (Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue) { throw "Engine still running after safe upgrade handshake" }
+          if (Get-Process "java" -ErrorAction SilentlyContinue) { throw "Engine-owned Java still running after safe upgrade handshake" }
+
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "User data changed or disappeared during in-place upgrade" }
+
+          # Validate that a successful upgrade did not merely preserve data
+          # while leaving the actual program or bundled runtime unusable.
+          $upgradedDesktop = Join-Path $testRoot "SignalScheduler.exe"
+          $upgradedEngine = Join-Path $testRoot "Engine\\SignalScheduler.Engine.exe"
+          $upgradedJava = Join-Path $testRoot "Runtime\\signal-stack-v1\\jre\\bin\\java.exe"
+          $upgradedCp = Join-Path $testRoot "Runtime\\signal-stack-v1\\signal-cli\\lib\\*"
+          foreach ($requiredFile in @($upgradedDesktop,$upgradedEngine,$upgradedJava)) {
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+              throw "Missing installed file after upgrade: $requiredFile"
+            }
+          }
+          & $upgradedJava -classpath $upgradedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
+
+          # Run desktop from the upgraded installation rather than just from
+          # the pre-install publish output. No account or network send needed.
+          $upgradedApp = Start-Process -FilePath $upgradedDesktop -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $upgradedApp.Refresh()
+            if ($upgradedApp.HasExited) {
+              throw "Installed desktop exited after upgrade: $($upgradedApp.ExitCode)"
+            }
+          }
+          finally {
+            $upgradedApp.Refresh()
+            if (-not $upgradedApp.HasExited) {
+              $upgradedApp.CloseMainWindow() | Out-Null
+              if (-not $upgradedApp.WaitForExit(10000)) {
+                # CI-only process cleanup; production installer never force-kills.
+                Stop-Process -Id $upgradedApp.Id -Force
+              }
+            }
+          }
+          # An upgraded UI launch must not alter real user-facing records.
+          python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+          if ($LASTEXITCODE -ne 0) { throw "Desktop launch after upgrade modified the data fixture" }
+
+          $uninstall = Join-Path $testRoot "unins000.exe"
+          if (Test-Path $uninstall) {
+            $u = Start-Process -FilePath $uninstall -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART") -Wait -PassThru
+            if ($u.ExitCode -ne 0) { throw "Uninstaller exited with $($u.ExitCode)" }
+            python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
+            if ($LASTEXITCODE -ne 0) { throw "Uninstall erased user-owned profile data" }
+          }
+
+      - name: Hash installer
+        shell: powershell
+        run: Get-FileHash artifacts/installer/*.exe -Algorithm SHA256 | Format-List | Out-File artifacts/installer/SHA256.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MS002-UI2-Windows-Installer
+          path: artifacts/installer/*
+          if-no-files-found: error
+
