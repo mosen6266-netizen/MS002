@@ -30,7 +30,7 @@
   </Grid.RowDefinitions>
   <StackPanel Grid.Row="0" Margin="0,0,0,7">
    <TextBlock Text="当前运行任务" FontSize="25" FontWeight="SemiBold"/>
-   <TextBlock Text="运行中的群组任务集中管理；已暂停的任务也可在此查看和手动继续。"
+   <TextBlock Text="仅显示运行中、暂停及等待处理的任务；已停止、已完成及彻底失败的任务请到历史记录查看。"
     Foreground="#ADC4D9" TextWrapping="Wrap" Margin="0,6,0,0"/>
    <TextBlock x:Name="ReceiptStatusText" Text="已读回执诊断：正在读取…"
     Foreground="#8CCDD9" TextWrapping="Wrap" Margin="0,5,0,0"/>
@@ -38,7 +38,7 @@
   <Border Grid.Row="1" Background="#122A40" BorderBrush="#31536F" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,0,0,13">
    <WrapPanel>
-    <TextBlock x:Name="AllCountText" Text="任务总数：—" Margin="0,0,22,6"
+    <TextBlock x:Name="AllCountText" Text="当前任务：—" Margin="0,0,22,6"
      FontWeight="SemiBold" Foreground="#DCEAFF"/>
     <TextBlock x:Name="RunningCountText" Text="运行：—" Margin="0,0,22,6"
      Foreground="#7FE2BF"/>
@@ -52,10 +52,10 @@
    <TextBlock Text="显示：" VerticalAlignment="Center" Margin="0,0,7,7"/>
    <ComboBox x:Name="TaskFilter" Width="194" Margin="0,0,12,7"
     SelectionChanged="FilterChanged" SelectedIndex="0">
-    <ComboBoxItem Content="运行与非正常状态" Tag="active"/>
+    <ComboBoxItem Content="当前任务（不含已结束）" Tag="active"/>
     <ComboBoxItem Content="需要人工关注" Tag="attention"/>
-    <ComboBoxItem Content="已结束任务" Tag="finished"/>
-    <ComboBoxItem Content="全部任务" Tag="all"/>
+    <ComboBoxItem Content="暂停及待处理" Tag="paused"/>
+    <ComboBoxItem Content="全部未结束任务" Tag="all"/>
    </ComboBox>
    <Button Content="立即刷新" Click="Refresh_Click"
     Style="{StaticResource MonitorAction}"/>
@@ -63,6 +63,8 @@
     IsChecked="True" VerticalAlignment="Center" Margin="7,0,12,7"
     Foreground="#B8D4E8"/>
    <Button Content="打开异常恢复中心" Click="OpenRecovery_Click"
+    Style="{StaticResource MonitorAction}"/>
+   <Button Content="查看已结束任务（历史记录）" Click="OpenHistory_Click"
     Style="{StaticResource MonitorAction}"/>
   </WrapPanel>
   <DockPanel Grid.Row="3" Margin="0,0,0,8">
