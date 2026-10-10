@@ -241,17 +241,35 @@
      BorderBrush="#3B5871" Background="#112438" Foreground="#EFF6FD"
      RowBackground="#132D44" AlternatingRowBackground="#1A354C"
      EnableRowVirtualization="True">
+     <!-- Highlight every cell for the selected message, not only the native row face. -->
      <DataGrid.RowStyle>
-      <Style TargetType="DataGridRow">
+      <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
        <Setter Property="Background" Value="#132D44"/>
+       <Setter Property="BorderBrush" Value="Transparent"/>
+       <Setter Property="BorderThickness" Value="3,0,0,0"/>
        <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+         <Setter Property="Background" Value="#254A63"/>
+        </Trigger>
         <Trigger Property="IsSelected" Value="True">
-         <Setter Property="Background" Value="#256AA1"/>
+         <Setter Property="Background" Value="#1A5F8B"/>
+         <Setter Property="BorderBrush" Value="#91E0FF"/>
          <Setter Property="Foreground" Value="#FFFFFF"/>
         </Trigger>
        </Style.Triggers>
       </Style>
      </DataGrid.RowStyle>
+     <DataGrid.CellStyle>
+      <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+       <Style.Triggers>
+        <DataTrigger Binding="{Binding IsSelected,RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+         <Setter Property="Background" Value="#1A5F8B"/>
+         <Setter Property="Foreground" Value="#FFFFFF"/>
+         <Setter Property="BorderBrush" Value="#457FA5"/>
+        </DataTrigger>
+       </Style.Triggers>
+      </Style>
+     </DataGrid.CellStyle>
      <DataGrid.Columns>
       <DataGridTextColumn Header="#" Width="48" Binding="{Binding PositionLabel}"
        IsReadOnly="True" ElementStyle="{StaticResource TruncatedGridText}"/>
