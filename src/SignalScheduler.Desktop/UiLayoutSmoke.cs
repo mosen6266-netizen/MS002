@@ -101,6 +101,12 @@ internal static class UiLayoutSmoke
                    !updates.CurrentVersionText.Text.StartsWith("V8",StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         "更新页面当前版本或检查按钮无法正常显示。");
+                // The two buttons from the user's screenshot were unreadable
+                // because Windows drew white native disabled faces with pale
+                // disabled system text. Verify the ACTUAL WPF template values.
+                VerifyReadableButton(updates.DownloadButton,"下载更新（禁用）",false,report);
+                VerifyReadableButton(updates.OpenFolderButton,"查看已下载文件（禁用）",false,report);
+                VerifyReadableButton(updates.CheckButton,"检查更新（可用）",true,report);
                 report.AppendLine("GitHub 检查更新页面：PASS");
             }
             finally{updateWindow.Close();}
@@ -149,6 +155,47 @@ internal static class UiLayoutSmoke
             File.WriteAllText(path,report.ToString());
             return 1;
         }
+    }
+
+    static void VerifyReadableButton(Button button,string description,
+        bool enabled,StringBuilder report)
+    {
+        if(button.IsEnabled!=enabled)
+            throw new InvalidOperationException(description+": 按钮禁用/启用状态不符合预期。");
+        if(!button.ApplyTemplate())
+            throw new InvalidOperationException(description+": WPF 按钮模板没有加载。");
+        var face=button.Template.FindName("ReadableButtonFace",button) as Border;
+        var label=button.Template.FindName("ReadableButtonLabel",button) as ContentPresenter;
+        if(face is null || label is null)
+            throw new InvalidOperationException(description+": 仍使用不受控的系统原生按钮模板。");
+        if(face.Background is not SolidColorBrush background ||
+           label.GetValue(System.Windows.Documents.TextElement.ForegroundProperty)
+               is not SolidColorBrush foreground)
+            throw new InvalidOperationException(description+": 无法检查按钮背景与文字颜色。");
+        var ratio=ContrastRatio(background.Color,foreground.Color);
+        if(ratio<4.5)
+            throw new InvalidOperationException(
+                $"{description}: 对比度 {ratio:F2}:1，不符合4.5:1可读性要求。");
+        if(!enabled && background.Color!=Color.FromRgb(51,60,71))
+            throw new InvalidOperationException(description+": 禁用按钮没有变为深灰色。");
+        report.AppendLine($"{description}：背景={background.Color}，文字={foreground.Color}，"+
+            $"对比度={ratio:F2}:1 PASS");
+    }
+
+    static double ContrastRatio(Color left,Color right)
+    {
+        static double Lum(Color c)
+        {
+            static double Linear(byte b)
+            {
+                var v=b/255d;
+                return v<=0.04045?v/12.92:Math.Pow((v+0.055)/1.055,2.4);
+            }
+            return 0.2126*Linear(c.R)+0.7152*Linear(c.G)+0.0722*Linear(c.B);
+        }
+        var a=Lum(left);
+        var b=Lum(right);
+        return (Math.Max(a,b)+0.05)/(Math.Min(a,b)+0.05);
     }
 
     static IEnumerable<T> VisualChildren<T>(DependencyObject root)
