@@ -124,6 +124,10 @@ public partial class LiveBatchWindow : UserControl
         RefreshGroupPage();
     }
 
+    // The shell caches this page, but WPF reloads catalog rows on Loaded.
+    // Persist group choices independently of rows even if the page is recreated.
+    static readonly GroupSelectionLedger SessionGroups=new();
+    bool _rebuildingGroups;
     readonly ObservableCollection<BatchGroupRow> _groups=new();
     readonly ObservableCollection<BatchGroupTag> _selectedTags=new();
     bool _busy;
@@ -182,22 +186,35 @@ public partial class LiveBatchWindow : UserControl
             ScriptBox.ItemsSource=scripts;
             ScriptBox.SelectedItem=scripts.FirstOrDefault(x=>x.ScriptId==old)
                 ??scripts.FirstOrDefault();
-            // Preserve in-progress group selections when refreshing the catalog.
-            var selectedBeforeRefresh=_groups.Where(x=>x.Selected)
-                .Select(x=>x.GroupId).ToHashSet(StringComparer.Ordinal);
-            _groups.Clear();
-            foreach(var group in overview.Groups.Where(g=>g.MemberAccounts>0))
+            // Rebuild only the displayed rows; never use the WPF row list
+            // as the authoritative selection during an asynchronous refresh.
+            _rebuildingGroups=true;
+            try
             {
-                var row=new BatchGroupRow(group);
-                if(selectedBeforeRefresh.Contains(row.GroupId))
-                    row.Selected=true;
-                row.PropertyChanged+=(_,e)=>
+                var available=overview.Groups.Where(g=>g.MemberAccounts>0).ToArray();
+                if(available.Length>0)
+                    SessionGroups.RetainAvailable(available.Select(g=>g.GroupId));
+                _groups.Clear();
+                foreach(var group in available)
                 {
-                    if(e.PropertyName==nameof(BatchGroupRow.Selected))
+                    var row=new BatchGroupRow(group);
+                    row.Selected=SessionGroups.Contains(row.GroupId);
+                    row.PropertyChanged+=(_,e)=>
+                    {
+                        if(_rebuildingGroups ||
+                           e.PropertyName!=nameof(BatchGroupRow.Selected))return;
+                        if(!SessionGroups.Set(row.GroupId,row.Selected))
+                        {
+                            row.Selected=false;
+                            StatusText.Text="最多只能选择 20 个群组，请先取消其他群组。";
+                            return;
+                        }
                         RefreshSelectedTags();
-                };
-                _groups.Add(row);
+                    };
+                    _groups.Add(row);
+                }
             }
+            finally{_rebuildingGroups=false;}
             RefreshSelectedTags();
             RefreshGroupPage();
             StatusText.Text=$"已读取 {scripts.Count} 个剧本与 {_groups.Count} 个 Signal 群。"+
@@ -230,15 +247,29 @@ public partial class LiveBatchWindow : UserControl
 
     void ClearAll_Click(object sender,RoutedEventArgs e)
     {
-        foreach(var group in _groups) group.Selected=false;
+        SessionGroups.Clear();
+        foreach(var group in _groups)group.Selected=false;
         RefreshSelectedTags();
+    }
+
+    void ToggleGroupName_Click(object sender,RoutedEventArgs e)
+    {
+        if(sender is not Button {Tag:string groupId})return;
+        var row=_groups.FirstOrDefault(x=>x.GroupId==groupId);
+        if(row is null)return;
+        if(!row.Selected && SessionGroups.Count>=20)
+        {
+            StatusText.Text="最多只能选择 20 个群组，请先取消其他群组。";
+            return;
+        }
+        row.Selected=!row.Selected;
     }
 
     void RefreshSelectedTags()
     {
         if(SelectedGroupTags is null)return;
         _selectedTags.Clear();
-        foreach(var item in _groups.Where(x=>x.Selected))
+        foreach(var item in _groups.Where(x=>SessionGroups.Contains(x.GroupId)))
             _selectedTags.Add(new BatchGroupTag(item.GroupId,item.Name));
         SelectedGroupCount.Text=$"已选 {_selectedTags.Count} / 20 个";
         UpdateButtons();
@@ -265,7 +296,7 @@ public partial class LiveBatchWindow : UserControl
         if(StartButton is null)return;
         StartButton.IsEnabled=!_busy &&
             ScriptBox.SelectedItem is ScriptEditorSummary &&
-            _groups.Any(x=>x.Selected) && _groups.Count(x=>x.Selected)<=20;
+            SessionGroups.Count is >=1 and <=20;
         if(PreflightButton is not null)
             PreflightButton.IsEnabled=StartButton.IsEnabled;
 
@@ -298,7 +329,8 @@ public partial class LiveBatchWindow : UserControl
         if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
         GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
         GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
-        var ids=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
+        var ids=_groups.Where(x=>SessionGroups.Contains(x.GroupId))
+            .Select(x=>x.GroupId).ToArray();
         if(ids.Length is <1 or >20)
         {
             StatusText.Text="请先选择 1～20 个群组。";
@@ -333,7 +365,8 @@ public partial class LiveBatchWindow : UserControl
         if(_busy || ScriptBox.SelectedItem is not ScriptEditorSummary script)return;
         GroupsGrid.CommitEdit(DataGridEditingUnit.Cell,true);
         GroupsGrid.CommitEdit(DataGridEditingUnit.Row,true);
-        var ids=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
+        var ids=_groups.Where(x=>SessionGroups.Contains(x.GroupId))
+            .Select(x=>x.GroupId).ToArray();
         if(ids.Length is <1 or >20)
         {
             StatusText.Text="一次请勾选 1～20 个群组。";
@@ -371,7 +404,8 @@ public partial class LiveBatchWindow : UserControl
                 mediaProblems?"确认旧图片缺失处理与真实发送":"确认真实发送",
                 MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
                 return;
-            var selectedNow=_groups.Where(x=>x.Selected).Select(x=>x.GroupId).ToArray();
+            var selectedNow=_groups.Where(x=>SessionGroups.Contains(x.GroupId))
+                .Select(x=>x.GroupId).ToArray();
             if((ScriptBox.SelectedItem as ScriptEditorSummary)?.ScriptId!=script.ScriptId ||
                !ids.SequenceEqual(selectedNow))
             {
@@ -382,6 +416,8 @@ public partial class LiveBatchWindow : UserControl
             var raw=await MainWindow.SendAsync(ControlCommands.LiveBatchStart,
                 60000,new LiveBatchStartRequest(script.ScriptId,ids,true,mediaProblems));
             var started=Unwrap<LiveBatchStartResult>(raw);
+            // Intentionally retain SessionGroups: clicking Start does not clear
+            // the user's checked target groups.
             StatusText.Text=$"已启动 {started.GroupCount} 个群组任务，每群 "+
                 $"{started.MessageCount} 条。请在左侧「当前运行任务」页面查看和管理。";
             if(Window.GetWindow(this) is MainWindow shell)
