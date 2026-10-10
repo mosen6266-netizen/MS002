@@ -20,6 +20,21 @@
    <Setter Property="MinHeight" Value="42"/>
    <Setter Property="Padding" Value="19,8"/>
   </Style>
+  <!-- Keep Chinese column labels centered with enough top/bottom room.
+       Do not inherit the compact Windows default header metrics. -->
+  <Style x:Key="ReadableGroupColumnHeader" TargetType="{x:Type DataGridColumnHeader}">
+   <Setter Property="Background" Value="#21415B"/>
+   <Setter Property="Foreground" Value="#F4F9FF"/>
+   <Setter Property="BorderBrush" Value="#41607B"/>
+   <Setter Property="BorderThickness" Value="0,0,1,1"/>
+   <Setter Property="Padding" Value="10,8"/>
+   <Setter Property="FontSize" Value="13"/>
+   <Setter Property="FontWeight" Value="SemiBold"/>
+   <Setter Property="MinHeight" Value="42"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="SnapsToDevicePixels" Value="True"/>
+  </Style>
   <Style x:Key="GroupNameAction" TargetType="Button">
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="0"/>
@@ -106,7 +121,8 @@
      <DataGrid x:Name="GroupsGrid" Grid.Row="4" AutoGenerateColumns="False"
       CanUserAddRows="False" EnableColumnVirtualization="False"
       HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="24"
-      ColumnHeaderHeight="28" MinHeight="0"
+      ColumnHeaderStyle="{StaticResource ReadableGroupColumnHeader}"
+      ColumnHeaderHeight="42" MinHeight="0"
       ScrollViewer.VerticalScrollBarVisibility="Disabled"
       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
       BorderBrush="#34546F" Background="#11283E" Foreground="White"
