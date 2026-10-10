@@ -1,7 +1,7 @@
 <UserControl x:Class="SignalScheduler.Desktop.ScriptEditorWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#111215" Foreground="#F1F2F4">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <UserControl.Resources>
   <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#222529"/>
@@ -89,7 +89,7 @@
    <ColumnDefinition Width="8"/>
    <ColumnDefinition Width="*" MinWidth="440"/>
   </Grid.ColumnDefinitions>
-  <Border Background="#191B1E" BorderBrush="#2D3035"
+  <Border Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}"
    BorderThickness="1" CornerRadius="10" Padding="12">
    <Grid>
     <Grid.RowDefinitions>
@@ -99,18 +99,18 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="剧本库" FontSize="20" FontWeight="SemiBold"/>
-     <TextBlock Text="选择或新建剧本" Foreground="#D0D2D7" Margin="0,5,0,14"/>
+     <TextBlock Text="选择或新建剧本" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,5,0,14"/>
      <TextBox x:Name="ScriptSearchBox" Margin="0,0,0,10" Height="36"
       ToolTip="输入剧本名称关键词；筛选不会清除正在编辑的内容"
       TextChanged="ScriptSearchBox_TextChanged"/>
      <TextBlock x:Name="ScriptSearchSummary" Text="输入名称可搜索剧本"
-      Margin="0,0,0,10" Foreground="#D0D2D7" FontSize="11"/>
+      Margin="0,0,0,10" Foreground="{StaticResource Ui2TextSecondary}" FontSize="11"/>
      <Button Content="＋ 新建剧本" Click="NewScript_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,8"/>
      <Button Content="刷新列表" Click="ReloadScripts_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
      <TextBlock Text="按住剧本名称拖动排序（自动保存）"
-      FontSize="11" Foreground="#D0D2D7" Margin="0,0,0,7"/>
+      FontSize="11" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,0,0,7"/>
      <Button x:Name="ExportSelectedZipButton" Content="导出选中剧本 ZIP" Tag="single" Click="ExportBundle_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,5"/>
      <Button x:Name="ExportAllZipButton" Content="导出全部剧本 ZIP" Tag="all" Click="ExportBundle_Click"
@@ -124,7 +124,7 @@
      DragOver="ScriptsList_DragOver" Drop="ScriptsList_Drop"
      AllowDrop="True"
      SelectionChanged="ScriptsList_SelectionChanged"
-     Background="#191B1E" BorderBrush="#41454B"
+     Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2BorderStrong}"
      HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
      ItemContainerStyle="{StaticResource ScriptListItem}">
      <ListBox.ContextMenu>
@@ -134,15 +134,15 @@
       <DataTemplate>
        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
         TextWrapping="NoWrap" ToolTip="{Binding Name}"
-        Foreground="#F1F2F4" VerticalAlignment="Center"/>
+        Foreground="{StaticResource Ui2Text}" VerticalAlignment="Center"/>
       </DataTemplate>
      </ListBox.ItemTemplate>
     </ListBox>
     <Expander Grid.Row="2" Margin="0,8,0,0" IsExpanded="False"
-     Foreground="#F1F2F4" Background="#191B1E">
+     Foreground="{StaticResource Ui2Text}" Background="{StaticResource Ui2Surface}">
      <Expander.Header>
       <TextBlock Text="更多操作 · 导入 / 导出 / 历史 / 图片"
-       FontSize="12" Foreground="#F1F2F4" TextWrapping="Wrap"/>
+       FontSize="12" Foreground="{StaticResource Ui2Text}" TextWrapping="Wrap"/>
      </Expander.Header>
      <StackPanel Margin="0,9,0,0">
       <Button Content="导入 JSON" Click="Import_Click"
@@ -154,13 +154,13 @@
       <Button Content="导出当前剧本 JSON（不含图片、不可跨电脑）" Click="Export_Click"
        Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
       <TextBlock Text="数据保存于本地，升级不会覆盖。"
-       FontSize="11" Foreground="#D0D2D7" TextWrapping="Wrap"/>
+       FontSize="11" Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap"/>
      </StackPanel>
     </Expander>
    </Grid>
   </Border>
   <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-   Width="8" Background="#222529" ResizeBehavior="PreviousAndNext"
+   Width="8" Background="{StaticResource Ui2SurfaceRaised}" ResizeBehavior="PreviousAndNext"
    ShowsPreview="True" ToolTip="拖动调整剧本库和编辑区宽度"/>
   <Grid Grid.Column="2" Margin="12,0,0,0">
    <Grid.RowDefinitions>
@@ -177,7 +177,7 @@
    <StackPanel Grid.Row="0">
     <TextBlock Text="剧本工作台" FontSize="22" FontWeight="SemiBold"/>
     <TextBlock Text="选择消息后可在下方查看并编辑全文"
-     FontSize="12" Foreground="#D0D2D7" Margin="0,4,0,7"/>
+     FontSize="12" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,4,0,7"/>
     <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left">
      <Button Content="保存剧本" Style="{StaticResource ActionButton}"
       Click="Save_Click" Background="#127753" Margin="0,0,7,5"/>
@@ -188,7 +188,7 @@
       Click="Close_Click" Margin="0,0,7,5"/>
     </WrapPanel>
    </StackPanel>
-   <Border Grid.Row="2" Background="#191B1E" BorderBrush="#2D3035"
+   <Border Grid.Row="2" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}"
     BorderThickness="1" CornerRadius="8" Padding="12">
     <Grid>
      <Grid.ColumnDefinitions>
@@ -196,12 +196,12 @@
       <ColumnDefinition Width="*"/>
      </Grid.ColumnDefinitions>
      <StackPanel>
-      <TextBlock Text="剧本名称" Foreground="#D0D2D7" Margin="0,0,0,5"/>
+      <TextBlock Text="剧本名称" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,0,0,5"/>
       <TextBox x:Name="NameBox" MaxLength="120" FontSize="14"
        TextChanged="EditorField_Changed"/>
      </StackPanel>
      <StackPanel Grid.Column="2">
-      <TextBlock Text="关联群组（可选）" Foreground="#D0D2D7" Margin="0,0,0,5"/>
+      <TextBlock Text="关联群组（可选）" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,0,0,5"/>
       <TextBox x:Name="GroupBox" MaxLength="500"
        TextChanged="EditorField_Changed"/>
      </StackPanel>
@@ -238,8 +238,8 @@
      ColumnHeaderStyle="{StaticResource DarkGridHeader}"
      AlternationCount="2" RowHeaderWidth="0" SelectionMode="Single"
      SelectionUnit="FullRow" CellEditEnding="StepsGrid_CellEditEnding" PreviewMouseLeftButtonUp="StepsGrid_PreviewMouseLeftButtonUp"
-     BorderBrush="#41454B" Background="#191B1E" Foreground="#F1F2F4"
-     RowBackground="#191B1E" AlternatingRowBackground="#222529"
+     BorderBrush="{StaticResource Ui2BorderStrong}" Background="{StaticResource Ui2Surface}" Foreground="{StaticResource Ui2Text}"
+     RowBackground="{StaticResource Ui2Surface}" AlternatingRowBackground="{StaticResource Ui2SurfaceRaised}"
      EnableRowVirtualization="True">
      <DataGrid.RowStyle>
       <Style TargetType="DataGridRow">
@@ -269,7 +269,7 @@
       <DataGridTemplateColumn Header="消息内容（选中后在下方编辑）" Width="*" MinWidth="170">
        <DataGridTemplateColumn.CellTemplate><DataTemplate>
         <TextBlock Text="{Binding Message}" TextTrimming="CharacterEllipsis"
-         TextWrapping="NoWrap" ToolTip="{Binding Message}" Foreground="#F1F2F4"
+         TextWrapping="NoWrap" ToolTip="{Binding Message}" Foreground="{StaticResource Ui2Text}"
          Margin="8,0" VerticalAlignment="Center"/>
        </DataTemplate></DataGridTemplateColumn.CellTemplate>
       </DataGridTemplateColumn>
@@ -294,7 +294,7 @@
      </DataGrid.Columns>
     </DataGrid>
    </Grid>
-   <Border Grid.Row="6" Background="#191B1E" BorderBrush="#41454B"
+   <Border Grid.Row="6" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2BorderStrong}"
     BorderThickness="1" CornerRadius="8" Padding="10">
     <Grid DataContext="{Binding SelectedItem,ElementName=StepsGrid}">
      <Grid.RowDefinitions>
@@ -305,7 +305,7 @@
       <RowDefinition Height="*"/>
      </Grid.RowDefinitions>
      <TextBlock Text="选中消息：编辑发送账号、间隔、输入时长及提醒" FontWeight="SemiBold"
-      Foreground="#F1F2F4"/>
+      Foreground="{StaticResource Ui2Text}"/>
      <Grid Grid.Row="2">
       <Grid.ColumnDefinitions>
        <ColumnDefinition Width="3*"/>
@@ -317,25 +317,25 @@
        <ColumnDefinition Width="2*"/>
       </Grid.ColumnDefinitions>
       <StackPanel>
-       <TextBlock Text="发送账号" FontSize="11" Foreground="#D0D2D7"/>
+       <TextBlock Text="发送账号" FontSize="11" Foreground="{StaticResource Ui2TextSecondary}"/>
        <ComboBox MinHeight="31" Margin="0,2,0,0"
         ItemsSource="{Binding AccountOptions,RelativeSource={RelativeSource AncestorType=UserControl}}"
         SelectedValue="{Binding Account,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
         SelectedValuePath="Account" DisplayMemberPath="Label"/>
       </StackPanel>
       <StackPanel Grid.Column="2">
-       <TextBlock Text="间隔秒" FontSize="11" Foreground="#D0D2D7"/>
+       <TextBlock Text="间隔秒" FontSize="11" Foreground="{StaticResource Ui2TextSecondary}"/>
        <TextBox Text="{Binding DelayText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
         Margin="0,2,0,0" Padding="4"/>
       </StackPanel>
       <StackPanel Grid.Column="4">
-       <TextBlock Text="输入秒" FontSize="11" Foreground="#D0D2D7"/>
+       <TextBlock Text="输入秒" FontSize="11" Foreground="{StaticResource Ui2TextSecondary}"/>
        <TextBox Text="{Binding TypingText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
         Margin="0,2,0,0" Padding="4"/>
       </StackPanel>
       <StackPanel Grid.Column="6">
        <CheckBox Content="发送后提醒" IsChecked="{Binding PauseAfter,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
-        VerticalAlignment="Center" Foreground="#F1F2F4"/>
+        VerticalAlignment="Center" Foreground="{StaticResource Ui2Text}"/>
        <TextBox Text="{Binding ReminderText,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}"
         ToolTip="提醒文字" Margin="0,3,0,0" Padding="4"/>
       </StackPanel>
@@ -348,7 +348,7 @@
    </Border>
    <TextBlock Grid.Row="8" x:Name="StatusText"
     Text="单击消息行即可选中；账号、间隔和提醒可单击编辑，图片可右键操作。"
-    Foreground="#D0D2D7" TextWrapping="Wrap" FontSize="12"/>
+    Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap" FontSize="12"/>
   </Grid>
  </Grid>
 </UserControl>
