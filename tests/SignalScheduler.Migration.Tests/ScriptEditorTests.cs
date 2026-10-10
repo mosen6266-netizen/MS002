@@ -117,6 +117,40 @@ public sealed class ScriptEditorTests
             "SELECT COUNT(*) FROM v8_editor_scripts"));
     }
 
+    [Fact]
+    public async Task DragOrderSurvivesRenameRestartAndAppendsImportedScripts()
+    {
+        var (store,db)=await NewAsync();
+        var one=await store.SaveEditorScriptAsync(new ScriptSaveRequest(
+            null,"甲","",0,Array.Empty<ScriptEditorStep>()),CancellationToken.None);
+        var two=await store.SaveEditorScriptAsync(new ScriptSaveRequest(
+            null,"乙","",0,Array.Empty<ScriptEditorStep>()),CancellationToken.None);
+        var three=await store.SaveEditorScriptAsync(new ScriptSaveRequest(
+            null,"丙","",0,Array.Empty<ScriptEditorStep>()),CancellationToken.None);
+        Assert.True(await store.ReorderEditorScriptsAsync(new ScriptReorderRequest(
+            new[]{three.ScriptId,one.ScriptId,two.ScriptId}),CancellationToken.None));
+        var before=await store.ListEditorScriptsAsync(CancellationToken.None);
+        Assert.Equal(new[]{three.ScriptId,one.ScriptId,two.ScriptId},
+            before.Select(x=>x.ScriptId));
+        await store.SaveEditorScriptAsync(new ScriptSaveRequest(one.ScriptId,
+            "甲已更名","",one.Revision,Array.Empty<ScriptEditorStep>()),
+            CancellationToken.None);
+        var newScript=await store.SaveEditorScriptAsync(new ScriptSaveRequest(
+            null,"新导入","",0,Array.Empty<ScriptEditorStep>()),CancellationToken.None);
+        var reopened=new StateStore(RuntimePaths.ForTesting(
+            Path.GetDirectoryName(db)!,db));
+        await reopened.InitializeAsync(CancellationToken.None);
+        Assert.Equal(new[]{three.ScriptId,one.ScriptId,two.ScriptId,newScript.ScriptId},
+            (await reopened.ListEditorScriptsAsync(CancellationToken.None))
+                .Select(x=>x.ScriptId));
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            reopened.ReorderEditorScriptsAsync(new ScriptReorderRequest(
+                new[]{one.ScriptId,two.ScriptId,three.ScriptId}),CancellationToken.None));
+        Assert.Equal(new[]{three.ScriptId,one.ScriptId,two.ScriptId,newScript.ScriptId},
+            (await reopened.ListEditorScriptsAsync(CancellationToken.None))
+                .Select(x=>x.ScriptId));
+    }
+
     static async Task<(StateStore,string)> NewAsync()
     {
         var root=Path.Combine(Path.GetTempPath(),"SignalV8ScriptTests",
