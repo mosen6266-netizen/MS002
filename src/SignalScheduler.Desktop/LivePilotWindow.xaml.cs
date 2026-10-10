@@ -20,6 +20,7 @@ public partial class LivePilotWindow : Window
     public LivePilotWindow()
     {
         InitializeComponent();
+        Ui2WindowChrome.Attach(this);
         JobGrid.ItemsSource=_jobs;
         Loaded+=async(_,_)=>{
             await LoadCatalogAsync();
