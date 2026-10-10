@@ -111,11 +111,11 @@
       Style="{StaticResource ActionButton}" Margin="0,0,0,6"/>
      <TextBlock Text="按住剧本名称拖动排序（自动保存）"
       FontSize="11" Foreground="#A8C8DC" Margin="0,0,0,7"/>
-     <Button Content="导出选中剧本 ZIP" Tag="single" Click="ExportBundle_Click"
+     <Button x:Name="ExportSelectedZipButton" Content="导出选中剧本 ZIP" Tag="single" Click="ExportBundle_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,5"/>
-     <Button Content="导出全部剧本 ZIP" Tag="all" Click="ExportBundle_Click"
+     <Button x:Name="ExportAllZipButton" Content="导出全部剧本 ZIP" Tag="all" Click="ExportBundle_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,5"/>
-     <Button Content="导入剧本 ZIP" Click="ImportBundle_Click"
+     <Button x:Name="ImportZipButton" Content="导入剧本 ZIP" Click="ImportBundle_Click"
       Style="{StaticResource ActionButton}" Margin="0,0,0,10"/>
     </StackPanel>
     <ListBox x:Name="ScriptsList" Grid.Row="1" PreviewMouseRightButtonDown="ScriptsList_PreviewMouseRightButtonDown"
