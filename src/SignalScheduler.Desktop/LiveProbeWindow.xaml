@@ -4,7 +4,7 @@
  Title="真实发送诊断（单条、需人工确认）"
  Height="625" Width="790" MinWidth="690" MinHeight="545"
  WindowStartupLocation="CenterOwner"
- Background="#111215" Foreground="#F1F2F4">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#222529"/>
@@ -37,7 +37,7 @@
    <TextBlock Text="仅发送一条带明显测试标识的消息，不会启动剧本或循环群发"
     Margin="0,6,0,0" Foreground="#F1BE78" TextWrapping="Wrap"/>
   </StackPanel>
-  <Border Grid.Row="2" Background="#191B1E" BorderBrush="#2D3035" BorderThickness="1"
+  <Border Grid.Row="2" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}" BorderThickness="1"
    CornerRadius="10" Padding="16">
    <StackPanel>
     <TextBlock Text="选择已经登录并启用的 Signal 账号" FontSize="15" FontWeight="SemiBold"/>
@@ -46,7 +46,7 @@
     <ComboBox x:Name="GroupBox" DisplayMemberPath="Name" Margin="0,9,0,0"/>
    </StackPanel>
   </Border>
-  <Border Grid.Row="4" Background="#222529" BorderBrush="#A07338"
+  <Border Grid.Row="4" Background="{StaticResource Ui2SurfaceRaised}" BorderBrush="#A07338"
    BorderThickness="1" CornerRadius="10" Padding="16">
    <StackPanel>
     <TextBlock Text="发送内容（固定，不允许批量修改）" FontWeight="SemiBold"/>
@@ -66,7 +66,7 @@
    <Button Content="刷新账号和群组" Click="Reload_Click"/>
   </StackPanel>
   <StackPanel Grid.Row="9" Margin="0,13,0,0">
-   <TextBlock x:Name="StatusText" Foreground="#D0D2D7"
+   <TextBlock x:Name="StatusText" Foreground="{StaticResource Ui2TextSecondary}"
     TextWrapping="Wrap" Text="准备读取账号和群组…"/>
    <TextBlock Text="安全机制：需要有效在线卡密；限同一时间一条、两次之间至少 90 秒；网络超时、断线或结果未知会暂停并记录在恢复中心，不会自动重发。"
     Margin="0,12,0,0" Foreground="#F4C282" TextWrapping="Wrap"/>
