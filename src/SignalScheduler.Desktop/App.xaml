@@ -3,6 +3,10 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  StartupUri="MainWindow.xaml" ShutdownMode="OnMainWindowClose">
  <Application.Resources>
+  <ResourceDictionary>
+   <ResourceDictionary.MergedDictionaries>
+    <ResourceDictionary Source="Themes/Monochrome.xaml"/>
+   </ResourceDictionary.MergedDictionaries>
   <SolidColorBrush x:Key="Surface" Color="#101E30"/>
   <SolidColorBrush x:Key="SurfaceAlt" Color="#192C42"/>
   <SolidColorBrush x:Key="BorderColor" Color="#35536D"/>
@@ -12,6 +16,16 @@
        Native theme templates can turn disabled labels into unreadable gray.
        The disabled template explicitly controls the face and the text,
        without fading the entire button or removing the visible label. -->
+  <Style TargetType="{x:Type Window}">
+   <Setter Property="FontFamily" Value="Segoe UI"/>
+   <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+   <Setter Property="UseLayoutRounding" Value="True"/>
+   <Setter Property="SnapsToDevicePixels" Value="True"/>
+  </Style>
+  <Style TargetType="{x:Type UserControl}">
+   <Setter Property="FontFamily" Value="Segoe UI"/>
+   <Setter Property="UseLayoutRounding" Value="True"/>
+  </Style>
   <Style x:Key="ReadableButtonBase" TargetType="{x:Type Button}">
    <Setter Property="Background" Value="#22445F"/>
    <Setter Property="Foreground" Value="#F7FAFE"/>
@@ -344,5 +358,6 @@
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Foreground" Value="#F0F5FC"/>
   </Style>
+   </ResourceDictionary>
  </Application.Resources>
 </Application>
