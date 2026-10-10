@@ -269,4 +269,97 @@ public sealed class ReadReceiptRpcIntegrationTests
         }
     }
 
+    sealed class StaggeredRpcHandler : HttpMessageHandler
+    {
+        public readonly TaskCompletionSource<bool> AccountAStarted=new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource<bool> ReleaseAccountA=new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+
+        protected override async Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage req,CancellationToken ct)
+        {
+            using var packet=JsonDocument.Parse(await req.Content!.ReadAsStringAsync(ct));
+            var root=packet.RootElement;
+            var account=root.GetProperty("params").GetProperty("account").GetString();
+            if(account=="account-A")
+            {
+                AccountAStarted.TrySetResult(true);
+                await ReleaseAccountA.Task.WaitAsync(ct);
+            }
+            var id=root.GetProperty("id").GetString();
+            return new HttpResponseMessage(HttpStatusCode.OK){
+                Content=new StringContent(JsonSerializer.Serialize(new{
+                    jsonrpc="2.0",id,result=(object?)null
+                }),Encoding.UTF8,"application/json")
+            };
+        }
+    }
+
+    [Fact]
+    public async Task OneSlowAccountDoesNotBlockOtherAccountsReadReceipts()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"ms002-read-parallel-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var db=Path.Combine(root,"data.db");
+        var handler=new StaggeredRpcHandler();
+        using var http=new HttpClient(handler){
+            BaseAddress=new Uri("http://127.0.0.1:7583/"),
+            Timeout=Timeout.InfiniteTimeSpan
+        };
+        var read=new SignalReadCoordinator(RuntimePaths.ForTesting(root,db),
+            NullLogger<SignalReadCoordinator>.Instance,http);
+        Task<ReadPreparationResult>? first=null;
+        try
+        {
+            await read.GetHealthAsync(CancellationToken.None);
+            typeof(SignalReadCoordinator).GetField("_streamState",
+                BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(read,"已连接");
+            await Seed(db,"account-A","group-A","author",101);
+            await Seed(db,"account-B","group-B","author",102);
+            first=read.TrySendForGroupAsync("account-A","group-A",CancellationToken.None);
+            await handler.AccountAStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var other=read.TrySendForGroupAsync("account-B","group-B",CancellationToken.None);
+            // A is deliberately held at the HTTP layer. B must complete
+            // independently rather than waiting on a global read semaphore.
+            var result=await other.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.True(result.Ready);
+            Assert.Equal(1,result.Accepted);
+            handler.ReleaseAccountA.TrySetResult(true);
+            Assert.True((await first).Ready);
+        }
+        finally
+        {
+            handler.ReleaseAccountA.TrySetResult(true);
+            if(first is not null)await first;
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(root,true);
+        }
+    }
+
+    [Fact]
+    public async Task CursorSurvivesRestartAndDoesNotContainMessageText()
+    {
+        var t=await Setup();
+        try
+        {
+            var persist=typeof(SignalReadCoordinator).GetMethod(
+                "PersistEventCursorAsync",BindingFlags.Instance|BindingFlags.NonPublic)!;
+            var save=(Task)persist.Invoke(t.Read,new object[]{
+                "safe-sse-id-456",CancellationToken.None})!;
+            await save;
+            var restarted=new SignalReadCoordinator(
+                RuntimePaths.ForTesting(t.Directory,t.Database),
+                NullLogger<SignalReadCoordinator>.Instance);
+            await restarted.GetHealthAsync(CancellationToken.None);
+            var field=typeof(SignalReadCoordinator).GetField("_lastEventId",
+                BindingFlags.Instance|BindingFlags.NonPublic)!;
+            Assert.Equal("safe-sse-id-456",field.GetValue(restarted));
+        }
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
+    }
+
 }
