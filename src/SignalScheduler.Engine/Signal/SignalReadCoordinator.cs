@@ -16,7 +16,7 @@ public sealed class SignalReadCoordinator : BackgroundService
     readonly RuntimePaths _paths;
     readonly ILogger<SignalReadCoordinator> _logger;
     long _lastStreamWarningMs;
-    readonly HttpClient _http=new(){BaseAddress=new Uri("http://127.0.0.1:7583/"),Timeout=Timeout.InfiniteTimeSpan};
+    readonly HttpClient _http;
     readonly SemaphoreSlim _databaseGate=new(1,1);
     readonly SemaphoreSlim _sendGate=new(1,1);
     bool _initialized;
@@ -87,10 +87,15 @@ public sealed class SignalReadCoordinator : BackgroundService
     }
 
 
-    public SignalReadCoordinator(RuntimePaths paths,ILogger<SignalReadCoordinator> logger)
+    public SignalReadCoordinator(RuntimePaths paths,ILogger<SignalReadCoordinator> logger,
+        HttpClient? rpcClient=null)
     {
         _paths=paths;
         _logger=logger;
+        _http=rpcClient??new HttpClient{
+            BaseAddress=new Uri("http://127.0.0.1:7583/"),
+            Timeout=Timeout.InfiniteTimeSpan
+        };
     }
 
     SqliteConnection Open()
