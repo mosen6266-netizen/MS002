@@ -32,7 +32,12 @@ public sealed record SafeDiagnosticSnapshot(
     bool RecoveryDataAvailable=false,
     InstalledRuntimeStatus? RuntimeStatus=null,
     string LastDaemonErrorCategory="",
-    long LastDaemonErrorAtMs=0);
+    long LastDaemonErrorAtMs=0,
+    string LastReceiptRpcCode="",
+    long LastReceiptRpcAtMs=0,
+    int LastReceiptSelected=0,
+    int LastReceiptAccepted=0,
+    int UnknownReadReceipts=0);
 
 public sealed record DiagnosticCategoryCount(string Code,int Count);
 
@@ -98,6 +103,35 @@ public static class SafeDiagnosticReport
         sb.AppendLine($"等待重试回执：{Metric(input.DeferredReadReceipts,input.ReadHealthAvailable)}");
         sb.AppendLine($"最终失败回执：{Metric(input.FailedReadReceipts,input.ReadHealthAvailable)}");
         sb.AppendLine($"最近捕获事件：{(input.ReadHealthAvailable?last:"未取得数据")}");
+        sb.AppendLine($"结果不明回执：{Metric(input.UnknownReadReceipts,input.ReadHealthAvailable)}");
+        sb.AppendLine();
+        sb.AppendLine("已读回执 RPC 诊断（仅最近一次发言前的处理）");
+        // The codes are fixed and allowlisted by the producer. Never export
+        // a raw Signal exception or RPC response.
+        var receiptCodes=new[]{
+            "READ_DISABLED","NO_PENDING_FOR_SPEAKER","RPC_NOT_STARTED",
+            "RPC_NOT_CONFIRMED","RPC_ACCEPTED","RPC_EMPTY_RESPONSE",
+            "RPC_MISMATCH","RPC_INTERNAL_ERROR","RPC_ERROR_OTHER",
+            "RPC_HTTP_ERROR","RPC_NO_RESULT","RPC_INVALID_JSON",
+            "RPC_TIMEOUT","RPC_NETWORK_ERROR","RPC_RESPONSE_ERROR",
+            "RPC_UNCLASSIFIED","RPC_INTERRUPTED","RPC_REJECTED_-32600",
+            "RPC_REJECTED_-32601","RPC_REJECTED_-32602"
+        };
+        sb.AppendLine("最近 RPC 结果："+
+            (input.ReadHealthAvailable && receiptCodes.Contains(input.LastReceiptRpcCode,
+                StringComparer.Ordinal)?input.LastReceiptRpcCode:"未取得数据"));
+        sb.AppendLine($"本轮选中回执：{Metric(input.LastReceiptSelected,input.ReadHealthAvailable)}");
+        sb.AppendLine($"本轮 RPC 确认接收：{Metric(input.LastReceiptAccepted,input.ReadHealthAvailable)}");
+        string receiptTime="未取得数据";
+        if(input.ReadHealthAvailable && input.LastReceiptRpcAtMs>0)
+        {
+            try {
+                receiptTime=DateTimeOffset.FromUnixTimeMilliseconds(input.LastReceiptRpcAtMs)
+                    .ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz");
+            }catch(ArgumentOutOfRangeException){}
+        }
+        sb.AppendLine("最近处理时间："+receiptTime);
+        sb.AppendLine("说明：RPC 确认接收不保证另一端显示已读；不存在待处理事件不等于全部已读。");
         sb.AppendLine();
         sb.AppendLine("安装运行文件检查（只读）");
         static string SafeFileStatus(string? status)=>
