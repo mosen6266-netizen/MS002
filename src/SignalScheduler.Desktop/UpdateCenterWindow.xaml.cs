@@ -143,37 +143,17 @@ public partial class UpdateCenterWindow : UserControl
         _latestSha=manifest.SourceSha;
         _latestRunUrl=manifest.RunUrl;
         _expectedSha256=manifest.InstallerSha256;
-        _downloadUrl=null;
-        _checksumUrl=null;
-        _releaseName=null;
+        // The signed manifest is published only after the exact official
+        // release installer is uploaded; GitHub HEAD requests are optional
+        // and frequently blocked by proxies despite normal GET working.
+        _releaseName="SignalScheduler_Setup_V"+manifest.Version+".exe";
+        _downloadUrl=$"https://github.com/{Repo}/releases/download/v{manifest.Version}/{_releaseName}";
+        _checksumUrl=$"https://github.com/{Repo}/releases/download/v{manifest.Version}/SHA256.txt";
         LatestVersionText.Text=$"V{manifest.Version} · Build #{manifest.Build}";
     }
 
     Task<VerifiedUpdateManifest> ReadStaticManifestAsync(CancellationToken ct)=>
         UpdateFeedClient.FetchAsync(_http,ct);
-
-    // This HEAD only checks if a published GitHub Release is present. It does
-    // not download arbitrary files or consume a GitHub REST API request.
-    async Task<bool> ProbeVerifiedReleaseAsync(
-        VerifiedUpdateManifest manifest,CancellationToken ct)
-    {
-        var tag="v"+manifest.Version;
-        var filename="SignalScheduler_Setup_V"+manifest.Version+".exe";
-        var release=$"https://github.com/{Repo}/releases/download/{tag}/{filename}";
-        try
-        {
-            using var request=new HttpRequestMessage(HttpMethod.Head,release);
-            using var response=await _http.SendAsync(request,
-                HttpCompletionOption.ResponseHeadersRead,ct);
-            if(!response.IsSuccessStatusCode)return false;
-            _downloadUrl=release;
-            _releaseName=filename;
-            _checksumUrl=null;
-            return true;
-        }
-        catch(HttpRequestException){return false;}
-        catch(TaskCanceledException){return false;}
-    }
 
     // Legacy fallback: one REST request, never an unbounded loop. A 403 must
     // not invalidate a previously verified static manifest or cache.
@@ -189,7 +169,7 @@ public partial class UpdateCenterWindow : UserControl
                runs.ValueKind!=JsonValueKind.Array)return false;
             foreach(var item in runs.EnumerateArray())
             {
-                if(Property(item,"head_branch")!="main" ||
+                if(Property(item,"head_branch")!="ui/v2-monochrome" ||
                    Property(item,"conclusion")!="success" ||
                    !item.TryGetProperty("run_number",out var nValue) ||
                    !nValue.TryGetInt32(out var n) || n<=0 ||
@@ -234,6 +214,8 @@ public partial class UpdateCenterWindow : UserControl
                     ex is InvalidDataException?"更新清单暂不可用":"网络连接或更新清单访问失败";
             }
 
+            if(manifest is not null && !manifest.Version.StartsWith("8.0.0-ui2.",StringComparison.Ordinal))
+                throw new InvalidDataException("更新源包含非 UI2 版本，已阻止跨界面更新。");
             if(manifest is not null)
             {
                 ApplyManifest(manifest);
@@ -243,19 +225,8 @@ public partial class UpdateCenterWindow : UserControl
                     UpdateStatusText.Text="最新已验证的版本已安装，无需更新。";
                     return;
                 }
-                // HEAD is optional. The action-page fallback always works
-                // without GitHub API credentials.
-                using var headTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(7));
-                if(await ProbeVerifiedReleaseAsync(manifest,headTimeout.Token))
-                {
-                    DownloadButton.Content="下载并校验安装包";
-                    UpdateStatusText.Text="已读取最新构建，发现 GitHub 正式发布安装包。下载后自动核对 CI 生成的 SHA256。";
-                }
-                else
-                {
-                    DownloadButton.Content="在 GitHub 获取安装包";
-                    UpdateStatusText.Text="已从 GitHub 静态清单确认最新成功构建。此版本尚未发布独立下载地址，请在 Actions 页面底部 Artifacts 下载。";
-                }
+                DownloadButton.Content="下载并校验安装包";
+                UpdateStatusText.Text="已验证 UI2 发布清单，下载时自动重试并进行 SHA256 校验；如公司网络阻止应用下载，可使用浏览器备用入口。";
                 return;
             }
 
@@ -264,6 +235,8 @@ public partial class UpdateCenterWindow : UserControl
             var cached=TryLoadCache();
             if(cached is not null)
             {
+                if(!cached.Version.StartsWith("8.0.0-ui2.",StringComparison.Ordinal))
+                    throw new InvalidDataException("旧版本缓存不属于 UI2 更新线路。");
                 ApplyManifest(cached);
                 DownloadButton.Content="打开已缓存的 GitHub 构建";
                 UpdateStatusText.Text="在线检查暂不可用（"+failure+
@@ -312,6 +285,16 @@ public partial class UpdateCenterWindow : UserControl
         Process.Start(new ProcessStartInfo(url){UseShellExecute=true});
     }
 
+    void OpenRelease_Click(object sender,RoutedEventArgs e)
+    {
+        if(_latestVersion is null || !_latestVersion.StartsWith("8.0.0-ui2.",StringComparison.Ordinal))
+        {
+            OpenOfficialUrl(WorkflowUrl);
+            return;
+        }
+        OpenOfficialUrl($"https://github.com/{Repo}/releases/tag/v{_latestVersion}");
+    }
+
     async void DownloadUpdate_Click(object sender,RoutedEventArgs e)
     {
         if(_checking || _downloading || _latestBuild<=0 ||
@@ -319,7 +302,9 @@ public partial class UpdateCenterWindow : UserControl
         if(_downloadUrl is null || _releaseName is null ||
            string.IsNullOrWhiteSpace(_expectedSha256))
         {
-            OpenOfficialUrl(_latestRunUrl??WorkflowUrl);
+            OpenOfficialUrl(_latestVersion is not null
+                ?$"https://github.com/{Repo}/releases/tag/v{_latestVersion}"
+                :_latestRunUrl??WorkflowUrl);
             return;
         }
         if(!Regex.IsMatch(_releaseName,@"^SignalScheduler_Setup_V8[\w.\-]+\.exe$",
@@ -331,46 +316,31 @@ public partial class UpdateCenterWindow : UserControl
         string? temp=null;
         try
         {
-            using var token=new CancellationTokenSource(TimeSpan.FromMinutes(20));
-            // Expected hash comes from the CI-verified GitHub update feed;
-            // a release download is accepted only if its bytes match.
-            var expected=_expectedSha256!;
-
+            using var token=new CancellationTokenSource(TimeSpan.FromMinutes(25));
             var folder=Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
                 "Downloads","MS002");
             Directory.CreateDirectory(folder);
             var path=Path.Combine(folder,_releaseName);
-            temp=path+".partial";
-            using var response=await _http.GetAsync(_downloadUrl,
-                HttpCompletionOption.ResponseHeadersRead,token.Token);
-            response.EnsureSuccessStatusCode();
-            const long maxBytes=700L*1024*1024;
-            if(response.Content.Headers.ContentLength is long length &&
-               length>maxBytes)throw new InvalidDataException("安装包超过 700 MB 上限。");
-            await using(var input=await response.Content.ReadAsStreamAsync(token.Token))
-            await using(var output=new FileStream(temp,FileMode.Create,
-                FileAccess.Write,FileShare.None,81920,true))
+            // Only official UI2 release URLs and hashes from the verified feed.
+            if(!_latestVersion!.StartsWith("8.0.0-ui2.",StringComparison.Ordinal))
+                throw new InvalidDataException("安装版本不属于 UI2 系列，已拒绝下载。");
+            var manifestHash=_expectedSha256!;
+            if(File.Exists(path))
             {
-                var bytes=new byte[131072];
-                long total=0;
-                int read;
-                while((read=await input.ReadAsync(bytes,token.Token))>0)
+                await using var existing=File.OpenRead(path);
+                var digest=Convert.ToHexString(await SHA256.HashDataAsync(existing,token.Token));
+                if(string.Equals(digest,manifestHash,StringComparison.OrdinalIgnoreCase))
                 {
-                    total+=read;
-                    if(total>maxBytes)
-                        throw new InvalidDataException("安装包超过下载大小限制。");
-                    await output.WriteAsync(bytes.AsMemory(0,read),token.Token);
-                    if(response.Content.Headers.ContentLength is long size && size>0)
-                        DownloadProgress.Value=Math.Clamp(total*100d/size,0,100);
+                    _downloaded=path;
+                    DownloadProgress.Value=100;
+                    UpdateStatusText.Text="安装包已经下载且 SHA256 校验通过："+path;
+                    return;
                 }
             }
-            await using var verify=File.OpenRead(temp);
-            var actual=Convert.ToHexString(
-                await SHA256.HashDataAsync(verify,token.Token));
-            if(!string.Equals(actual,expected,StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("安装包 SHA256 校验失败，未保留下载文件。");
-            File.Move(temp,path,true);
+            await VerifiedInstallerDownloader.DownloadAsync(_http,_downloadUrl!,
+                temp!,path,manifestHash,
+                percent=>DownloadProgress.Value=percent,token.Token);
             temp=null;
             _downloaded=path;
             DownloadProgress.Value=100;
@@ -379,8 +349,8 @@ public partial class UpdateCenterWindow : UserControl
         }
         catch(Exception ex)
         {
-            UpdateStatusText.Text="下载失败："+ex.Message+
-                "。可稍后重试，或在 GitHub 中手动下载。";
+            UpdateStatusText.Text="应用内下载失败（"+ex.GetType().Name+"）。已保留官方浏览器备用入口；"+
+                "请点击「浏览器下载」进入该版本的发布页面。详细信息："+ex.Message;
         }
         finally
         {
