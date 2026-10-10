@@ -44,6 +44,16 @@ internal static class UiLayoutSmoke
                 throw new InvalidOperationException(
                     "扫码备注完成按钮的禁用状态不是深灰底、浅色文字。");
             report.AppendLine("扫码备注按钮禁用状态：PASS");
+            var ui2Modal=new Ui2DialogWindow(
+                "这是一条示例安全确认，不执行任何真实任务。",
+                "确认停止任务",MessageBoxButton.YesNo,MessageBoxImage.Warning);
+            if(ui2Modal.Selection!=MessageBoxResult.No ||
+               !ui2Modal.Topmost ||
+               ui2Modal.PrimaryButton.Content?.ToString()!="确认" ||
+               ui2Modal.SecondaryButton.Content?.ToString()!="取消")
+                throw new InvalidOperationException(
+                    "UI 2.0 确认弹窗未默认拒绝危险操作或未置顶。");
+            report.AppendLine("UI 2.0 石墨灰确认弹窗：PASS");
 
             var monitor=new RunningTasksWindow();
             if(monitor.MonitorGrid.Columns.ElementAtOrDefault(2) is not DataGridTemplateColumn ||
@@ -308,9 +318,9 @@ internal static class UiLayoutSmoke
                             $"群组表头「{columnHeader.Content}」实际高度不足：" +
                             $"{columnHeader.ActualHeight:F0}px。");
                     if(columnHeader.Foreground is not SolidColorBrush fg ||
-                       fg.Color!=Color.FromRgb(244,249,255))
+                       ContrastRatio(Color.FromRgb(27,29,33),fg.Color)<4.5)
                         throw new InvalidOperationException(
-                            $"群组表头「{columnHeader.Content}」文字颜色不清晰。");
+                            $"群组表头「{columnHeader.Content}」黑白灰文字对比度不足。");
                     report.AppendLine($"群组表头：{columnHeader.Content} " +
                         $"高度={columnHeader.ActualHeight:F0}px PASS");
                 }
