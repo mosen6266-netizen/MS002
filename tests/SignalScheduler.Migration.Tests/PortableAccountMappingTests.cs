@@ -41,26 +41,30 @@ public sealed class PortableAccountMappingTests
     }
 
     [Fact]
-    public void MissingOrDuplicateRemarkPreventsAllImports()
+    public void MissingRemarkPreventsImportButDuplicateRemarkIsDeferredToGroupResolution()
     {
         var portable=PortableAccountMapping.ToRemarks(new[]{Script()},
             new[]{Account("+491111","角色A"),Account("+492222","角色B")});
         Assert.Throws<InvalidDataException>(()=>PortableAccountMapping.ResolveRemarks(
             portable,new[]{Account("other","角色A")}));
-        Assert.Throws<InvalidDataException>(()=>PortableAccountMapping.ResolveRemarks(
+        var withDuplicates=PortableAccountMapping.ResolveRemarks(
             portable,new[]{Account("x","角色A"),Account("y","角色A"),
-                Account("z","角色B")}));
+                Account("z","角色B")});
+        Assert.Equal("x",withDuplicates[0].Steps[0].Account);
+        Assert.Equal("z",withDuplicates[0].Steps[1].Account);
     }
 
     [Fact]
-    public void ExportRejectsUnlabeledAndDuplicateSourceAccounts()
+    public void ExportRejectsUnlabeledButAllowsRepeatedSourceRemarks()
     {
         Assert.Throws<InvalidDataException>(()=>PortableAccountMapping.ToRemarks(
             new[]{Script()},new[]{Account("+491111","+491111"),
                 Account("+492222","角色B")}));
-        Assert.Throws<InvalidDataException>(()=>PortableAccountMapping.ToRemarks(
+        var shared=PortableAccountMapping.ToRemarks(
             new[]{Script()},new[]{Account("+491111","角色A"),
-                Account("+492222","角色A")}));
+                Account("+492222","角色A")});
+        Assert.Equal("角色A",shared[0].Steps[0].Account);
+        Assert.Equal("角色A",shared[0].Steps[1].Account);
     }
 
     [Fact]
