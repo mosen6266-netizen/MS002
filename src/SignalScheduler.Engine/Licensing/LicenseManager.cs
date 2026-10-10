@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -11,12 +12,18 @@ namespace SignalScheduler.Engine.Licensing;
 public sealed class LicenseManager : BackgroundService
 {
     const string Server="https://signal-scheduler-license.mosen6266-ms007.workers.dev/";
-    const string Version="8.0.0-beta.3";
+    const string Version="8.0.0-ui2.4";
+    // A validated, device-bound server lease lasts at most six hours.
+    // Refresh no more than once per 10 minutes under automatic dispatch.
+    // Explicit user checks and first activation always contact the server.
+    static readonly TimeSpan AutoRefreshInterval=TimeSpan.FromMinutes(10);
+    static readonly TimeSpan TransientRetryInterval=TimeSpan.FromMinutes(10);
 
     readonly RuntimePaths _paths;
     readonly HttpClient _client;
     readonly SemaphoreSlim _gate=new(1,1);
     readonly object _statusLock=new();
+    long _nextOnlineCheckAt;
     LicensePublicStatus _status=new("unknown","尚未检查卡密。","",0,0,0,false,false);
 
     sealed record SavedLicense(
@@ -129,16 +136,27 @@ public sealed class LicenseManager : BackgroundService
             await AtomicWriteAsync(KeyPath,Protect(JsonSerializer.SerializeToUtf8Bytes(saved)),ct);
             var status=ToStatus(saved,claims,true,"授权激活成功。");
             SetStatus(status);
+            _nextOnlineCheckAt=DateTimeOffset.UtcNow.Add(AutoRefreshInterval).ToUnixTimeSeconds();
             return status;
         }
         finally{_gate.Release();}
     }
 
-    public async Task<LicensePublicStatus> CheckAsync(CancellationToken ct)
+    public async Task<LicensePublicStatus> CheckAsync(CancellationToken ct,
+        bool forceOnline=false)
     {
         await _gate.WaitAsync(ct);
         try
         {
+            var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            // This status was created ONLY after verifying a server signature
+            // and a matching device ID. Enforce the signed TTL on every step.
+            // This prevents 2 HTTP checks per outgoing message and 429 storms.
+            var current=Status;
+            if(!forceOnline && now<_nextOnlineCheckAt &&
+               LicenseDispatchPolicy.CanDispatch(current,now))
+                return current;
+
             SavedLicense? saved;
             try{saved=await ReadSavedAsync(ct);}
             catch(Exception ex) when(ex is IOException or CryptographicException
@@ -180,14 +198,25 @@ public sealed class LicenseManager : BackgroundService
                     Protect(JsonSerializer.SerializeToUtf8Bytes(renewed)),ct);
                 var ok=ToStatus(renewed,claims,true,"授权在线验证成功。");
                 SetStatus(ok);
+                _nextOnlineCheckAt=DateTimeOffset.UtcNow
+                    .Add(AutoRefreshInterval).ToUnixTimeSeconds();
                 return ok;
             }
-            catch(HttpRequestException)
+            catch(HttpRequestException ex)
             {
-                return UseCachedLease(saved,"暂时无法访问授权服务器。");
+                // HTTP 429/503 and network failures are not authoritative
+                // license revocations. Revalidate the signed cached lease.
+                _nextOnlineCheckAt=DateTimeOffset.UtcNow
+                    .Add(TransientRetryInterval).ToUnixTimeSeconds();
+                return UseCachedLease(saved,
+                    ex.StatusCode==HttpStatusCode.TooManyRequests
+                        ?"授权服务限流，等待下次自动续验。"
+                        :"授权服务器暂时无法访问或响应异常。");
             }
             catch(TaskCanceledException) when(!ct.IsCancellationRequested)
             {
+                _nextOnlineCheckAt=DateTimeOffset.UtcNow
+                    .Add(TransientRetryInterval).ToUnixTimeSeconds();
                 return UseCachedLease(saved,"网络响应超时。");
             }
             catch(Exception ex) when(ex is IOException or CryptographicException
@@ -196,6 +225,10 @@ public sealed class LicenseManager : BackgroundService
                 var denied=new LicensePublicStatus("invalid",
                     ex.Message,"",0,0,0,true,true);
                 SetStatus(denied);
+                // A definitive denial remains fail closed. The user may
+                // manually force a fresh online check from License Settings.
+                _nextOnlineCheckAt=DateTimeOffset.UtcNow
+                    .Add(AutoRefreshInterval).ToUnixTimeSeconds();
                 return denied;
             }
         }
@@ -242,25 +275,44 @@ public sealed class LicenseManager : BackgroundService
             })
         };
         using var response=await _client.SendAsync(request,ct);
+        // The Cloudflare Worker intentionally responds with 429 for the
+        // 50-per-license and 120-per-IP / 10-minute quotas. This is not a
+        // revoked card, and a 5xx HTML page is not a signed denial either.
+        if(response.StatusCode==HttpStatusCode.TooManyRequests ||
+           (int)response.StatusCode>=500)
+            throw new HttpRequestException("授权服务暂时不可用或触发限流。",
+                null,response.StatusCode);
         var raw=await response.Content.ReadAsStringAsync(ct);
-        using var doc=JsonDocument.Parse(raw);
-        var result=doc.RootElement.Clone();
-        if(!response.IsSuccessStatusCode ||
-            !result.TryGetProperty("ok",out var success) ||
-            !success.GetBoolean())
+        JsonDocument doc;
+        try{doc=JsonDocument.Parse(raw);}
+        catch(JsonException) when(response.IsSuccessStatusCode)
         {
-            var error=result.TryGetProperty("error",out var err)
-                ?err.GetString():"server_rejected";
-            throw new InvalidOperationException($"授权服务器拒绝：{error}。");
+            // Proxies and security products sometimes return non-JSON pages.
+            throw new HttpRequestException("授权服务器响应非 JSON，保留已签名租期。",
+                null,response.StatusCode);
         }
-        return result;
+        using(doc)
+        {
+            var result=doc.RootElement.Clone();
+            if(!response.IsSuccessStatusCode ||
+                !result.TryGetProperty("ok",out var success) ||
+                success.ValueKind!=JsonValueKind.True)
+            {
+                var error=result.TryGetProperty("error",out var err) &&
+                    err.ValueKind==JsonValueKind.String
+                    ?err.GetString():"server_rejected";
+                // A typed, explicit server-side 403 remains invalid/revoked.
+                throw new InvalidOperationException($"授权服务器拒绝：{error}。");
+            }
+            return result;
+        }
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while(!stoppingToken.IsCancellationRequested)
         {
-            try {await CheckAsync(stoppingToken);}
+            try {await CheckAsync(stoppingToken,forceOnline:true);}
             catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested)
             {
                 break;
