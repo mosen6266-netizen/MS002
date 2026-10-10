@@ -20,6 +20,8 @@ public static class ReadReceiptRpcContract
 
     public static bool IsSafeCode(string? code)=>code is
         "READ_DISABLED" or "NO_PENDING_FOR_SPEAKER" or
+        "READ_STREAM_UNAVAILABLE" or "READ_QUEUE_INCOMPLETE" or
+        "READ_PHASE_TIMEOUT" or
         "RPC_NOT_STARTED" or "RPC_NOT_CONFIRMED" or "RPC_ACCEPTED" or
         "RPC_EMPTY_RESPONSE" or "RPC_MISMATCH" or "RPC_INTERNAL_ERROR" or
         "RPC_ERROR_OTHER" or "RPC_HTTP_ERROR" or "RPC_NO_RESULT" or
