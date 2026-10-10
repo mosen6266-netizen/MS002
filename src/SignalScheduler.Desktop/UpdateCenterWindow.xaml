@@ -1,7 +1,7 @@
 <UserControl x:Class="SignalScheduler.Desktop.UpdateCenterWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#111215" Foreground="#F1F2F4">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <Grid Margin="22,18">
   <Grid.RowDefinitions>
    <RowDefinition Height="Auto"/>
@@ -16,10 +16,10 @@
   <StackPanel>
    <TextBlock Text="检查更新" FontSize="24" FontWeight="SemiBold"/>
    <TextBlock Text="优先读取无需 GitHub API 配额的验证清单；网络受限时可直接打开 GitHub 官方构建页面。"
-    Foreground="#D0D2D7" Margin="0,6,0,0" TextWrapping="Wrap"/>
+    Foreground="{StaticResource Ui2TextSecondary}" Margin="0,6,0,0" TextWrapping="Wrap"/>
   </StackPanel>
-  <Border Grid.Row="2" Background="#191B1E" CornerRadius="9"
-   BorderThickness="1" BorderBrush="#41454B" Padding="18">
+  <Border Grid.Row="2" Background="{StaticResource Ui2Surface}" CornerRadius="9"
+   BorderThickness="1" BorderBrush="{StaticResource Ui2BorderStrong}" Padding="18">
    <Grid>
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
@@ -28,41 +28,41 @@
      <RowDefinition Height="12"/>
      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <TextBlock Text="当前安装版本" Foreground="#D0D2D7" FontSize="13"/>
+    <TextBlock Text="当前安装版本" Foreground="{StaticResource Ui2TextSecondary}" FontSize="13"/>
     <TextBlock x:Name="CurrentVersionText" Grid.Row="2"
      Text="正在读取…" FontSize="21" FontWeight="SemiBold"/>
     <TextBlock x:Name="InstalledBuildText" Grid.Row="4"
-     Foreground="#A9ADB4" Text="已安装构建编号读取中…" TextWrapping="Wrap"/>
+     Foreground="{StaticResource Ui2TextMuted}" Text="已安装构建编号读取中…" TextWrapping="Wrap"/>
    </Grid>
   </Border>
-  <Border Grid.Row="4" Background="#191B1E" CornerRadius="9"
-   BorderThickness="1" BorderBrush="#41454B" Padding="18">
+  <Border Grid.Row="4" Background="{StaticResource Ui2Surface}" CornerRadius="9"
+   BorderThickness="1" BorderBrush="{StaticResource Ui2BorderStrong}" Padding="18">
    <StackPanel>
-    <TextBlock Text="GitHub 最新成功构建" Foreground="#D0D2D7"/>
+    <TextBlock Text="GitHub 最新成功构建" Foreground="{StaticResource Ui2TextSecondary}"/>
     <TextBlock x:Name="LatestVersionText" FontSize="20"
      FontWeight="SemiBold" Margin="0,8,0,0" Text="尚未检查"/>
     <TextBlock x:Name="UpdateStatusText" Margin="0,11,0,0"
-     Foreground="#D0D2D7" TextWrapping="Wrap" Text="点击下方按钮检查最新版本。"/>
+     Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap" Text="点击下方按钮检查最新版本。"/>
     <ProgressBar x:Name="DownloadProgress" Height="9" Margin="0,14,0,0"
      Visibility="Collapsed" Minimum="0" Maximum="100" Value="0"/>
    </StackPanel>
   </Border>
   <WrapPanel Grid.Row="6">
    <Button x:Name="CheckButton" Content="检查更新" Click="CheckUpdates_Click"
-    Background="#41454B" Foreground="White" Padding="18,10"
+    Background="{StaticResource Ui2BorderStrong}" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8"/>
    <Button Content="GitHub 网页检查" Click="OpenGithub_Click"
-    Background="#41454B" Foreground="White" Padding="18,10"
+    Background="{StaticResource Ui2BorderStrong}" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8"
     ToolTip="不使用 GitHub API，直接打开官方构建页面"/>
    <Button x:Name="DownloadButton" Content="下载更新" Click="DownloadUpdate_Click"
     Background="#197A56" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8" IsEnabled="False"/>
    <Button x:Name="OpenFolderButton" Content="查看已下载文件"
-    Click="OpenDownloaded_Click" Background="#2D3035" Foreground="White"
+    Click="OpenDownloaded_Click" Background="{StaticResource Ui2SurfaceHover}" Foreground="White"
     Padding="18,10" MinHeight="40" Margin="0,0,10,8" IsEnabled="False"/>
   </WrapPanel>
-  <TextBlock Grid.Row="7" Foreground="#A9ADB4" TextWrapping="Wrap"
+  <TextBlock Grid.Row="7" Foreground="{StaticResource Ui2TextMuted}" TextWrapping="Wrap"
    Margin="0,10,0,0" FontSize="12"
    Text="安装升级前请先安全停止正在发送的任务并关闭本程序。只下载 GitHub 官方发布的安装包；若最新版只有 Actions 构建文件，可通过 GitHub 页面下载。现有账号、剧本和历史数据保存在独立用户目录。"/>
  </Grid>
