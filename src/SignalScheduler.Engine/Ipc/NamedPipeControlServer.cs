@@ -165,8 +165,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                             var checkedResult=await _store.PreflightLiveBatchAsync(input,ct);
                             var findings=checkedResult.Issues.ToList();
                             var permit=await _license.CheckAsync(ct);
-                            if(permit.State!="active" || !permit.ServerReachable ||
-                               permit.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                            if(!LicenseDispatchPolicy.CanDispatch(permit,DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
                                 findings.Add(new LiveBatchPreflightIssue("错误",
                                     "当前授权尚未通过在线校验，请先检查授权状态。"));
                             if(!string.Equals(_guardian.Snapshot.State,"healthy",
@@ -188,8 +187,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                         {
                             var requestData=ParsePayload<LiveBatchStartRequest>(request.Payload);
                             var license=await _license.CheckAsync(ct);
-                            if(license.State!="active" || !license.ServerReachable ||
-                                license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                            if(!LicenseDispatchPolicy.CanDispatch(license,DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
                                 throw new InvalidOperationException("没有有效的在线卡密，请先联网校验。");
                             if(!string.Equals(_guardian.Snapshot.State,"healthy",
                                 StringComparison.OrdinalIgnoreCase))
@@ -289,7 +287,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                         break;
                     case ControlCommands.LicenseCheck:
                         response=new ControlResponse(true,
-                            Data:await _license.CheckAsync(ct));
+                            Data:await _license.CheckAsync(ct,forceOnline:true));
                         break;
                     case ControlCommands.ImageImport:
                         try
