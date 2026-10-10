@@ -766,8 +766,10 @@ public sealed class SignalReadCoordinator : BackgroundService
                 update.Parameters.AddWithValue("$s",selected);
                 update.Parameters.AddWithValue("$a",accepted);
                 await update.ExecuteNonQueryAsync(ct);
-                if(code.StartsWith("RPC_",StringComparison.Ordinal) &&
-                   code is not ("RPC_ACCEPTED" or "RPC_NOT_STARTED"))
+                if((code.StartsWith("RPC_",StringComparison.Ordinal) &&
+                    code is not ("RPC_ACCEPTED" or "RPC_NOT_STARTED")) ||
+                    code is "READ_STREAM_UNAVAILABLE" or "READ_QUEUE_INCOMPLETE" or
+                        "READ_PHASE_TIMEOUT")
                 {
                     await using var failure=db.CreateCommand();
                     failure.CommandText="""
