@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
@@ -50,6 +51,10 @@ public sealed class ReadReceiptRpcIntegrationTests
         var read=new SignalReadCoordinator(RuntimePaths.ForTesting(dir,database),
             NullLogger<SignalReadCoordinator>.Instance,client);
         await read.GetHealthAsync(CancellationToken.None);
+        // Simulate the hosted SSE connection independently of the fake RPC
+        // transport. Production readiness requires that stream to be online.
+        typeof(SignalReadCoordinator).GetField("_streamState",
+            BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(read,"已连接");
         return (read,handler,database,dir);
     }
 
@@ -172,4 +177,96 @@ public sealed class ReadReceiptRpcIntegrationTests
             200,"private-message-not-json","abc").Code);
         Assert.False(ReadReceiptRpcContract.IsSafeCode("private +491234567890"));
     }
+    [Fact]
+    public async Task LargeReadBacklogIsFullyDrainedBeforeSpeakerIsReady()
+    {
+        var t=await Setup();
+        try
+        {
+            await Seed(t.Database,"account-A","group-A","author-1",
+                Enumerable.Range(1000,95).Select(x=>(long)x).ToArray());
+            var outcome=await t.Read.TrySendForGroupAsync(
+                "account-A","group-A",CancellationToken.None);
+            Assert.True(outcome.Ready);
+            Assert.Equal(95,outcome.Accepted);
+            Assert.Equal(0,outcome.Remaining);
+            Assert.Equal(0,await StateCount(t.Database,"pending"));
+            Assert.Equal(95,await StateCount(t.Database,"attempted"));
+            Assert.True(t.Handler.Calls.Count>=3);
+        }
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
+    }
+
+    [Fact]
+    public async Task MoreThanFourAuthorsNoLongerDisappearFromSameSpeakerBatch()
+    {
+        var t=await Setup();
+        try
+        {
+            for(var i=0;i<12;i++)
+                await Seed(t.Database,"account-A","group-A","author-"+i,2000+i);
+            var outcome=await t.Read.TrySendForGroupAsync(
+                "account-A","group-A",CancellationToken.None);
+            Assert.True(outcome.Ready);
+            Assert.Equal(12,outcome.Accepted);
+            Assert.Equal(0,await StateCount(t.Database,"pending"));
+            Assert.Equal(12,t.Handler.Calls.Count);
+        }
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
+    }
+
+    [Fact]
+    public async Task StreamDisconnectNeverClaimsEveryMessageWasRead()
+    {
+        var t=await Setup();
+        try
+        {
+            typeof(SignalReadCoordinator).GetField("_streamState",
+                BindingFlags.Instance|BindingFlags.NonPublic)!.SetValue(t.Read,"连接中断");
+            var outcome=await t.Read.TrySendForGroupAsync(
+                "account-A","group-A",CancellationToken.None);
+            Assert.False(outcome.Ready);
+            Assert.Equal("READ_STREAM_UNAVAILABLE",outcome.Code);
+            Assert.Empty(t.Handler.Calls);
+        }
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
+    }
+
+    [Fact]
+    public async Task PendingReceiptsWaitingForRetryCannotBeSilentlySkipped()
+    {
+        var t=await Setup();
+        try
+        {
+            await Seed(t.Database,"account-A","group-A","author-1",1234L);
+            await using (var conn=new SqliteConnection($"Data Source={t.Database}"))
+            {
+                await conn.OpenAsync();
+                await using var q=conn.CreateCommand();
+                q.CommandText="UPDATE v8_read_events SET next_retry_ms=$t";
+                q.Parameters.AddWithValue("$t",
+                    DateTimeOffset.UtcNow.AddMinutes(10).ToUnixTimeMilliseconds());
+                await q.ExecuteNonQueryAsync();
+            }
+            var outcome=await t.Read.TrySendForGroupAsync(
+                "account-A","group-A",CancellationToken.None);
+            Assert.False(outcome.Ready);
+            Assert.Equal(1,outcome.Remaining);
+            Assert.Equal("READ_QUEUE_INCOMPLETE",outcome.Code);
+        }
+        finally{
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(t.Directory,true);
+        }
+    }
+
 }
