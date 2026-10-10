@@ -79,13 +79,17 @@ public sealed class PortableAccountMappingTests
             using(var reader=new StreamReader(archive.GetEntry("manifest.json")!.Open()))
             {
                 var json=reader.ReadToEnd();
-                Assert.Contains("角色A",json);
-                Assert.Contains("请人工确认后继续",json);
+                using var document=JsonDocument.Parse(json);
+                var actualSteps=document.RootElement.GetProperty("Scripts")[0]
+                    .GetProperty("Steps");
+                Assert.Equal("角色A",actualSteps[0].GetProperty("Account").GetString());
+                Assert.Equal("角色B",actualSteps[1].GetProperty("Account").GetString());
+                Assert.Equal("请人工确认后继续",
+                    actualSteps[1].GetProperty("ReminderText").GetString());
                 Assert.DoesNotContain("+491111",json);
                 Assert.DoesNotContain("+492222",json);
                 Assert.DoesNotContain("source-computer-group-id",json);
                 Assert.DoesNotContain("source-id",json);
-                using var document=JsonDocument.Parse(json);
                 Assert.Equal(2,document.RootElement.GetProperty("Version").GetInt32());
             }
         }
