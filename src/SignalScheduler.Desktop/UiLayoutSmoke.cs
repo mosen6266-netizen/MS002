@@ -32,6 +32,9 @@ internal static class UiLayoutSmoke
             // even at the compact 620px viewport used for the home dashboard.
             var link=new LinkAccountWindow();
             link.FinishButton.ApplyTemplate();
+            report.AppendLine("扫码禁用按钮实际颜色："+
+                $"背景={link.FinishButton.Background}，文字={link.FinishButton.Foreground}，"+
+                $"IsEnabled={link.FinishButton.IsEnabled}");
             if(link.FinishButton.IsEnabled ||
                link.FinishButton.Background is not SolidColorBrush disabledBg ||
                disabledBg.Color!=Color.FromRgb(41,46,54) ||
