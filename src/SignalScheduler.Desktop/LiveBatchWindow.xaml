@@ -20,6 +20,21 @@
    <Setter Property="MinHeight" Value="42"/>
    <Setter Property="Padding" Value="19,8"/>
   </Style>
+  <Style x:Key="GroupNameAction" TargetType="Button">
+   <Setter Property="Background" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Foreground" Value="#F1F7FD"/>
+   <Setter Property="HorizontalContentAlignment" Value="Left"/>
+   <Setter Property="VerticalContentAlignment" Value="Center"/>
+   <Setter Property="Padding" Value="8,0"/>
+   <Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="ToolTip" Value="点击群名即可勾选或取消勾选"/>
+   <Style.Triggers>
+    <Trigger Property="IsMouseOver" Value="True">
+     <Setter Property="Background" Value="#285B77"/>
+    </Trigger>
+   </Style.Triggers>
+  </Style>
   <Style x:Key="SmallJobAction" TargetType="Button" BasedOn="{StaticResource QuietAction}">
    <Setter Property="Padding" Value="6,3"/>
    <Setter Property="MinHeight" Value="28"/>
@@ -58,18 +73,19 @@
     BorderThickness="1" CornerRadius="9" Padding="8">
     <Grid>
      <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" MinHeight="46"/>
+      <RowDefinition Height="8"/>
       <RowDefinition Height="Auto"/>
-      <RowDefinition Height="4"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="7"/>
+      <RowDefinition Height="8"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="7"/>
       <RowDefinition Height="Auto"/>
      </Grid.RowDefinitions>
-     <Grid Grid.Row="0">
+     <Grid Grid.Row="0" MinHeight="46" Margin="0,1,0,3">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <TextBlock Text="01 选择群组（最多20个）" FontSize="16" FontWeight="SemiBold"
-       VerticalAlignment="Center"/>
+       VerticalAlignment="Center" TextWrapping="Wrap" Margin="3,0,8,0"
+       ToolTip="选择群组（最多同时选择20个）"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button Content="全选20" Click="SelectAll_Click" Style="{StaticResource QuietAction}"
         MinHeight="28" Padding="8,3" Margin="0,0,5,0"/>
@@ -77,7 +93,8 @@
         MinHeight="28" Padding="8,3"/>
       </StackPanel>
      </Grid>
-     <TextBox x:Name="GroupSearchBox" Grid.Row="2" Height="26"
+     <TextBox x:Name="GroupSearchBox" Grid.Row="2" Height="32"
+      VerticalContentAlignment="Center"
       TextChanged="GroupSearchBox_TextChanged" Background="#1B3A53"
       Foreground="White" CaretBrush="White" Padding="8,4"
       ToolTip="输入群名筛选。切换页码不会清除勾选。"/>
@@ -103,9 +120,10 @@
        <DataGridTemplateColumn Header="群组名称" Width="*" MinWidth="150">
         <DataGridTemplateColumn.CellTemplate>
          <DataTemplate>
-          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
-           Foreground="#F1F7FD" Margin="8,0" VerticalAlignment="Center"
-           ToolTip="{Binding Name}"/>
+          <Button Content="{Binding Name}" Tag="{Binding GroupId}"
+           Click="ToggleGroupName_Click" Style="{StaticResource GroupNameAction}"
+           ToolTip="{Binding Name}" HorizontalAlignment="Stretch"
+           HorizontalContentAlignment="Left"/>
          </DataTemplate>
         </DataGridTemplateColumn.CellTemplate>
        </DataGridTemplateColumn>
