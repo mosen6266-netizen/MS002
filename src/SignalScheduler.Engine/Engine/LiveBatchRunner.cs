@@ -126,21 +126,6 @@ public sealed class LiveBatchRunner : BackgroundService
                 }
             }
 
-            // Only the account that is about to speak reads the selected
-            // group's queued messages. Other accounts/groups stay unread.
-            // A receipt failure must never cause a duplicate message send.
-            try
-            {
-                // A large read queue must not block the first real message.
-                using var receiptTimeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
-                receiptTimeout.CancelAfter(ReadReceiptRetryPolicy.MaxPhase);
-                await _read.TrySendForGroupAsync(
-                    due.Dispatch.AccountId,due.Dispatch.GroupId,
-                    receiptTimeout.Token);
-            }
-            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
-            catch(Exception){ /* Receipt is best effort; dispatch remains independent. */ }
-
             await SimulateTypingAsync(due,ct);
 
             // Typing can last several minutes. A healthy Signal connection or
@@ -170,6 +155,41 @@ public sealed class LiveBatchRunner : BackgroundService
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
                     "输入等待期间在线授权已失效或服务器不可用，未发送下一条。",
+                    CancellationToken.None);
+                return;
+            }
+
+            // Send read receipts immediately before speaking, AFTER typing.
+            // Messages arriving during the typing animation must not be missed.
+            // Only this exact account/group is read; other accounts remain unread.
+            try
+            {
+                using var receiptTimeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                receiptTimeout.CancelAfter(ReadReceiptRetryPolicy.MaxPhase);
+                var read=await _read.TrySendForGroupAsync(
+                    due.Dispatch.AccountId,due.Dispatch.GroupId,receiptTimeout.Token);
+                if(!read.Ready)
+                {
+                    await _store.PauseLiveBatchForSafetyAsync(jobId,
+                        $"发言前已读未完成（{read.Code}，已请求 {read.Accepted}/{read.Selected}，待处理 {read.Remaining}）。"+
+                        "已暂停本群下一句，其他群和账号不受影响。请检查已读诊断后手动继续。",
+                        CancellationToken.None);
+                    return;
+                }
+            }
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){throw;}
+            catch(OperationCanceledException)
+            {
+                await _store.PauseLiveBatchForSafetyAsync(jobId,
+                    "发言前已读处理超时（READ_PHASE_TIMEOUT），未发送下一句；请核对已读诊断。",
+                    CancellationToken.None);
+                return;
+            }
+            catch(Exception ex)
+            {
+                await _store.PauseLiveBatchForSafetyAsync(jobId,
+                    $"发言前已读处理异常（READ_PHASE_EXCEPTION:{ex.GetType().Name}），"+
+                    "未发送下一句；请检查已读诊断。",
                     CancellationToken.None);
                 return;
             }
