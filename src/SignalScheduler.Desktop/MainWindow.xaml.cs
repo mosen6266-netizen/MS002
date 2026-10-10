@@ -674,7 +674,12 @@ public partial class MainWindow : Window
                     recovery.Value.TryGetProperty("Dispatches",out _),
                 runtime,
                 State(signalDiagnostic,"LastDaemonErrorCategory"),
-                Number(signalDiagnostic,"LastDaemonErrorAtMs")));
+                Number(signalDiagnostic,"LastDaemonErrorAtMs"),
+                State(read,"LastReceiptRpcCode"),
+                Number(read,"LastReceiptRpcAtMs"),
+                Count(read,"LastReceiptSelected"),
+                Count(read,"LastReceiptAccepted"),
+                Count(read,"Unknown")));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
