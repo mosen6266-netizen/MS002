@@ -56,9 +56,9 @@ Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.ex
 Name: "{group}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; IconFilename: "{app}\signal-brand.ico"
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; IconFilename: "{app}\signal-brand.ico"; Flags: createonlyiffileexists
 
-{ The HKCU Run key may be locked down by corporate policy or endpoint
-  protection. Autostart is optional: the Desktop launches the Engine on open.
-  Never fail a full offline installation because optional autostart is denied. }
+; The HKCU Run key may be locked down by Windows policy.
+; Autostart is optional: desktop startup also launches the Engine.
+; Do not fail the offline installation if optional autostart is denied.
 [Registry]
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SignalSchedulerEngine"; ValueData: """{app}\Engine\SignalScheduler.Engine.exe"" --background"; Flags: uninsdeletevalue noerror
 
