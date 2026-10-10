@@ -99,11 +99,11 @@ public sealed class LiveBatchRunner : BackgroundService
                     CancellationToken.None);
                 return;
             }
-            if(license.State!="active" || !license.ServerReachable ||
-               license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            if(!LicenseDispatchPolicy.CanDispatch(license,
+               DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
-                    "在线授权无效或服务器不可用，群组已暂停。",
+                    "授权未生效、已失效或已超出服务器签名的有效租期，群组已暂停。",
                     CancellationToken.None);
                 return;
             }
@@ -150,11 +150,11 @@ public sealed class LiveBatchRunner : BackgroundService
                     CancellationToken.None);
                 return;
             }
-            if(license.State!="active" || !license.ServerReachable ||
-               license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            if(!LicenseDispatchPolicy.CanDispatch(license,
+               DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
-                    "输入等待期间在线授权已失效或服务器不可用，未发送下一条。",
+                    "输入等待期间授权已失效或本地签名租期结束，未发送下一条。",
                     CancellationToken.None);
                 return;
             }
