@@ -13,6 +13,7 @@ public partial class LiveProbeWindow : Window
     public LiveProbeWindow()
     {
         InitializeComponent();
+        Ui2WindowChrome.Attach(this);
         Loaded+=async(_,_)=>await ReloadAsync();
     }
 
