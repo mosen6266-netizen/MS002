@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Net;
+using SignalScheduler.Shared;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -14,7 +16,9 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-beta.7";
+    const string CurrentProductVersion="8.0.0-beta.8";
+    const string RawManifestUrl="https://raw.githubusercontent.com/mosen6266-netizen/MS002/updates/latest.json";
+    const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/windows-build.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
     readonly HttpClient _http=new(){Timeout=Timeout.InfiniteTimeSpan};
     bool _checking;
@@ -22,6 +26,9 @@ public partial class UpdateCenterWindow : UserControl
     int _currentBuild;
     int _latestBuild;
     string? _latestRunUrl;
+    string? _latestVersion;
+    string? _expectedSha256;
+    DateTimeOffset _nextApiRetryAt;
     string? _latestSha;
     string? _downloadUrl;
     string? _checksumUrl;
@@ -34,6 +41,13 @@ public partial class UpdateCenterWindow : UserControl
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("MS002-UpdateCenter/8.0");
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         LoadInstalledBuild();
+        var cached=TryLoadCache();
+        if(cached is not null)
+        {
+            ApplyManifest(cached);
+            UpdateStatusText.Text="已显示上次核实的构建缓存，尚未联网检查是否有更新。";
+        }
+        UpdateButtons();
         Unloaded+=(_,_)=>{ /* Keep downloads explicit, no background polling. */ };
     }
 
@@ -86,121 +100,209 @@ public partial class UpdateCenterWindow : UserControl
             File.Exists(_downloaded);
     }
 
-    async void CheckUpdates_Click(object sender,RoutedEventArgs e)
+    static string CachePath=>Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "SignalSchedulerData","update-manifest-cache.json");
+
+    static VerifiedUpdateManifest? TryLoadCache()
     {
-        if(_checking || _downloading)return;
-        _checking=true;
-        _latestBuild=0;
-        _latestRunUrl=null;
-        _latestSha=null;
+        try
+        {
+            var file=CachePath;
+            if(!File.Exists(file) ||
+               DateTime.UtcNow-File.GetLastWriteTimeUtc(file)>TimeSpan.FromDays(7))
+                return null;
+            return UpdateManifestCodec.Parse(File.ReadAllText(file));
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    static void SaveCache(VerifiedUpdateManifest manifest)
+    {
+        try
+        {
+            var file=CachePath;
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            var temporary=file+".new";
+            File.WriteAllText(temporary,UpdateManifestCodec.Serialize(manifest));
+            File.Move(temporary,file,true);
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException)
+        {
+            // Unable to cache does not invalidate verified online metadata.
+        }
+    }
+
+    void ApplyManifest(VerifiedUpdateManifest manifest)
+    {
+        _latestBuild=manifest.Build;
+        _latestVersion=manifest.Version;
+        _latestSha=manifest.SourceSha;
+        _latestRunUrl=manifest.RunUrl;
+        _expectedSha256=manifest.InstallerSha256;
         _downloadUrl=null;
         _checksumUrl=null;
         _releaseName=null;
-        DownloadButton.Content="下载更新";
-        UpdateButtons();
+        LatestVersionText.Text=$"V{manifest.Version} · Build #{manifest.Build}";
+    }
+
+    async Task<VerifiedUpdateManifest> ReadStaticManifestAsync(CancellationToken ct)
+    {
+        using var response=await _http.GetAsync(RawManifestUrl,ct);
+        response.EnsureSuccessStatusCode();
+        if(response.Content.Headers.ContentLength is long size && size>16384)
+            throw new InvalidDataException("更新清单大小异常");
+        var payload=await response.Content.ReadAsStringAsync(ct);
+        return UpdateManifestCodec.Parse(payload) ??
+            throw new InvalidDataException("静态版本信息尚未发布或格式不正确");
+    }
+
+    // This HEAD only checks if a published GitHub Release is present. It does
+    // not download arbitrary files or consume a GitHub REST API request.
+    async Task<bool> ProbeVerifiedReleaseAsync(
+        VerifiedUpdateManifest manifest,CancellationToken ct)
+    {
+        var tag="v"+manifest.Version;
+        var filename="SignalScheduler_Setup_V"+manifest.Version+".exe";
+        var release=$"https://github.com/{Repo}/releases/download/{tag}/{filename}";
         try
         {
-            UpdateStatusText.Text="正在读取 GitHub main 分支最新成功的 Windows 安装构建…";
-            using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            using var request=new HttpRequestMessage(HttpMethod.Head,release);
+            using var response=await _http.SendAsync(request,
+                HttpCompletionOption.ResponseHeadersRead,ct);
+            if(!response.IsSuccessStatusCode)return false;
+            _downloadUrl=release;
+            _releaseName=filename;
+            _checksumUrl=null;
+            return true;
+        }
+        catch(HttpRequestException){return false;}
+        catch(TaskCanceledException){return false;}
+    }
+
+    // Legacy fallback: one REST request, never an unbounded loop. A 403 must
+    // not invalidate a previously verified static manifest or cache.
+    async Task<bool> TryLegacyApiFallbackAsync(CancellationToken ct)
+    {
+        if(DateTimeOffset.UtcNow<_nextApiRetryAt)return false;
+        try
+        {
             using var doc=await ReadJsonAsync(
-                Api+"/actions/workflows/windows-build.yml/runs?branch=main&status=success&per_page=10",
-                cts.Token);
+                Api+"/actions/workflows/windows-build.yml/runs?branch=main&status=success&per_page=3",
+                ct);
             if(!doc.RootElement.TryGetProperty("workflow_runs",out var runs) ||
-               runs.ValueKind!=JsonValueKind.Array)
-                throw new InvalidDataException("GitHub 没有返回有效的构建列表。");
+               runs.ValueKind!=JsonValueKind.Array)return false;
             foreach(var item in runs.EnumerateArray())
             {
                 if(Property(item,"head_branch")!="main" ||
                    Property(item,"conclusion")!="success" ||
-                   !item.TryGetProperty("run_number",out var number) ||
-                   !number.TryGetInt32(out var n) || n<=0)continue;
-                if(!item.TryGetProperty("id",out var idProp) ||
-                   !idProp.TryGetInt64(out var id) || id<=0)continue;
+                   !item.TryGetProperty("run_number",out var nValue) ||
+                   !nValue.TryGetInt32(out var n) || n<=0 ||
+                   !item.TryGetProperty("id",out var idValue) ||
+                   !idValue.TryGetInt64(out var id) || id<=0)continue;
                 _latestBuild=n;
+                _latestVersion=null;
                 _latestSha=Property(item,"head_sha");
-                // Generate URL from numeric GitHub ID, not untrusted JSON URLs.
                 _latestRunUrl=$"https://github.com/{Repo}/actions/runs/{id}";
-                break;
+                LatestVersionText.Text=$"已验证构建 Build #{n}（版本号请在 GitHub 查看）";
+                return true;
             }
-            if(_latestBuild<=0)
+        }
+        catch(HttpRequestException ex) when(
+            ex.StatusCode is HttpStatusCode.Forbidden or
+            HttpStatusCode.TooManyRequests)
+        {
+            _nextApiRetryAt=DateTimeOffset.UtcNow.AddMinutes(15);
+        }
+        catch(HttpRequestException){}
+        catch(TaskCanceledException){}
+        return false;
+    }
+
+    async void CheckUpdates_Click(object sender,RoutedEventArgs e)
+    {
+        if(_checking || _downloading)return;
+        _checking=true;
+        DownloadButton.Content="下载更新";
+        UpdateButtons();
+        try
+        {
+            UpdateStatusText.Text="正在读取 GitHub 静态更新清单（不占用 API 查询额度）…";
+            using var cts=new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            VerifiedUpdateManifest? manifest=null;
+            string? failure=null;
+            try{manifest=await ReadStaticManifestAsync(cts.Token);}
+            catch(Exception ex) when(ex is HttpRequestException or
+                TaskCanceledException or InvalidDataException)
             {
-                LatestVersionText.Text="没有找到成功的发布构建";
-                UpdateStatusText.Text="当前未能确定可下载的新版本。请稍后重试。";
-                return;
+                failure=ex is TaskCanceledException?"网络等待超时":
+                    ex is InvalidDataException?"更新清单暂不可用":"网络连接或更新清单访问失败";
             }
-            LatestVersionText.Text=$"V{CurrentProductVersion} · Build #{_latestBuild}";
-            if(_currentBuild>0 && _latestBuild<=_currentBuild)
+
+            if(manifest is not null)
             {
-                UpdateStatusText.Text="当前已经是最新成功构建，无需下载更新。";
+                ApplyManifest(manifest);
+                SaveCache(manifest);
+                if(_currentBuild>0 && _latestBuild<=_currentBuild)
+                {
+                    UpdateStatusText.Text="最新已验证的版本已安装，无需更新。";
+                    return;
+                }
+                // HEAD is optional. The action-page fallback always works
+                // without GitHub API credentials.
+                using var headTimeout=new CancellationTokenSource(TimeSpan.FromSeconds(7));
+                if(await ProbeVerifiedReleaseAsync(manifest,headTimeout.Token))
+                {
+                    DownloadButton.Content="下载并校验安装包";
+                    UpdateStatusText.Text="已读取最新构建，发现 GitHub 正式发布安装包。下载后自动核对 CI 生成的 SHA256。";
+                }
+                else
+                {
+                    DownloadButton.Content="在 GitHub 获取安装包";
+                    UpdateStatusText.Text="已从 GitHub 静态清单确认最新成功构建。此版本尚未发布独立下载地址，请在 Actions 页面底部 Artifacts 下载。";
+                }
                 return;
             }
 
-            // Official Releases are directly downloadable; only accept a
-            // release explicitly tied to the latest successful CI commit.
-            try
+            // Even under quota exhaustion, keep the known good answer rather
+            // than saying "检查失败" and disabling the download link.
+            var cached=TryLoadCache();
+            if(cached is not null)
             {
-                using var releases=await ReadJsonAsync(Api+"/releases?per_page=20",cts.Token);
-                if(releases.RootElement.ValueKind==JsonValueKind.Array)
-                {
-                    foreach(var rel in releases.RootElement.EnumerateArray())
-                    {
-                        if(rel.TryGetProperty("draft",out var draft) &&
-                           draft.ValueKind==JsonValueKind.True)continue;
-                        if(Property(rel,"target_commitish")!=_latestSha)continue;
-                        if(!rel.TryGetProperty("assets",out var assets) ||
-                           assets.ValueKind!=JsonValueKind.Array)continue;
-                        string? download=null,checksum=null,filename=null;
-                        foreach(var asset in assets.EnumerateArray())
-                        {
-                            var name=Property(asset,"name");
-                            var url=Property(asset,"browser_download_url");
-                            if(string.IsNullOrEmpty(name)||string.IsNullOrEmpty(url)||
-                               !url.StartsWith(
-                               "https://github.com/"+Repo+"/releases/download/",
-                               StringComparison.OrdinalIgnoreCase))continue;
-                            if(name.StartsWith("SignalScheduler_Setup_V8",StringComparison.Ordinal) &&
-                               name.EndsWith(".exe",StringComparison.OrdinalIgnoreCase))
-                            {
-                                download=url;filename=name;
-                            }
-                            else if(name=="INSTALLER_SHA256.txt")
-                                checksum=url;
-                        }
-                        if(download is not null && checksum is not null)
-                        {
-                            _downloadUrl=download;
-                            _checksumUrl=checksum;
-                            _releaseName=filename;
-                            break;
-                        }
-                    }
-                }
+                ApplyManifest(cached);
+                DownloadButton.Content="打开已缓存的 GitHub 构建";
+                UpdateStatusText.Text="在线检查暂不可用（"+failure+
+                    "），这里显示的是最近 7 天缓存记录，不能证明当前仍为最新版。可点击下载按钮打开对应构建，或使用“GitHub 网页检查”。";
+                return;
             }
-            catch(HttpRequestException){ /* CI artifact fallback remains available. */ }
-            catch(TaskCanceledException){ /* CI artifact fallback remains available. */ }
-            if(_downloadUrl is not null)
+            // API fallback only matters when the new raw feed has not been
+            // deployed yet; its failure is not fatal to manual updates.
+            if(await TryLegacyApiFallbackAsync(cts.Token))
             {
-                DownloadButton.Content="下载校验过的安装包";
-                UpdateStatusText.Text="发现较新版本，并找到 GitHub Releases 官方安装包。"+
-                    "可直接下载到本机，下载后将进行 SHA256 校验。";
+                DownloadButton.Content="在 GitHub 获取安装包";
+                UpdateStatusText.Text="静态清单暂不可用，已从 GitHub API 获取最近一次成功构建。可在 Actions 下载，或使用 GitHub 网页检查。";
+                return;
             }
-            else
-            {
-                DownloadButton.Content="在 GitHub 获取更新";
-                UpdateStatusText.Text="发现较新成功构建。该构建尚无匹配的 Releases 安装包，"+
-                    "点击下载将打开 GitHub Actions 的 Artifacts，使用浏览器下载。";
-            }
-        }
-        catch(Exception ex)
-        {
-            LatestVersionText.Text="检查失败";
-            UpdateStatusText.Text="无法读取 GitHub 最新版本："+ex.Message;
+
+            _latestBuild=0;
+            _latestRunUrl=null;
+            LatestVersionText.Text="未能核实最新版本";
+            UpdateStatusText.Text="GitHub 静态更新源暂不可用，备用 API 也可能受到 403 限流。"+
+                "这不代表软件或安装包损坏。请点击“GitHub 网页检查”，仍可手动查看官方成功构建。";
         }
         finally
         {
             _checking=false;
             UpdateButtons();
         }
+    }
+
+    void OpenGithub_Click(object sender,RoutedEventArgs e)
+    {
+        OpenOfficialUrl(WorkflowUrl);
     }
 
     static void OpenOfficialUrl(string? url)
@@ -215,9 +317,10 @@ public partial class UpdateCenterWindow : UserControl
     {
         if(_checking || _downloading || _latestBuild<=0 ||
            (_currentBuild>0 && _latestBuild<=_currentBuild))return;
-        if(_downloadUrl is null || _checksumUrl is null || _releaseName is null)
+        if(_downloadUrl is null || _releaseName is null ||
+           string.IsNullOrWhiteSpace(_expectedSha256))
         {
-            OpenOfficialUrl(_latestRunUrl);
+            OpenOfficialUrl(_latestRunUrl??WorkflowUrl);
             return;
         }
         if(!Regex.IsMatch(_releaseName,@"^SignalScheduler_Setup_V8[\w.\-]+\.exe$",
@@ -230,13 +333,9 @@ public partial class UpdateCenterWindow : UserControl
         try
         {
             using var token=new CancellationTokenSource(TimeSpan.FromMinutes(20));
-            using var hashResponse=await _http.GetAsync(_checksumUrl,token.Token);
-            hashResponse.EnsureSuccessStatusCode();
-            var manifest=await hashResponse.Content.ReadAsStringAsync(token.Token);
-            var hashMatch=Regex.Match(manifest,@"\b[a-fA-F0-9]{64}\b");
-            if(!hashMatch.Success)
-                throw new InvalidDataException("发布文件缺少有效的 SHA256 校验值。");
-            var expected=hashMatch.Value;
+            // Expected hash comes from the CI-verified GitHub update feed;
+            // a release download is accepted only if its bytes match.
+            var expected=_expectedSha256!;
 
             var folder=Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
