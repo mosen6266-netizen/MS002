@@ -3,15 +3,15 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="连接 Signal 账号" Height="765" Width="560" MinHeight="740"
  WindowStartupLocation="CenterOwner" ResizeMode="CanMinimize"
- Background="#0A192A" Foreground="#F0F5FC">
+ Background="#111215" Foreground="#F1F2F4">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
-   <Setter Property="Background" Value="#203F5A"/>
+   <Setter Property="Background" Value="#222529"/>
    <Setter Property="Foreground" Value="#FFFFFF"/>
    <Style.Triggers>
     <Trigger Property="IsEnabled" Value="False">
-     <Setter Property="Background" Value="#26415A"/>
-     <Setter Property="Foreground" Value="#B8C9D9"/>
+     <Setter Property="Background" Value="#2D3035"/>
+     <Setter Property="Foreground" Value="#D0D2D7"/>
     </Trigger>
    </Style.Triggers>
   </Style>
@@ -38,7 +38,7 @@
     <Trigger Property="IsEnabled" Value="False">
      <Setter Property="Background" Value="#292E36"/>
      <Setter Property="Foreground" Value="#F6F7FA"/>
-     <Setter Property="BorderBrush" Value="#444C57"/>
+     <Setter Property="BorderBrush" Value="#2D3035"/>
      <Setter Property="Cursor" Value="Arrow"/>
     </Trigger>
     <Trigger Property="IsMouseOver" Value="True">
@@ -60,7 +60,7 @@
   <StackPanel>
    <TextBlock Text="扫码连接账号" FontSize="25" FontWeight="SemiBold"/>
    <TextBlock Text="手机 Signal → 设置 → 已连接设备 → 连接新设备"
-     Foreground="#A8C6DF" Margin="0,7,0,0" TextWrapping="Wrap"/>
+     Foreground="#D0D2D7" Margin="0,7,0,0" TextWrapping="Wrap"/>
   </StackPanel>
   <Border Grid.Row="2" Background="White" CornerRadius="13"
    Padding="17" Width="295" Height="295" HorizontalAlignment="Center">
@@ -70,33 +70,33 @@
    <TextBlock Text="账号备注" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,8"/>
    <TextBox x:Name="RemarkBox" MaxLength="80" Height="44"
     VerticalContentAlignment="Center" FontSize="14"
-    Background="#1C344C" BorderBrush="#52718E"
+    Background="#222529" BorderBrush="#555A61"
     Foreground="#F4F7FD" Padding="12,7"
     ToolTip="例如：工作号1；备注仅保存在本地，可随时修改"/>
    <TextBlock Text="在这里直接填写，扫码成功后将自动保存到账号管理。可留空稍后设置。"
-    Margin="0,6,0,0" Foreground="#ABC6DC" FontSize="12" TextWrapping="Wrap"/>
+    Margin="0,6,0,0" Foreground="#D0D2D7" FontSize="12" TextWrapping="Wrap"/>
   </StackPanel>
-  <Border Grid.Row="6" Background="#132B41" CornerRadius="8"
+  <Border Grid.Row="6" Background="#191B1E" CornerRadius="8"
    Padding="12,10">
    <StackPanel>
     <TextBlock x:Name="StatusText" Text="正在创建二维码…"
-     FontSize="14" FontWeight="SemiBold" Foreground="#B6DDFA"
+     FontSize="14" FontWeight="SemiBold" Foreground="#D0D2D7"
      TextWrapping="Wrap"/>
-    <TextBlock x:Name="DetailText" Foreground="#AAC6DC" FontSize="12"
+    <TextBlock x:Name="DetailText" Foreground="#D0D2D7" FontSize="12"
      TextWrapping="Wrap" Margin="0,5,0,0"/>
    </StackPanel>
   </Border>
   <StackPanel Grid.Row="8" Orientation="Horizontal"
    HorizontalAlignment="Right">
    <Button Content="重新生成二维码" Click="Regenerate_Click"
-    Background="#203F5A" Foreground="White" BorderBrush="#4B6D8C"
+    Background="#222529" Foreground="White" BorderBrush="#555A61"
     Padding="14,9" MinHeight="40" Margin="0,0,10,0"/>
    <Button x:Name="FinishButton" Content="保存备注并完成"
     Click="Finish_Click" IsEnabled="False"
     Style="{StaticResource FinishAccountButton}"
     Padding="17,9" MinHeight="40" Margin="0,0,10,0"/>
    <Button Content="取消" Click="Close_Click"
-    Background="#1B344D" Foreground="White"
+    Background="#222529" Foreground="White"
     Padding="15,9" MinHeight="40"/>
   </StackPanel>
  </Grid>
