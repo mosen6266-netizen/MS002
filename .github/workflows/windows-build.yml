@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: v8-${{ github.workflow }}-${{ github.ref }}
@@ -389,3 +389,49 @@ jobs:
           name: SignalScheduler-V8-Windows
           path: artifacts/installer/*
           if-no-files-found: error
+
+      # Publish only after the installer was built, installed, smoke-tested,
+      # hashed and uploaded. Static raw.githubusercontent.com reads do not
+      # consume the unauthenticated REST API limit (60 requests/hour).
+      # The dedicated 'updates' branch is not built by this workflow.
+      - name: Publish quota-free verified update manifest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = Get-ChildItem "artifacts/installer/SignalScheduler_Setup_V8*.exe" |
+            Select-Object -First 1
+          if (-not $installer) { throw "Verified installer missing" }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
+          $manifest = @{
+            version = '8.0.0-beta.7'
+            build = [int]$env:GITHUB_RUN_NUMBER
+            runId = [long]$env:GITHUB_RUN_ID
+            sourceSha = $env:GITHUB_SHA
+            installerSha256 = $hash
+          } | ConvertTo-Json -Compress
+          $feedDir = Join-Path $env:RUNNER_TEMP "ms002-verified-update-feed"
+          New-Item -ItemType Directory -Path $feedDir -Force | Out-Null
+          [System.IO.File]::WriteAllText(
+            (Join-Path $feedDir "latest.json"), $manifest,
+            [System.Text.UTF8Encoding]::new($false))
+          Push-Location $feedDir
+          try {
+            & git init -b updates
+            if ($LASTEXITCODE -ne 0) { throw "Could not initialize update feed" }
+            & git config user.name "github-actions[bot]"
+            & git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            & git add latest.json
+            & git commit -m "publish CI-verified MS002 build $env:GITHUB_RUN_NUMBER"
+            if ($LASTEXITCODE -ne 0) { throw "Could not commit update feed" }
+            & git remote add origin "https://github.com/$env:GITHUB_REPOSITORY.git"
+            $bytes = [System.Text.Encoding]::ASCII.GetBytes("x-access-token:$env:GH_TOKEN")
+            $auth = [Convert]::ToBase64String($bytes)
+            & git -c "http.extraheader=AUTHORIZATION: basic $auth" push --force origin HEAD:refs/heads/updates
+            if ($LASTEXITCODE -ne 0) { throw "Could not publish update feed" }
+          }
+          finally { Pop-Location }
+          Write-Host "Published update feed for verified build $env:GITHUB_RUN_NUMBER"
