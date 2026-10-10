@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Background="#091827" Foreground="#EAF4FD">
  <UserControl.Resources>
-  <Style x:Key="PrimaryAction" TargetType="Button">
+  <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#245477"/>
    <Setter Property="Foreground" Value="White"/>
    <Setter Property="BorderBrush" Value="#3B6E90"/>
@@ -35,7 +35,7 @@
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="SnapsToDevicePixels" Value="True"/>
   </Style>
-  <Style x:Key="GroupNameAction" TargetType="Button">
+  <Style x:Key="GroupNameAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="0"/>
    <Setter Property="Foreground" Value="#F1F7FD"/>
