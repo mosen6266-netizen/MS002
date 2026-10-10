@@ -41,6 +41,18 @@ public sealed partial class StateStore
                 ON v8_live_batch_jobs(created_at DESC,job_id DESC);
             CREATE INDEX IF NOT EXISTS idx_v8_dispatch_history
                 ON v8_dispatch_journal(job_id,updated_at,dispatch_key);
+            CREATE TABLE IF NOT EXISTS v8_completion_read_jobs(
+                job_id TEXT NOT NULL,
+                account TEXT NOT NULL,
+                group_id TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                next_due_ms INTEGER NOT NULL DEFAULT 0,
+                detail TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY(job_id,account)
+            );
+            CREATE INDEX IF NOT EXISTS idx_v8_completion_read_due
+                ON v8_completion_read_jobs(state,next_due_ms);
             """;
         await q.ExecuteNonQueryAsync(ct);
     }
@@ -664,6 +676,27 @@ public sealed partial class StateStore
             log.Parameters.AddWithValue("$detail",detail);
             log.Parameters.AddWithValue("$now",nowMs/1000);
             await log.ExecuteNonQueryAsync(ct);
+        }
+        if(done)
+        {
+            // Every account of this group gets a durable, bounded completion
+            // read attempt. Never reuse another group's account or resend text.
+            await using var post=c.CreateCommand();
+            post.Transaction=tx;
+            post.CommandText="""
+                INSERT OR IGNORE INTO v8_completion_read_jobs(
+                    job_id,account,group_id,state,attempts,next_due_ms,detail)
+                SELECT $job,a.account,$group,'pending',0,$now,'待处理'
+                FROM v8_signal_groups g
+                JOIN v8_signal_accounts a ON a.account=g.account
+                LEFT JOIN v8_account_settings pref ON pref.account=a.account
+                WHERE g.group_id=$group AND g.is_member=1 AND a.enabled=1
+                  AND COALESCE(pref.enabled,1)=1;
+                """;
+            post.Parameters.AddWithValue("$job",d.JobId);
+            post.Parameters.AddWithValue("$group",d.GroupId);
+            post.Parameters.AddWithValue("$now",nowMs);
+            await post.ExecuteNonQueryAsync(ct);
         }
         tx.Commit();
     }
