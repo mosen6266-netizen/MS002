@@ -128,10 +128,12 @@ public partial class RunningTasksWindow : UserControl
 
             _lastSuccessfulRefreshMs=DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             _snapshotFresh=true;
-            AllCountText.Text=$"任务总数：{_jobs.Count}";
+            var currentCount=_jobs.Count(x=>LiveTaskMonitor.IsCurrent(x.Snapshot));
+            AllCountText.Text=$"当前任务：{currentCount}";
             RunningCountText.Text=$"正在运行：{_jobs.Count(x=>x.State=="Running")}";
             PausedCountText.Text=$"暂停：{_jobs.Count(x=>x.State=="Paused")}";
             AttentionCountText.Text=$"需处理：{_jobs.Count(x=>
+                LiveTaskMonitor.IsCurrent(x.Snapshot) &&
                 LiveTaskMonitor.NeedsAttention(x.Snapshot))}";
             RebuildPage(selectedId);
             try
@@ -158,8 +160,8 @@ public partial class RunningTasksWindow : UserControl
             {
                 ReceiptStatusText.Text="已读回执诊断暂时无法读取，请导出脱敏诊断报告。";
             }
-            StatusText.Text=_jobs.Count==0
-                ?"暂无任务。请在首页选择剧本与群组后启动。"
+            StatusText.Text=currentCount==0
+                ?"没有正在运行或等待处理的任务。已结束任务请进入「历史记录」查看。"
                 :"状态读取成功 · 最后更新："+DateTime.Now.ToString("HH:mm:ss")+
                     "。如需处理未知发送结果，请进入异常恢复中心。";
         }
@@ -197,6 +199,9 @@ public partial class RunningTasksWindow : UserControl
 
     void OpenRecovery_Click(object sender,RoutedEventArgs e)=>
         (Window.GetWindow(this) as MainWindow)?.NavigateTo("recovery");
+
+    void OpenHistory_Click(object sender,RoutedEventArgs e)=>
+        (Window.GetWindow(this) as MainWindow)?.NavigateTo("history");
 
     void MonitorGrid_SelectionChanged(object sender,SelectionChangedEventArgs e)=>
         UpdateSelection();
