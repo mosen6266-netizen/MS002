@@ -1,0 +1,79 @@
+name: MS002 UI 2.0 Isolated Preview Checks
+on:
+  push:
+    branches:
+      - ui/v2-monochrome
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ui2-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui2-wpf:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.414
+
+      - name: Prepare desktop icon
+        shell: powershell
+        run: .\\tools\\GenerateBrandIcon.ps1
+
+      - name: Restore solution
+        run: dotnet restore SignalScheduler.V8.sln
+
+      - name: Compile UI and unchanged backend
+        run: dotnet build SignalScheduler.V8.sln -c Release --no-restore
+
+      - name: Run regression tests
+        run: dotnet test tests/SignalScheduler.Migration.Tests/SignalScheduler.Migration.Tests.csproj -c Release --no-build
+
+      - name: Publish UI-only preview desktop
+        run: dotnet publish src/SignalScheduler.Desktop/SignalScheduler.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/ui2/Desktop
+
+      - name: Verify WPF startup
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/ui2/Desktop/SignalScheduler.exe'
+          $app = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 5
+            $app.Refresh()
+            if ($app.HasExited) { throw "UI 2.0 crashed at startup: $($app.ExitCode)" }
+          } finally {
+            $app.Refresh()
+            if (-not $app.HasExited) { Stop-Process -Id $app.Id -Force }
+          }
+
+      - name: Verify actual UI rendering and dialog behavior
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $pwd 'artifacts/ui2/Desktop/SignalScheduler.exe'
+          $report = Join-Path $pwd 'artifacts/ui2/ui-layout-report.txt'
+          $result = Start-Process -FilePath $exe -ArgumentList @('--ui-layout-smoke',$report) -Wait -PassThru
+          if (Test-Path $report) { Get-Content $report }
+          if ($result.ExitCode -ne 0 -or -not (Test-Path $report)) {
+            Get-WinEvent -FilterHashtable @{
+              LogName='Application'; StartTime=(Get-Date).AddMinutes(-8); Id=1026
+            } -ErrorAction SilentlyContinue |
+              Select-Object -First 3 -ExpandProperty Message | Out-String | Write-Host
+            throw "Monochrome UI rendering test failed"
+          }
+
+      - name: Upload preview validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui2-preview-validation
+          path: artifacts/ui2/ui-layout-report.txt
+          if-no-files-found: warn
+          retention-days: 14
