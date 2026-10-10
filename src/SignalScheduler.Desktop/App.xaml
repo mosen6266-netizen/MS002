@@ -249,12 +249,12 @@
    <Setter Property="FontSize" Value="14"/>
    <Setter Property="FontWeight" Value="SemiBold"/>
    <Setter Property="Padding" Value="19,11"/>
-   <Setter Property="Margin" Value="0,0,7,0"/>
+   <Setter Property="Margin" Value="0,0,7,6"/>
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="TabItem">
       <Border x:Name="TabSurface" Background="{TemplateBinding Background}"
-       CornerRadius="8" BorderBrush="#41454B"
+       CornerRadius="8" Margin="0,0,0,3" BorderBrush="#41454B"
        BorderThickness="1"
        Padding="{TemplateBinding Padding}">
        <ContentPresenter ContentSource="Header"
