@@ -73,7 +73,7 @@
     BorderThickness="1" CornerRadius="9" Padding="8">
     <Grid>
      <Grid.RowDefinitions>
-      <RowDefinition Height="Auto" MinHeight="46"/>
+      <RowDefinition Height="Auto" MinHeight="76"/>
       <RowDefinition Height="8"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="8"/>
@@ -81,12 +81,17 @@
       <RowDefinition Height="7"/>
       <RowDefinition Height="Auto"/>
      </Grid.RowDefinitions>
-     <Grid Grid.Row="0" MinHeight="46" Margin="0,1,0,3">
-      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock Text="01 选择群组（最多20个）" FontSize="16" FontWeight="SemiBold"
-       VerticalAlignment="Center" TextWrapping="Wrap" Margin="3,0,8,0"
+     <Grid Grid.Row="0" MinHeight="76" Margin="0,1,0,3">
+      <Grid.RowDefinitions>
+       <RowDefinition Height="Auto" MinHeight="29"/>
+       <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+      <TextBlock Grid.Row="0" Text="01 选择群组（最多20个）"
+       FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center"
+       TextWrapping="Wrap" Margin="3,0,0,0"
        ToolTip="选择群组（最多同时选择20个）"/>
-      <StackPanel Grid.Column="1" Orientation="Horizontal">
+      <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right"
+       Margin="0,7,0,0">
        <Button Content="全选20" Click="SelectAll_Click" Style="{StaticResource QuietAction}"
         MinHeight="28" Padding="8,3" Margin="0,0,5,0"/>
        <Button Content="清空" Click="ClearAll_Click" Style="{StaticResource QuietAction}"
