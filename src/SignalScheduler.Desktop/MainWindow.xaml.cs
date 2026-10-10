@@ -86,7 +86,7 @@ public partial class MainWindow : Window
         // WPF sizes are device-independent pixels. At 125–200% scaling,
         // 215 DIP of navigation can unnecessarily crowd a laptop display.
         var compact=ActualWidth>0 && ActualWidth<1120;
-        var newWidth=compact?184:215;
+        var newWidth=compact?188:232;
         if(Math.Abs(NavigationColumn.Width.Value-newWidth)>0.1)
             NavigationColumn.Width=new GridLength(newWidth);
         HomeNav.Content=compact?"⌂   首页":"⌂   首页 · 快速开始";
@@ -222,7 +222,7 @@ public partial class MainWindow : Window
         PageSubtitle.Text=subtitle;
         foreach(var b in new[]{HomeNav,AccountNav,ScriptNav,TaskNav,RecoveryNav,HistoryNav,LicenseNav,UpdateNav})
             b.Background=Equals(b.Tag,key)
-                ?new SolidColorBrush(Color.FromRgb(34,73,111))
+                ?(Application.Current.TryFindResource("Ui2Selected") as Brush??Brushes.DimGray)
                 :Brushes.Transparent;
     }
 
