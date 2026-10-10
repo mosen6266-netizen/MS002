@@ -71,6 +71,18 @@ public sealed partial class StateStore
         // Read-only queries mirror the account membership and job conflict
         // conditions that the transactional start command checks again.
         await using var c=Open();
+        var accountRemarks=new Dictionary<string,string>(StringComparer.Ordinal);
+        await using(var names=c.CreateCommand())
+        {
+            names.CommandText="""
+                SELECT a.account,COALESCE(NULLIF(TRIM(pref.label),''),a.label)
+                FROM v8_signal_accounts a
+                LEFT JOIN v8_account_settings pref ON pref.account=a.account;
+                """;
+            await using var rows=await names.ExecuteReaderAsync(ct);
+            while(await rows.ReadAsync(ct))
+                accountRemarks[rows.GetString(0)]=rows.GetString(1);
+        }
         for(var i=0;i<groups.Length;i++)
         {
             var groupId=groups[i];
@@ -123,14 +135,21 @@ public sealed partial class StateStore
                             Error($"群「{groupName}」已有未结束的任务，请先处理。");
                     }
                 }
-                var bad=script.Steps
-                    .Where(x=>!string.IsNullOrWhiteSpace(x.Account) &&
-                        ( !string.IsNullOrWhiteSpace(x.Message) ||
-                          !string.IsNullOrWhiteSpace(x.Attachment)) &&
-                         !eligible.Contains(x.Account.Trim()))
-                    .Take(8).ToArray();
-                foreach(var step in bad)
-                    Error($"群「{groupName}」第 {step.Position+1} 条指定的账号不可用或未加入群组。");
+                var invalid=0;
+                foreach(var step in script.Steps.Where(x=>
+                    !string.IsNullOrWhiteSpace(x.Message) ||
+                    !string.IsNullOrWhiteSpace(x.Attachment)))
+                {
+                    try
+                    {
+                        GroupAccountResolver.Resolve(step.Account,accountRemarks,eligible);
+                    }
+                    catch(InvalidOperationException ex)
+                    {
+                        Error($"群「{groupName}」第 {step.Position+1} 条：{ex.Message}");
+                        if(++invalid>=8)break;
+                    }
+                }
             }
             catch(SqliteException)
             {
