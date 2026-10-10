@@ -406,6 +406,18 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.ScriptList:
                         response=new ControlResponse(true,Data:await _store.ListEditorScriptsAsync(ct));
                         break;
+                    case ControlCommands.ScriptReorder:
+                        try
+                        {
+                            var reorder=ParsePayload<ScriptReorderRequest>(request.Payload);
+                            response=new ControlResponse(true,
+                                Data:await _store.ReorderEditorScriptsAsync(reorder,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
                     case ControlCommands.ScriptVersions:
                         try
                         {
