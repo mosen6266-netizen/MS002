@@ -15,7 +15,7 @@
   </Grid.RowDefinitions>
   <StackPanel>
    <TextBlock Text="检查更新" FontSize="24" FontWeight="SemiBold"/>
-   <TextBlock Text="从 MS002 官方 GitHub 仓库读取成功构建记录和已验证的安装包。"
+   <TextBlock Text="优先读取无需 GitHub API 配额的验证清单；网络受限时可直接打开 GitHub 官方构建页面。"
     Foreground="#A9C7DE" Margin="0,6,0,0" TextWrapping="Wrap"/>
   </StackPanel>
   <Border Grid.Row="2" Background="#132D44" CornerRadius="9"
@@ -51,6 +51,10 @@
    <Button x:Name="CheckButton" Content="检查更新" Click="CheckUpdates_Click"
     Background="#246A97" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8"/>
+   <Button Content="GitHub 网页检查" Click="OpenGithub_Click"
+    Background="#295773" Foreground="White" Padding="18,10"
+    MinHeight="40" Margin="0,0,10,8"
+    ToolTip="不使用 GitHub API，直接打开官方构建页面"/>
    <Button x:Name="DownloadButton" Content="下载更新" Click="DownloadUpdate_Click"
     Background="#197A56" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8" IsEnabled="False"/>
