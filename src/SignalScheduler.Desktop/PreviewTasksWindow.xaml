@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="多群任务预演与运行控制 - Signal 调度台"
  Width="1220" Height="825" MinWidth="1020" MinHeight="680"
- WindowStartupLocation="CenterOwner" Background="#111215" Foreground="#F1F2F4">
+ WindowStartupLocation="CenterOwner" Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#222529"/>
@@ -47,7 +47,7 @@
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
-  <Border Grid.Row="2" Background="#191B1E" BorderBrush="#2D3035"
+  <Border Grid.Row="2" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}"
    BorderThickness="1" CornerRadius="10" Padding="16">
    <Grid>
     <Grid.ColumnDefinitions>
@@ -58,7 +58,7 @@
     <StackPanel Grid.Column="0">
      <TextBlock Text="1. 选择剧本" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8"/>
      <ListBox x:Name="ScriptsBox" DisplayMemberPath="Name" Height="115"
-       Background="#191B1E" Foreground="#F1F2F4"/>
+       Background="{StaticResource Ui2Surface}" Foreground="{StaticResource Ui2Text}"/>
     </StackPanel>
     <StackPanel Grid.Column="2">
      <DockPanel LastChildFill="False">
@@ -109,7 +109,7 @@
   </Grid>
   <StackPanel Grid.Row="6">
    <TextBlock x:Name="StatusText" Text="正在读取多群预演任务…"
-    Foreground="#D0D2D7" TextWrapping="Wrap"/>
+    Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap"/>
    <TextBlock Text="重要：这不是实际发送。所有预演任务均使用 SQLite 事务记录进度，意外重启会暂停，需手动继续。剧本中的“暂停提醒”会停在下一条消息前。"
     Foreground="#EFC182" TextWrapping="Wrap" Margin="0,8,0,0"/>
   </StackPanel>
