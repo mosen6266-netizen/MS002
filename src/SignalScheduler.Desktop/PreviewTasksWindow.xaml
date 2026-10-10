@@ -3,21 +3,21 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Title="多群任务预演与运行控制 - Signal 调度台"
  Width="1220" Height="825" MinWidth="1020" MinHeight="680"
- WindowStartupLocation="CenterOwner" Background="#071521" Foreground="#EEF6FF">
+ WindowStartupLocation="CenterOwner" Background="#111215" Foreground="#F1F2F4">
  <Window.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
-   <Setter Property="Background" Value="#17324E"/>
-   <Setter Property="Foreground" Value="#EEF6FF"/>
-   <Setter Property="BorderBrush" Value="#395A76"/>
+   <Setter Property="Background" Value="#222529"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
    <Setter Property="Margin" Value="0,0,8,0"/>
    <Setter Property="Padding" Value="12,8"/>
   </Style>
   <Style TargetType="DataGrid">
-   <Setter Property="Background" Value="#102338"/>
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="RowBackground" Value="#102338"/>
-   <Setter Property="AlternatingRowBackground" Value="#19324C"/>
-   <Setter Property="BorderBrush" Value="#33546F"/>
+   <Setter Property="Background" Value="#191B1E"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
+   <Setter Property="RowBackground" Value="#191B1E"/>
+   <Setter Property="AlternatingRowBackground" Value="#222529"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
    <Setter Property="HeadersVisibility" Value="Column"/>
    <Setter Property="AutoGenerateColumns" Value="False"/>
    <Setter Property="CanUserAddRows" Value="False"/>
@@ -47,7 +47,7 @@
     <Button Content="关闭" Click="Close_Click"/>
    </StackPanel>
   </DockPanel>
-  <Border Grid.Row="2" Background="#0B2033" BorderBrush="#2A4561"
+  <Border Grid.Row="2" Background="#191B1E" BorderBrush="#2D3035"
    BorderThickness="1" CornerRadius="10" Padding="16">
    <Grid>
     <Grid.ColumnDefinitions>
@@ -58,7 +58,7 @@
     <StackPanel Grid.Column="0">
      <TextBlock Text="1. 选择剧本" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8"/>
      <ListBox x:Name="ScriptsBox" DisplayMemberPath="Name" Height="115"
-       Background="#102A41" Foreground="#EAF2FF"/>
+       Background="#191B1E" Foreground="#F1F2F4"/>
     </StackPanel>
     <StackPanel Grid.Column="2">
      <DockPanel LastChildFill="False">
@@ -109,7 +109,7 @@
   </Grid>
   <StackPanel Grid.Row="6">
    <TextBlock x:Name="StatusText" Text="正在读取多群预演任务…"
-    Foreground="#AED0EC" TextWrapping="Wrap"/>
+    Foreground="#D0D2D7" TextWrapping="Wrap"/>
    <TextBlock Text="重要：这不是实际发送。所有预演任务均使用 SQLite 事务记录进度，意外重启会暂停，需手动继续。剧本中的“暂停提醒”会停在下一条消息前。"
     Foreground="#EFC182" TextWrapping="Wrap" Margin="0,8,0,0"/>
   </StackPanel>
