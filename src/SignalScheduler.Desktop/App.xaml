@@ -303,24 +303,6 @@
     </Setter.Value>
    </Setter>
   </Style>
-  <Style TargetType="TextBox">
-   <Setter Property="Background" Value="#222529"/>
-   <Setter Property="Foreground" Value="#F1F2F4"/>
-   <Setter Property="BorderBrush" Value="#41454B"/>
-   <Setter Property="CaretBrush" Value="#FFFFFF"/>
-   <Setter Property="SelectionBrush" Value="#555A61"/>
-   <Setter Property="Padding" Value="7,6"/>
-   <Style.Triggers>
-    <!-- Change color only: changing border width causes the reported editor jitter. -->
-    <Trigger Property="IsKeyboardFocusWithin" Value="True">
-     <Setter Property="BorderBrush" Value="#D0D2D7"/>
-    </Trigger>
-    <Trigger Property="IsEnabled" Value="False">
-     <Setter Property="Background" Value="#292C31"/>
-     <Setter Property="Foreground" Value="#BFC2C7"/>
-    </Trigger>
-   </Style.Triggers>
-  </Style>
   <!-- Modern WPF controls share one compact, neutral visual language.
        Keep the traditional PART_ContentHost to preserve native selection,
        IME composition, multiline editing and keyboard shortcuts. -->
