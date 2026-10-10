@@ -23,8 +23,8 @@ public static class PortableAccountMapping
                entry.Label.Trim()==id)
                 throw new InvalidDataException("存在没有设置独立备注的发言账号，请先在账号管理中设置备注。");
             var label=entry.Label.Trim();
-            if(accounts.Count(x=>string.Equals(x.Label.Trim(),label,StringComparison.Ordinal))!=1)
-                throw new InvalidDataException("账号备注重复："+label+"。请先使用唯一备注。");
+            // Duplicate remarks are allowed in portable scripts. Every target
+            // group will use only the eligible member with the same remark.
             names[id]=label;
         }
         return scripts.Select(x=>x with{
@@ -44,20 +44,22 @@ public static class PortableAccountMapping
             .Distinct(StringComparer.Ordinal).ToArray();
         var resolved=new Dictionary<string,string>(StringComparer.Ordinal);
         var missing=new List<string>();
-        var duplicates=new List<string>();
         foreach(var label in required)
         {
             var matching=accounts.Where(x=>x.Label.Trim()==label &&
-                x.Account!=x.Label.Trim()).ToArray();
+                x.Account!=x.Label.Trim())
+                .OrderBy(x=>x.Account,StringComparer.Ordinal).ToArray();
             if(matching.Length==0)missing.Add(label);
-            else if(matching.Length!=1)duplicates.Add(label);
-            else resolved[label]=matching[0].Account;
+            else
+                // Deterministic representative ID for the editable script.
+                // Before a job starts, each group resolves this remark against
+                // its own online, enabled Signal members; never guess at send time.
+                resolved[label]=matching[0].Account;
         }
-        if(missing.Count>0 || duplicates.Count>0)
+        if(missing.Count>0)
             throw new InvalidDataException(
-                "账号备注匹配失败。缺少："+(missing.Count==0?"无":string.Join("、",missing))+
-                "；重复："+(duplicates.Count==0?"无":string.Join("、",duplicates))+
-                "。请调整本机账号备注后重新导入。没有导入任何剧本。");
+                "账号备注匹配失败。缺少："+string.Join("、",missing)+
+                "。请在本机设置对应备注后重新导入。没有导入任何剧本。");
         return scripts.Select(x=>x with{
             ScriptId=null,Revision=0,TargetGroupId="",
             Steps=x.Steps.Select(step=>step with{
