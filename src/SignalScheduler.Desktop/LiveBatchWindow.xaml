@@ -1,17 +1,17 @@
 <UserControl x:Class="SignalScheduler.Desktop.LiveBatchWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#091827" Foreground="#EAF4FD">
+ Background="#111215" Foreground="#F1F2F4">
  <UserControl.Resources>
   <Style x:Key="PrimaryAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
-   <Setter Property="Background" Value="#245477"/>
+   <Setter Property="Background" Value="#2D3035"/>
    <Setter Property="Foreground" Value="White"/>
-   <Setter Property="BorderBrush" Value="#3B6E90"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
    <Setter Property="Padding" Value="12,7"/>
    <Setter Property="MinHeight" Value="34"/>
   </Style>
   <Style x:Key="QuietAction" TargetType="Button" BasedOn="{StaticResource PrimaryAction}">
-   <Setter Property="Background" Value="#1A344C"/>
+   <Setter Property="Background" Value="#222529"/>
   </Style>
   <Style x:Key="RunAction" TargetType="Button" BasedOn="{StaticResource PrimaryAction}">
    <Setter Property="Background" Value="#117552"/>
@@ -23,9 +23,9 @@
   <!-- Keep Chinese column labels centered with enough top/bottom room.
        Do not inherit the compact Windows default header metrics. -->
   <Style x:Key="ReadableGroupColumnHeader" TargetType="{x:Type DataGridColumnHeader}">
-   <Setter Property="Background" Value="#21415B"/>
+   <Setter Property="Background" Value="#2D3035"/>
    <Setter Property="Foreground" Value="#F4F9FF"/>
-   <Setter Property="BorderBrush" Value="#41607B"/>
+   <Setter Property="BorderBrush" Value="#41454B"/>
    <Setter Property="BorderThickness" Value="0,0,1,1"/>
    <Setter Property="Padding" Value="10,8"/>
    <Setter Property="FontSize" Value="13"/>
@@ -38,7 +38,7 @@
   <Style x:Key="GroupNameAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="Transparent"/>
    <Setter Property="BorderThickness" Value="0"/>
-   <Setter Property="Foreground" Value="#F1F7FD"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Padding" Value="8,0"/>
@@ -46,7 +46,7 @@
    <Setter Property="ToolTip" Value="点击群名即可勾选或取消勾选"/>
    <Style.Triggers>
     <Trigger Property="IsMouseOver" Value="True">
-     <Setter Property="Background" Value="#285B77"/>
+     <Setter Property="Background" Value="#41454B"/>
     </Trigger>
    </Style.Triggers>
   </Style>
@@ -84,7 +84,7 @@
     <ColumnDefinition Width="10"/>
     <ColumnDefinition Width="45*" MinWidth="260"/>
    </Grid.ColumnDefinitions>
-   <Border Grid.Column="0" Background="#12293E" BorderBrush="#34526D"
+   <Border Grid.Column="0" Background="#191B1E" BorderBrush="#2D3035"
     BorderThickness="1" CornerRadius="9" Padding="8">
     <Grid>
      <Grid.RowDefinitions>
@@ -115,7 +115,7 @@
      </Grid>
      <TextBox x:Name="GroupSearchBox" Grid.Row="2" Height="32"
       VerticalContentAlignment="Center"
-      TextChanged="GroupSearchBox_TextChanged" Background="#1B3A53"
+      TextChanged="GroupSearchBox_TextChanged" Background="#222529"
       Foreground="White" CaretBrush="White" Padding="8,4"
       ToolTip="输入群名筛选。切换页码不会清除勾选。"/>
      <DataGrid x:Name="GroupsGrid" Grid.Row="4" AutoGenerateColumns="False"
@@ -125,8 +125,8 @@
       ColumnHeaderHeight="42" MinHeight="0"
       ScrollViewer.VerticalScrollBarVisibility="Disabled"
       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-      BorderBrush="#34546F" Background="#11283E" Foreground="White"
-      RowBackground="#142D43" AlternatingRowBackground="#1A344B"
+      BorderBrush="#41454B" Background="#191B1E" Foreground="White"
+      RowBackground="#191B1E" AlternatingRowBackground="#222529"
       SelectionChanged="GroupsGrid_SelectionChanged">
       <DataGrid.Columns>
        <DataGridTemplateColumn Header="选择" Width="58" CanUserResize="False">
@@ -155,7 +155,7 @@
      </DataGrid>
      <Grid Grid.Row="6">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <TextBlock x:Name="GroupsPageLabel" Text="第 1/1 页" Foreground="#BBD5E8"
+      <TextBlock x:Name="GroupsPageLabel" Text="第 1/1 页" Foreground="#D0D2D7"
        VerticalAlignment="Center" FontSize="12"/>
       <StackPanel Grid.Column="1" Orientation="Horizontal">
        <Button x:Name="PreviousGroupsPage" Content="上一页" Click="PreviousGroupsPage_Click"
@@ -166,7 +166,7 @@
      </Grid>
     </Grid>
    </Border>
-   <Border Grid.Column="2" Background="#12293E" BorderBrush="#34526D"
+   <Border Grid.Column="2" Background="#191B1E" BorderBrush="#2D3035"
     BorderThickness="1" CornerRadius="9" Padding="14">
     <Grid>
      <Grid.RowDefinitions>
@@ -198,7 +198,7 @@
      <CheckBox x:Name="ReadReceiptToggle" Grid.Row="6"
       Content="发言前仅当前账号已读群消息" IsChecked="True"
       Checked="ReadOptionsChanged" Unchecked="ReadOptionsChanged"
-      Foreground="#EAF5FE" FontSize="13"
+      Foreground="#F1F2F4" FontSize="13"
       ToolTip="启用后仅当剧本轮到某账号发送时，由该账号尝试已读当前群的待处理消息；其他账号保持未读"/>
      <CheckBox x:Name="LinkedReadSyncToggle" Visibility="Collapsed"
       IsChecked="False" IsEnabled="False" Grid.Row="7"/>
@@ -206,7 +206,7 @@
       <Button Content="检查已读状态" Style="{StaticResource QuietAction}"
        HorizontalAlignment="Left" Click="CheckReadHealth_Click" Margin="0,0,0,7"/>
       <TextBlock x:Name="ReadHealthLabel" Text="已读回执仅在当前账号准备发言前发送"
-       TextWrapping="Wrap" Foreground="#A9C8E0" FontSize="11" MaxHeight="70"/>
+       TextWrapping="Wrap" Foreground="#D0D2D7" FontSize="11" MaxHeight="70"/>
      </StackPanel>
      <StackPanel Grid.Row="8">
       <Button x:Name="PreflightButton" Content="检查运行条件" Click="Preflight_Click"
@@ -219,6 +219,6 @@
    </Border>
   </Grid>
   <TextBlock x:Name="StatusText" Grid.Row="3" Text="正在读取本地账号、群组和剧本…"
-   TextTrimming="CharacterEllipsis" Foreground="#B7D1E5" FontSize="11" Margin="2,4,2,0"/>
+   TextTrimming="CharacterEllipsis" Foreground="#D0D2D7" FontSize="11" Margin="2,4,2,0"/>
  </Grid>
 </UserControl>
