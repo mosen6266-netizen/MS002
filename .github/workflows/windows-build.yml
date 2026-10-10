@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '8.0.0-beta.11'
+            version = '8.0.0-beta.12'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -407,7 +407,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '8.0.0-beta.11'
+            version = '8.0.0-beta.12'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
