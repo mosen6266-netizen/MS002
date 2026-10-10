@@ -134,6 +134,30 @@ public partial class RunningTasksWindow : UserControl
             AttentionCountText.Text=$"需处理：{_jobs.Count(x=>
                 LiveTaskMonitor.NeedsAttention(x.Snapshot))}";
             RebuildPage(selectedId);
+            try
+            {
+                var readRaw=await MainWindow.SendAsync(ControlCommands.ReadHealth,5000);
+                var health=Unwrap<ReadHealthSnapshot>(readRaw);
+                string code=health.LastReceiptRpcCode switch
+                {
+                    "RPC_ACCEPTED"=>"Signal 已接受回执",
+                    "NO_PENDING_FOR_SPEAKER"=>"本轮账号群组无待处理消息",
+                    "READ_DISABLED"=>"已读功能已关闭",
+                    "RPC_INTERNAL_ERROR"=>"Signal RPC 内部错误",
+                    "RPC_TIMEOUT"=>"Signal RPC 超时",
+                    "RPC_MISMATCH"=>"RPC 请求回执不匹配",
+                    ""=>"暂无处理记录",
+                    _=>health.LastReceiptRpcCode
+                };
+                ReceiptStatusText.Text=$"已读回执诊断（全局最近一次）：{code} · "+
+                    $"本轮 {health.LastReceiptAccepted}/{health.LastReceiptSelected} 条 RPC 已接受 · "+
+                    $"待处理 {health.Pending} · 结果不明 {health.Unknown} · "+
+                    $"最终失败 {health.Failed}";
+            }
+            catch
+            {
+                ReceiptStatusText.Text="已读回执诊断暂时无法读取，请导出脱敏诊断报告。";
+            }
             StatusText.Text=_jobs.Count==0
                 ?"暂无任务。请在首页选择剧本与群组后启动。"
                 :"状态读取成功 · 最后更新："+DateTime.Now.ToString("HH:mm:ss")+
