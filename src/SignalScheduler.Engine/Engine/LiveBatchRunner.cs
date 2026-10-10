@@ -277,8 +277,82 @@ public sealed class LiveBatchRunner : BackgroundService
         finally{_slots.Release();}
     }
 
+    // A separate bounded background lane processes group completion receipts
+    // without delaying scheduled text dispatch. Each attempt is persisted and
+    // ambiguous RPC results are NOT replayed automatically.
+    async Task RunCompletionReadWorkerAsync(CancellationToken ct)
+    {
+        try{await _store.RecoverInterruptedCompletionReadsAsync(ct);}
+        catch(OperationCanceledException) when(ct.IsCancellationRequested){return;}
+        catch{ /* Try again after DB becomes accessible; never send speculatively. */ }
+        while(!ct.IsCancellationRequested)
+        {
+            try
+            {
+                var work=await _store.ClaimCompletionReadAsync(
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),ct);
+                if(work is null)
+                {
+                    await Task.Delay(1500,ct);
+                    continue;
+                }
+                bool done=false,retry=false;
+                string code="READ_ERROR";
+                try
+                {
+                    if(!work.Online)
+                    {
+                        code="ACCOUNT_OFFLINE";
+                        retry=true;
+                    }
+                    else if(!string.Equals(_guardian.Snapshot.State,"healthy",
+                        StringComparison.OrdinalIgnoreCase))
+                    {
+                        code="SIGNAL_UNAVAILABLE";
+                        retry=true;
+                    }
+                    else
+                    {
+                        using var deadline=CancellationTokenSource.CreateLinkedTokenSource(ct);
+                        deadline.CancelAfter(ReadReceiptRetryPolicy.MaxPhase);
+                        var outcome=await _read.TrySendForGroupAsync(
+                            work.Account,work.GroupId,deadline.Token);
+                        done=outcome.Ready&&outcome.Code!="READ_DISABLED";
+                        code=outcome.Code;
+                        // Retrying an ambiguous RPC could duplicate an accepted
+                        // read receipt: retry only if NO network read RPC was sent.
+                        retry=!done && outcome.Selected==0 &&
+                            outcome.Code is "READ_STREAM_UNAVAILABLE" or
+                                "READ_QUEUE_INCOMPLETE" or "READ_PHASE_TIMEOUT";
+                    }
+                }
+                catch(OperationCanceledException) when(ct.IsCancellationRequested)
+                {
+                    // Unknown RPC outcome is quarantined at the next startup.
+                    throw;
+                }
+                catch(OperationCanceledException){code="READ_PHASE_TIMEOUT";}
+                catch(Exception){code="READ_PHASE_ERROR";}
+
+                await _store.FinishCompletionReadAsync(work,done,retry,code,
+                    DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    CancellationToken.None);
+            }
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
+            catch
+            {
+                // Persistence or service failure: no guessed success.
+                try{await Task.Delay(4000,ct);}
+                catch(OperationCanceledException){break;}
+            }
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
+        var completionWorker=RunCompletionReadWorkerAsync(ct);
+        try
+        {
         while(!ct.IsCancellationRequested)
         {
             try
@@ -294,6 +368,12 @@ public sealed class LiveBatchRunner : BackgroundService
             }
             try{await Task.Delay(800,ct);}
             catch(OperationCanceledException) when(ct.IsCancellationRequested){break;}
+        }
+        }
+        finally
+        {
+            try{await completionWorker;}
+            catch(OperationCanceledException) when(ct.IsCancellationRequested){}
         }
     }
 }
