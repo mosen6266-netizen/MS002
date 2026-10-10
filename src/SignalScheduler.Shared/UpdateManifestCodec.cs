@@ -35,8 +35,10 @@ public static class UpdateManifestCodec
                !root.TryGetProperty("version",out var v) ||
                v.ValueKind!=JsonValueKind.String ||
                !root.TryGetProperty("build",out var b) ||
+               b.ValueKind!=JsonValueKind.Number ||
                !b.TryGetInt32(out var build) || build<=0 ||
                !root.TryGetProperty("runId",out var r) ||
+               r.ValueKind!=JsonValueKind.Number ||
                !r.TryGetInt64(out var run) || run<=0 ||
                !root.TryGetProperty("sourceSha",out var sha) ||
                sha.ValueKind!=JsonValueKind.String ||
