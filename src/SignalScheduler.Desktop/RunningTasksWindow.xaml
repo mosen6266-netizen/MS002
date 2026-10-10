@@ -32,6 +32,8 @@
    <TextBlock Text="当前运行任务" FontSize="25" FontWeight="SemiBold"/>
    <TextBlock Text="运行中的群组任务集中管理；已暂停的任务也可在此查看和手动继续。"
     Foreground="#ADC4D9" TextWrapping="Wrap" Margin="0,6,0,0"/>
+   <TextBlock x:Name="ReceiptStatusText" Text="已读回执诊断：正在读取…"
+    Foreground="#8CCDD9" TextWrapping="Wrap" Margin="0,5,0,0"/>
   </StackPanel>
   <Border Grid.Row="1" Background="#122A40" BorderBrush="#31536F" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,0,0,13">
