@@ -254,8 +254,8 @@
     <Setter.Value>
      <ControlTemplate TargetType="TabItem">
       <Border x:Name="TabSurface" Background="{TemplateBinding Background}"
-       CornerRadius="8,8,0,0" BorderBrush="#41454B"
-       BorderThickness="1,1,1,0"
+       CornerRadius="8" BorderBrush="#41454B"
+       BorderThickness="1"
        Padding="{TemplateBinding Padding}">
        <ContentPresenter ContentSource="Header"
         HorizontalAlignment="Center" VerticalAlignment="Center"/>
