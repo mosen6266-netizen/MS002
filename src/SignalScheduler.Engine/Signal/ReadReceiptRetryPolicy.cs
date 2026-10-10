@@ -8,8 +8,10 @@ namespace SignalScheduler.Engine.Signal;
 public static class ReadReceiptRetryPolicy
 {
     public const int MaxAttempts=5;
-    public const int MaxReceiptsPerSend=2;
-    public static readonly TimeSpan RpcTimeout=TimeSpan.FromSeconds(3);
+    public const int MaxReceiptsPerSend=40;
+    public const int MaxAuthorsPerSpeaker=4;
+    public static readonly TimeSpan MaxPhase=TimeSpan.FromSeconds(20);
+    public static readonly TimeSpan RpcTimeout=TimeSpan.FromSeconds(4);
 
     public static TimeSpan NextDelay(int attempt)
     {
