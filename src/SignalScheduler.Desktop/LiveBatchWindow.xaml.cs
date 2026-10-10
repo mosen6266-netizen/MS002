@@ -146,7 +146,9 @@ public partial class LiveBatchWindow : UserControl
             if(GroupsGrid is null)return;
             var compact=ActualHeight<650;
             GroupsGrid.RowHeight=compact?22:29;
-            GroupsGrid.ColumnHeaderHeight=compact?28:31;
+            // Never shrink the group labels below their text/padding height.
+            // The old 28/31px compact header clipped Chinese column names.
+            GroupsGrid.ColumnHeaderHeight=42;
         };
         UpdateButtons();
     }
