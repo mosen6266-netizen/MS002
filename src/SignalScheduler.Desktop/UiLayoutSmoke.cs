@@ -111,6 +111,38 @@ internal static class UiLayoutSmoke
             }
             finally{updateWindow.Close();}
 
+            // Regression samples for button styles owned by independent
+            // pages. Catch pages that accidentally bypass the global WPF
+            // template (especially disabled "Continue", "Start", and "Save").
+            var samples=new (string Name,Style Style)[]{
+                ("首页启动按钮",(Style)home.FindResource("RunAction")),
+                ("首页普通操作",(Style)home.FindResource("QuietAction")),
+                ("任务监控按钮",(Style)monitor.FindResource("MonitorAction")),
+                ("剧本编辑按钮",(Style)scripts.FindResource("ActionButton")),
+                ("账号管理按钮",(Style)account.FindResource(typeof(Button))),
+                ("应用全局按钮",(Style)Application.Current.FindResource(typeof(Button)))
+            };
+            var samplePanel=new StackPanel();
+            var sampleButtons=samples.Select(x=>new Button{
+                Content=x.Name,Style=x.Style,IsEnabled=false,
+                Height=42,Margin=new Thickness(0,2,0,2)
+            }).ToArray();
+            foreach(var button in sampleButtons)samplePanel.Children.Add(button);
+            var sampleHost=new Window{
+                Width=480,Height=410,Left=-4500,Top=-4500,
+                WindowStartupLocation=WindowStartupLocation.Manual,
+                ShowInTaskbar=false,ShowActivated=false,
+                WindowStyle=WindowStyle.ToolWindow,Content=samplePanel
+            };
+            try
+            {
+                sampleHost.Show();
+                sampleHost.UpdateLayout();
+                for(var i=0;i<samples.Length;i++)
+                    VerifyReadableButton(sampleButtons[i],samples[i].Name,false,report);
+            }
+            finally{sampleHost.Close();}
+
             // The image action must be visually distinguishable on every
             // message row, including when the user moves the pointer.
             var add=new Button
