@@ -31,6 +31,8 @@ public sealed class SignalReadCoordinator : BackgroundService
     long _lastReceiptRpcAtMs;
     volatile int _lastReceiptSelected;
     volatile int _lastReceiptAccepted;
+    volatile string _lastReceiptFailureCode="";
+    long _lastReceiptFailureAtMs;
 
     public async Task<ReadHealthSnapshot> GetHealthAsync(CancellationToken ct)
     {
@@ -83,7 +85,8 @@ public sealed class SignalReadCoordinator : BackgroundService
             failed,waitingRetry,unknown,
             Interlocked.Read(ref _lastFailureMs),_lastFailureType,
             _lastReceiptRpcCode,Interlocked.Read(ref _lastReceiptRpcAtMs),
-            _lastReceiptSelected,_lastReceiptAccepted);
+            _lastReceiptSelected,_lastReceiptAccepted,
+            _lastReceiptFailureCode,Interlocked.Read(ref _lastReceiptFailureAtMs));
     }
 
 
@@ -227,6 +230,27 @@ public sealed class SignalReadCoordinator : BackgroundService
                     Interlocked.Exchange(ref _lastReceiptRpcAtMs,reader.GetInt64(1));
                     _lastReceiptSelected=reader.GetInt32(2);
                     _lastReceiptAccepted=reader.GetInt32(3);
+                }
+            }
+            await using(var failure=db.CreateCommand())
+            {
+                failure.CommandText="""
+                    CREATE TABLE IF NOT EXISTS v8_read_rpc_last_failure(
+                        id INTEGER PRIMARY KEY CHECK(id=1),
+                        code TEXT NOT NULL DEFAULT '',
+                        when_ms INTEGER NOT NULL DEFAULT 0
+                    );
+                    INSERT OR IGNORE INTO v8_read_rpc_last_failure(id) VALUES(1);
+                    """;
+                await failure.ExecuteNonQueryAsync(ct);
+                await using var restore=db.CreateCommand();
+                restore.CommandText="SELECT code,when_ms FROM v8_read_rpc_last_failure WHERE id=1;";
+                await using var reader=await restore.ExecuteReaderAsync(ct);
+                if(await reader.ReadAsync(ct))
+                {
+                    _lastReceiptFailureCode=ReadReceiptRpcContract.IsSafeCode(reader.GetString(0))
+                        ?reader.GetString(0):"";
+                    Interlocked.Exchange(ref _lastReceiptFailureAtMs,reader.GetInt64(1));
                 }
             }
             await using(var health=db.CreateCommand())
@@ -648,6 +672,20 @@ public sealed class SignalReadCoordinator : BackgroundService
                 update.Parameters.AddWithValue("$s",selected);
                 update.Parameters.AddWithValue("$a",accepted);
                 await update.ExecuteNonQueryAsync(ct);
+                if(code.StartsWith("RPC_",StringComparison.Ordinal) &&
+                   code is not ("RPC_ACCEPTED" or "RPC_NOT_STARTED"))
+                {
+                    await using var failure=db.CreateCommand();
+                    failure.CommandText="""
+                        UPDATE v8_read_rpc_last_failure
+                        SET code=$code,when_ms=$time WHERE id=1;
+                        """;
+                    failure.Parameters.AddWithValue("$code",_lastReceiptRpcCode);
+                    failure.Parameters.AddWithValue("$time",now);
+                    await failure.ExecuteNonQueryAsync(ct);
+                    _lastReceiptFailureCode=_lastReceiptRpcCode;
+                    Interlocked.Exchange(ref _lastReceiptFailureAtMs,now);
+                }
             }
             finally{_databaseGate.Release();}
         }
