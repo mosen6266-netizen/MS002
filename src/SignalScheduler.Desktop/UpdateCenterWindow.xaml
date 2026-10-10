@@ -58,7 +58,11 @@
    <Button x:Name="DownloadButton" Content="下载更新" Click="DownloadUpdate_Click"
     Background="#197A56" Foreground="White" Padding="18,10"
     MinHeight="40" Margin="0,0,10,8" IsEnabled="False"/>
-   <Button x:Name="OpenFolderButton" Content="查看已下载文件"
+   <Button Content="浏览器下载" Click="OpenRelease_Click"
+     Background="{StaticResource Ui2SurfaceHover}" Foreground="White" Padding="18,10"
+     MinHeight="40" Margin="0,0,10,8"
+     ToolTip="应用内下载失败时，使用浏览器打开 GitHub 官方版本下载页面"/>
+    <Button x:Name="OpenFolderButton" Content="查看已下载文件"
     Click="OpenDownloaded_Click" Background="{StaticResource Ui2SurfaceHover}" Foreground="White"
     Padding="18,10" MinHeight="40" Margin="0,0,10,8" IsEnabled="False"/>
   </WrapPanel>
