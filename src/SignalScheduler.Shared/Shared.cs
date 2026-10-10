@@ -260,7 +260,9 @@ public sealed record ReadHealthSnapshot(
     string StreamState,long LastConnectedMs,long LastEventMs,
     int Pending,int Attempted,string LastError,int Failed=0,
     int WaitingRetry=0,int Unknown=0,long LastFailureMs=0,
-    string LastFailureType="");
+    string LastFailureType="",string LastReceiptRpcCode="",
+    long LastReceiptRpcAtMs=0,int LastReceiptSelected=0,
+    int LastReceiptAccepted=0);
 
 public static class ControlCommands
 {
