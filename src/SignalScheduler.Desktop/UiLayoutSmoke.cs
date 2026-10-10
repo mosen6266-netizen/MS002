@@ -27,6 +27,17 @@ internal static class UiLayoutSmoke
             CheckPage(home,"首页群组选择",home.GroupsGrid,
                 new[]{50d,150d,60d},report,windowHeight:620);
 
+            // Ensure the group title is not covered by select/clear buttons
+            // even at the compact 620px viewport used for the home dashboard.
+            var link=new LinkAccountWindow();
+            link.FinishButton.ApplyTemplate();
+            if(link.FinishButton.IsEnabled ||
+               link.FinishButton.Background?.ToString()!="#292E36" ||
+               link.FinishButton.Foreground?.ToString()!="#F6F7FA")
+                throw new InvalidOperationException(
+                    "扫码备注完成按钮的禁用状态不是深灰底、浅色文字。");
+            report.AppendLine("扫码备注按钮禁用状态：PASS");
+
             var account=new AccountGroupWindow();
             account.AccountGrid.ItemsSource=new[]
             {
@@ -157,6 +168,18 @@ internal static class UiLayoutSmoke
                 throw new InvalidOperationException($"{name}: grid surface collapsed.");
             if(name=="首页群组选择")
             {
+                if(grid.Parent is not Grid groupPanel ||
+                   groupPanel.Children.OfType<Grid>().FirstOrDefault(x=>Grid.GetRow(x)==0)
+                       is not Grid header ||
+                   header.Children.OfType<TextBlock>().FirstOrDefault() is not TextBlock title ||
+                   title.ActualHeight<18 ||
+                   title.ActualWidth<180)
+                    throw new InvalidOperationException(
+                        "首页选择群组标题被覆盖或被裁剪，未完整显示。");
+                if(header.Children.OfType<StackPanel>().FirstOrDefault() is not StackPanel buttons ||
+                   Grid.GetRow(buttons)!=1)
+                    throw new InvalidOperationException(
+                        "首页群组标题与操作按钮未使用上下两行布局。");
                 var required=10*grid.RowHeight+grid.ColumnHeaderHeight;
                 if(grid.ActualHeight<required-1)
                     throw new InvalidOperationException(
