@@ -16,9 +16,9 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-ui2.0";
+    const string CurrentProductVersion="8.0.0-ui2.1";
 
-    const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/windows-build.yml";
+    const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/ui2-installer.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
     readonly HttpClient _http=new(){Timeout=Timeout.InfiniteTimeSpan};
     bool _checking;
@@ -102,7 +102,7 @@ public partial class UpdateCenterWindow : UserControl
 
     static string CachePath=>Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "SignalSchedulerData","update-manifest-cache.json");
+        "SignalSchedulerData","update-manifest-ui2-cache.json");
 
     static VerifiedUpdateManifest? TryLoadCache()
     {
@@ -183,7 +183,7 @@ public partial class UpdateCenterWindow : UserControl
         try
         {
             using var doc=await ReadJsonAsync(
-                Api+"/actions/workflows/windows-build.yml/runs?branch=main&status=success&per_page=3",
+                Api+"/actions/workflows/ui2-installer.yml/runs?branch=ui%2Fv2-monochrome&status=success&per_page=3",
                 ct);
             if(!doc.RootElement.TryGetProperty("workflow_runs",out var runs) ||
                runs.ValueKind!=JsonValueKind.Array)return false;
