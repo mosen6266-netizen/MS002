@@ -42,12 +42,22 @@
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="VerticalContentAlignment" Value="Center"/>
    <Setter Property="Padding" Value="8,0"/>
+   <Setter Property="MinHeight" Value="0"/>
+   <Setter Property="Height" Value="30"/>
+   <Setter Property="Margin" Value="0,1"/>
+   <Setter Property="VerticalAlignment" Value="Center"/>
    <Setter Property="Cursor" Value="Hand"/>
    <Setter Property="ToolTip" Value="点击群名即可勾选或取消勾选"/>
    <Style.Triggers>
     <Trigger Property="IsMouseOver" Value="True">
      <Setter Property="Background" Value="#41454B"/>
     </Trigger>
+    <DataTrigger Binding="{Binding Selected}" Value="True">
+     <Setter Property="Background" Value="#454950"/>
+     <Setter Property="BorderBrush" Value="#F1F2F4"/>
+     <Setter Property="BorderThickness" Value="1"/>
+     <Setter Property="Foreground" Value="#FFFFFF"/>
+    </DataTrigger>
    </Style.Triggers>
   </Style>
   <Style x:Key="SmallJobAction" TargetType="Button" BasedOn="{StaticResource QuietAction}">
@@ -120,7 +130,7 @@
       ToolTip="输入群名筛选。切换页码不会清除勾选。"/>
      <DataGrid x:Name="GroupsGrid" Grid.Row="4" AutoGenerateColumns="False"
       CanUserAddRows="False" EnableColumnVirtualization="False"
-      HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="24"
+      HeadersVisibility="Column" RowHeaderWidth="0" RowHeight="36"
       ColumnHeaderStyle="{StaticResource ReadableGroupColumnHeader}"
       ColumnHeaderHeight="42" MinHeight="0"
       ScrollViewer.VerticalScrollBarVisibility="Disabled"
