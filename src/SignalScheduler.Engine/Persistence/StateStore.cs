@@ -72,6 +72,30 @@ public sealed partial class StateStore
     }
 
     /// <summary>
+    /// An older startup/Guardian build could resurrect a user-stopped job
+    /// whenever its immutable dispatch audit still said RecoveryRequired.
+    /// The batch_stop event is the durable operator intent (written in the
+    /// same transaction as stopping). Restore that terminal job state before
+    /// any restart recovery scan, without changing dispatch evidence.
+    /// Caller holds the SQLite write transaction.
+    /// </summary>
+    static async Task RestoreExplicitlyStoppedJobsAsync(
+        SqliteConnection c,SqliteTransaction tx,CancellationToken ct)
+    {
+        await using var fix=c.CreateCommand();
+        fix.Transaction=tx;
+        fix.CommandText="""
+            UPDATE v8_jobs SET state='Stopped'
+            WHERE state NOT IN ('Stopped','Completed','Failed')
+              AND EXISTS (
+                  SELECT 1 FROM v8_event_log e
+                  WHERE e.job_id=v8_jobs.job_id AND e.event_type='batch_stop'
+              );
+            """;
+        await fix.ExecuteNonQueryAsync(ct);
+    }
+
+    /// <summary>
     /// Invoked at engine startup, before the IPC server or any task runner starts.
     /// A send interrupted by a crash has an UNKNOWN external delivery result.
     /// Quarantine the journal and owning job atomically; never re-send automatically.
@@ -82,6 +106,7 @@ public sealed partial class StateStore
         await using var c=Open();
         using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await RestoreExplicitlyStoppedJobsAsync(c,tx,ct);
 
         // Capture live-batch transitions BEFORE moving their generic job
         // states. A repeated startup must not overwrite an already recorded
@@ -105,7 +130,8 @@ public sealed partial class StateStore
                                 d.state IN ('Sending','Unknown','RecoveryRequired'))
                     FROM v8_jobs j JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
                     WHERE j.state IN ('Running','Stopping','WaitingSignal')
-                       OR (j.state<>'RecoveryRequired' AND EXISTS(
+                       OR (j.state NOT IN ('RecoveryRequired','Stopped','Completed','Failed')
+                           AND EXISTS(
                             SELECT 1 FROM v8_dispatch_journal d
                             WHERE d.job_id=j.job_id AND d.state IN
                                   ('Sending','Unknown','RecoveryRequired')));
@@ -121,7 +147,8 @@ public sealed partial class StateStore
             affected.Transaction=tx;
             affected.CommandText="""
                 UPDATE v8_jobs SET state='RecoveryRequired',updated_at=$n
-                WHERE job_id IN (
+                WHERE state NOT IN ('Stopped','Completed','Failed')
+                  AND job_id IN (
                     SELECT job_id FROM v8_dispatch_journal
                     WHERE state IN ('Sending','Unknown','RecoveryRequired')
                 );
@@ -593,6 +620,7 @@ public sealed partial class StateStore
         await using var c=Open();
         using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        await RestoreExplicitlyStoppedJobsAsync(c,tx,ct);
 
         // Record only new state transitions. Already-paused tasks preserve
         // their operator reason, even if Guardian retries recovery checks.
@@ -615,7 +643,9 @@ public sealed partial class StateStore
                                   d.state IN ('Sending','Unknown','RecoveryRequired'))
                     FROM v8_jobs j JOIN v8_live_batch_jobs b ON b.job_id=j.job_id
                     WHERE j.state IN ('Running','Stopping','WaitingSignal')
-                       OR ($exited=1 AND j.state<>'RecoveryRequired' AND EXISTS(
+                       OR ($exited=1 AND
+                           j.state NOT IN ('RecoveryRequired','Stopped','Completed','Failed')
+                           AND EXISTS(
                            SELECT 1 FROM v8_dispatch_journal d
                            WHERE d.job_id=j.job_id
                              AND d.state IN ('Sending','Unknown','RecoveryRequired')));
@@ -649,7 +679,8 @@ public sealed partial class StateStore
                 jobs.Transaction=tx;
                 jobs.CommandText="""
                     UPDATE v8_jobs SET state='RecoveryRequired',updated_at=$n
-                    WHERE job_id IN (
+                    WHERE state NOT IN ('Stopped','Completed','Failed')
+                      AND job_id IN (
                         SELECT job_id FROM v8_dispatch_journal
                         WHERE state IN ('Sending','Unknown','RecoveryRequired')
                     );
