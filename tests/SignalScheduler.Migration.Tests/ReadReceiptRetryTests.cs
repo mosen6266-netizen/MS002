@@ -12,8 +12,10 @@ public sealed class ReadReceiptRetryTests
     public void RetryPolicyIsBoundedAndDoesNotRetryBeforeDueTime()
     {
         Assert.Equal(5,ReadReceiptRetryPolicy.MaxAttempts);
-        Assert.Equal(2,ReadReceiptRetryPolicy.MaxReceiptsPerSend);
-        Assert.True(ReadReceiptRetryPolicy.RpcTimeout<=TimeSpan.FromSeconds(3));
+        Assert.Equal(40,ReadReceiptRetryPolicy.MaxReceiptsPerSend);
+        Assert.Equal(4,ReadReceiptRetryPolicy.MaxAuthorsPerSpeaker);
+        Assert.True(ReadReceiptRetryPolicy.MaxPhase>=TimeSpan.FromSeconds(16));
+        Assert.True(ReadReceiptRetryPolicy.RpcTimeout<=TimeSpan.FromSeconds(4));
         Assert.Equal(TimeSpan.FromSeconds(15),ReadReceiptRetryPolicy.NextDelay(1));
         Assert.Equal(TimeSpan.FromMinutes(1),ReadReceiptRetryPolicy.NextDelay(2));
         Assert.Equal(TimeSpan.FromMinutes(5),ReadReceiptRetryPolicy.NextDelay(3));
