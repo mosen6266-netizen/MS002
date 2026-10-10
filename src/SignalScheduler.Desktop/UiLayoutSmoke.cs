@@ -2,6 +2,7 @@ using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using SignalScheduler.Shared;
@@ -150,6 +151,17 @@ internal static class UiLayoutSmoke
         }
     }
 
+    static IEnumerable<T> VisualChildren<T>(DependencyObject root)
+        where T:DependencyObject
+    {
+        for(var i=0;i<VisualTreeHelper.GetChildrenCount(root);i++)
+        {
+            var child=VisualTreeHelper.GetChild(root,i);
+            if(child is T match)yield return match;
+            foreach(var nested in VisualChildren<T>(child))yield return nested;
+        }
+    }
+
     static void CheckPage(UserControl page,string name,DataGrid grid,
         double[] minWidths,StringBuilder report,double windowHeight=810)
     {
@@ -193,6 +205,28 @@ internal static class UiLayoutSmoke
                    Grid.GetRow(buttons)!=1)
                     throw new InvalidOperationException(
                         "首页群组标题与操作按钮未使用上下两行布局。");
+                if(grid.ColumnHeaderHeight<42)
+                    throw new InvalidOperationException(
+                        $"群组表头高度 {grid.ColumnHeaderHeight:F0} 过小，中文标签可能被裁剪。");
+                var columnHeaders=VisualChildren<DataGridColumnHeader>(grid)
+                    .Where(h=>h.Content is string)
+                    .ToArray();
+                if(columnHeaders.Length<3)
+                    throw new InvalidOperationException(
+                        "群组表头未完整渲染，无法确认三个标签是否可见。");
+                foreach(var columnHeader in columnHeaders)
+                {
+                    if(columnHeader.ActualHeight<40)
+                        throw new InvalidOperationException(
+                            $"群组表头「{columnHeader.Content}」实际高度不足：" +
+                            $"{columnHeader.ActualHeight:F0}px。");
+                    if(columnHeader.Foreground is not SolidColorBrush fg ||
+                       fg.Color!=Color.FromRgb(244,249,255))
+                        throw new InvalidOperationException(
+                            $"群组表头「{columnHeader.Content}」文字颜色不清晰。");
+                    report.AppendLine($"群组表头：{columnHeader.Content} " +
+                        $"高度={columnHeader.ActualHeight:F0}px PASS");
+                }
                 var required=10*grid.RowHeight+grid.ColumnHeaderHeight;
                 if(grid.ActualHeight<required-1)
                     throw new InvalidOperationException(
