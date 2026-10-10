@@ -1,7 +1,7 @@
 <UserControl x:Class="SignalScheduler.Desktop.RunningTasksWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#111215" Foreground="#F1F2F4" MinWidth="620">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}" MinWidth="620">
  <UserControl.Resources>
   <Style x:Key="MonitorAction" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#222529"/>
@@ -30,15 +30,15 @@
   <StackPanel Grid.Row="0" Margin="0,0,0,7">
    <TextBlock Text="当前运行任务" FontSize="25" FontWeight="SemiBold"/>
    <TextBlock Text="仅显示运行中、暂停及等待处理的任务；已停止、已完成及彻底失败的任务请到历史记录查看。"
-    Foreground="#D0D2D7" TextWrapping="Wrap" Margin="0,6,0,0"/>
+    Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap" Margin="0,6,0,0"/>
    <TextBlock x:Name="ReceiptStatusText" Text="已读回执诊断：正在读取…"
-    Foreground="#D0D2D7" TextWrapping="Wrap" Margin="0,5,0,0"/>
+    Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap" Margin="0,5,0,0"/>
   </StackPanel>
-  <Border Grid.Row="1" Background="#191B1E" BorderBrush="#2D3035" BorderThickness="1"
+  <Border Grid.Row="1" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,0,0,13">
    <WrapPanel>
     <TextBlock x:Name="AllCountText" Text="当前任务：—" Margin="0,0,22,6"
-     FontWeight="SemiBold" Foreground="#F1F2F4"/>
+     FontWeight="SemiBold" Foreground="{StaticResource Ui2Text}"/>
     <TextBlock x:Name="RunningCountText" Text="运行：—" Margin="0,0,22,6"
      Foreground="#7FE2BF"/>
     <TextBlock x:Name="PausedCountText" Text="暂停：—" Margin="0,0,22,6"
@@ -60,7 +60,7 @@
     Style="{StaticResource MonitorAction}"/>
    <CheckBox x:Name="AutoRefreshCheck" Content="每 2 秒自动刷新"
     IsChecked="True" VerticalAlignment="Center" Margin="7,0,12,7"
-    Foreground="#D0D2D7"/>
+    Foreground="{StaticResource Ui2TextSecondary}"/>
    <Button Content="打开异常恢复中心" Click="OpenRecovery_Click"
     Style="{StaticResource MonitorAction}"/>
    <Button Content="查看已结束任务（历史记录）" Click="OpenHistory_Click"
@@ -68,7 +68,7 @@
   </WrapPanel>
   <DockPanel Grid.Row="3" Margin="0,0,0,8">
    <TextBlock DockPanel.Dock="Left" x:Name="JobsPageLabel"
-    Text="第 1 / 1 页" Foreground="#D0D2D7" VerticalAlignment="Center"/>
+    Text="第 1 / 1 页" Foreground="{StaticResource Ui2TextSecondary}" VerticalAlignment="Center"/>
    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
     HorizontalAlignment="Right">
     <Button x:Name="PreviousPageButton" Content="上一页"
@@ -78,10 +78,10 @@
    </StackPanel>
   </DockPanel>
   <DataGrid x:Name="MonitorGrid" Grid.Row="4" EnableColumnVirtualization="False"
-   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Background="#191B1E"
+   HeadersVisibility="Column" ScrollViewer.HorizontalScrollBarVisibility="Disabled" Background="{StaticResource Ui2Surface}"
    ColumnHeaderHeight="42" RowHeight="43"
-   Foreground="#F1F2F4" BorderBrush="#2D3035"
-   RowBackground="#191B1E" AlternatingRowBackground="#222529"
+   Foreground="{StaticResource Ui2Text}" BorderBrush="{StaticResource Ui2SurfaceHover}"
+   RowBackground="{StaticResource Ui2Surface}" AlternatingRowBackground="{StaticResource Ui2SurfaceRaised}"
    AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
    SelectionMode="Single" SelectionUnit="FullRow"
    EnableRowVirtualization="True"
@@ -171,13 +171,13 @@
      ElementStyle="{StaticResource TruncatedGridText}"/>
    </DataGrid.Columns>
   </DataGrid>
-  <Border Grid.Row="5" Background="#191B1E" BorderBrush="#2D3035" BorderThickness="1"
+  <Border Grid.Row="5" Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceHover}" BorderThickness="1"
    CornerRadius="8" Padding="15" Margin="0,14,0,0">
    <StackPanel>
     <TextBlock Text="选中任务详情" FontSize="16" FontWeight="SemiBold"
      Margin="0,0,0,6"/>
     <TextBlock x:Name="SelectedTaskText" Text="选择上表中的群组任务查看详情。"
-     TextWrapping="Wrap" Foreground="#D0D2D7" Margin="0,0,0,11"/>
+     TextWrapping="Wrap" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,0,0,11"/>
     <WrapPanel>
      <Button x:Name="PauseTaskButton" Content="暂停选中任务"
       Click="PauseTask_Click" Style="{StaticResource MonitorAction}" IsEnabled="False"/>
@@ -189,10 +189,10 @@
       Background="#8C4246" IsEnabled="False"/>
     </WrapPanel>
     <TextBlock Text="剩余时间为下限估算，不包含账号排队、网络、发送与回执耗时；发送结果不明确时请到恢复中心核对。"
-     Foreground="#A9ADB4" FontSize="11" TextWrapping="Wrap"/>
+     Foreground="{StaticResource Ui2TextMuted}" FontSize="11" TextWrapping="Wrap"/>
    </StackPanel>
   </Border>
   <TextBlock Grid.Row="6" x:Name="StatusText" Text="正在读取任务状态…"
-   Foreground="#D0D2D7" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap" Margin="0,12,0,0"/>
  </Grid>
 </UserControl>
