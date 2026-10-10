@@ -9,13 +9,12 @@ public sealed class LiveTaskMonitorTests
         new("job","剧本","group","群",state,1,3,0,detail);
 
     [Fact]
-    public void ActiveFilterIncludesPausedAndReviewJobsButNotFinished()
+    public void DefaultFilterShowsRunningPausedStoppedAndFailedForImmediateAttention()
     {
         foreach(var state in new[]{"Running","Paused","WaitingSignal","Stopping",
-                     "RecoveryRequired"})
+                     "RecoveryRequired","Stopped","Failed"})
             Assert.True(LiveTaskMonitor.IsVisible(Item(state),"active"));
-        foreach(var state in new[]{"Stopped","Completed","Failed"})
-            Assert.False(LiveTaskMonitor.IsVisible(Item(state),"active"));
+        Assert.False(LiveTaskMonitor.IsVisible(Item("Completed"),"active"));
     }
 
     [Fact]
