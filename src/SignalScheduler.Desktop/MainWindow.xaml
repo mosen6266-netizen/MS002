@@ -61,6 +61,51 @@
     </Setter.Value>
    </Setter>
   </Style>
+   <!-- Dedicated caption visuals keep hover/focus visible on custom WindowChrome. -->
+   <Style x:Key="TitleBarButton" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Foreground" Value="#E8F2FC"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="MinHeight" Value="0"/>
+    <Setter Property="Template">
+     <Setter.Value>
+      <ControlTemplate TargetType="Button">
+       <Border x:Name="CaptionFace" Background="{TemplateBinding Background}"
+        CornerRadius="5" Margin="2" SnapsToDevicePixels="True">
+        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+         TextElement.Foreground="{TemplateBinding Foreground}"/>
+       </Border>
+       <ControlTemplate.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+         <Setter TargetName="CaptionFace" Property="Background" Value="#39546B"/>
+        </Trigger>
+        <Trigger Property="IsPressed" Value="True">
+         <Setter TargetName="CaptionFace" Property="Background" Value="#52748D"/>
+        </Trigger>
+        <MultiTrigger>
+         <MultiTrigger.Conditions>
+          <Condition Property="Tag" Value="close"/>
+          <Condition Property="IsMouseOver" Value="True"/>
+         </MultiTrigger.Conditions>
+         <Setter TargetName="CaptionFace" Property="Background" Value="#B8333C"/>
+        </MultiTrigger>
+        <MultiTrigger>
+         <MultiTrigger.Conditions>
+          <Condition Property="Tag" Value="close"/>
+          <Condition Property="IsPressed" Value="True"/>
+         </MultiTrigger.Conditions>
+         <Setter TargetName="CaptionFace" Property="Background" Value="#92252D"/>
+        </MultiTrigger>
+        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+         <Setter TargetName="CaptionFace" Property="BorderBrush" Value="#93D9FF"/>
+         <Setter TargetName="CaptionFace" Property="BorderThickness" Value="1"/>
+        </Trigger>
+       </ControlTemplate.Triggers>
+      </ControlTemplate>
+     </Setter.Value>
+    </Setter>
+   </Style>
  </Window.Resources>
  <Grid>
   <Grid.RowDefinitions>
@@ -90,18 +135,15 @@
     </StackPanel>
     <Button Grid.Column="1" Content="─" ToolTip="最小化" Click="Minimize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#E8F2FC" FontSize="18"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource TitleBarButton}" FontSize="18"/>
     <Button Grid.Column="2" x:Name="MaximizeButton" Content="□"
      ToolTip="最大化 / 还原" Click="Maximize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#E8F2FC" FontSize="18"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource TitleBarButton}" FontSize="18"/>
     <Button Grid.Column="3" Content="×" ToolTip="关闭程序"
      Click="WindowClose_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="#243149" Foreground="#F3F8FD" FontSize="20"
-     BorderThickness="0" Padding="0"/>
+     Style="{StaticResource TitleBarButton}" Tag="close" FontSize="20"/>
    </Grid>
   </Border>
 
@@ -117,7 +159,7 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="Signal 调度台" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-beta.15" Foreground="#8EACC8" Margin="0,7,0,0"/>
+     <TextBlock Text="V8.0.0-beta.16" Foreground="#8EACC8" Margin="0,7,0,0"/>
      <TextBlock Text="桌面消息管理" Foreground="#7390AC" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
