@@ -72,6 +72,17 @@ internal static class UiLayoutSmoke
                 new[]{60d,150d,80d},report);
 
             var scripts=new ScriptEditorWindow();
+            if(!scripts.ScriptsList.AllowDrop)
+                throw new InvalidOperationException(
+                    "剧本库未启用鼠标拖放排序。");
+            var portableButtons=VisualChildren<Button>(scripts)
+                .Select(x=>x.Content?.ToString()).Where(x=>x is not null).ToArray();
+            if(!portableButtons.Contains("导出选中剧本 ZIP") ||
+               !portableButtons.Contains("导出全部剧本 ZIP") ||
+               !portableButtons.Contains("导入剧本 ZIP"))
+                throw new InvalidOperationException(
+                    "剧本导入导出按钮未全部显示。");
+            report.AppendLine("剧本库 ZIP 导入/导出与拖拽排序：PASS");
             scripts.StepsGrid.ItemsSource=new[]
             {
                 new ScriptStepRow(new ScriptEditorStep(
