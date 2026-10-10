@@ -110,7 +110,8 @@ public static class SafeDiagnosticReport
         // The codes are fixed and allowlisted by the producer. Never export
         // a raw Signal exception or RPC response.
         var receiptCodes=new[]{
-            "READ_DISABLED","NO_PENDING_FOR_SPEAKER","RPC_NOT_STARTED",
+            "READ_DISABLED","NO_PENDING_FOR_SPEAKER","READ_STREAM_UNAVAILABLE",
+            "READ_QUEUE_INCOMPLETE","READ_PHASE_TIMEOUT","RPC_NOT_STARTED",
             "RPC_NOT_CONFIRMED","RPC_ACCEPTED","RPC_EMPTY_RESPONSE",
             "RPC_MISMATCH","RPC_INTERNAL_ERROR","RPC_ERROR_OTHER",
             "RPC_HTTP_ERROR","RPC_NO_RESULT","RPC_INVALID_JSON",
