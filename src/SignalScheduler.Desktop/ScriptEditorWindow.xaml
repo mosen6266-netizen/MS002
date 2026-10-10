@@ -241,17 +241,35 @@
      BorderBrush="{StaticResource Ui2BorderStrong}" Background="{StaticResource Ui2Surface}" Foreground="{StaticResource Ui2Text}"
      RowBackground="{StaticResource Ui2Surface}" AlternatingRowBackground="{StaticResource Ui2SurfaceRaised}"
      EnableRowVirtualization="True">
+     <!-- UI2 full-row monochrome selection; avoid obscured DataGrid cell backgrounds. -->
      <DataGrid.RowStyle>
-      <Style TargetType="DataGridRow">
+      <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
        <Setter Property="Background" Value="#191B1E"/>
+       <Setter Property="BorderBrush" Value="Transparent"/>
+       <Setter Property="BorderThickness" Value="3,0,0,0"/>
        <Style.Triggers>
+        <Trigger Property="IsMouseOver" Value="True">
+         <Setter Property="Background" Value="#30343A"/>
+        </Trigger>
         <Trigger Property="IsSelected" Value="True">
-         <Setter Property="Background" Value="#41454B"/>
+         <Setter Property="Background" Value="#464A51"/>
+         <Setter Property="BorderBrush" Value="#F3F3F4"/>
          <Setter Property="Foreground" Value="#FFFFFF"/>
         </Trigger>
        </Style.Triggers>
       </Style>
      </DataGrid.RowStyle>
+     <DataGrid.CellStyle>
+      <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+       <Style.Triggers>
+        <DataTrigger Binding="{Binding IsSelected,RelativeSource={RelativeSource AncestorType=DataGridRow}}" Value="True">
+         <Setter Property="Background" Value="#464A51"/>
+         <Setter Property="Foreground" Value="#FFFFFF"/>
+         <Setter Property="BorderBrush" Value="#767C85"/>
+        </DataTrigger>
+       </Style.Triggers>
+      </Style>
+     </DataGrid.CellStyle>
      <DataGrid.Columns>
       <DataGridTextColumn Header="#" Width="48" Binding="{Binding PositionLabel}"
        IsReadOnly="True" ElementStyle="{StaticResource TruncatedGridText}"/>
