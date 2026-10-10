@@ -152,7 +152,7 @@ public partial class RunningTasksWindow : UserControl
                 ReceiptStatusText.Text=$"已读回执诊断（全局最近一次）：{code} · "+
                     $"本轮 {health.LastReceiptAccepted}/{health.LastReceiptSelected} 条 RPC 已接受 · "+
                     $"待处理 {health.Pending} · 结果不明 {health.Unknown} · "+
-                    $"最终失败 {health.Failed}";
+                    $"最终失败 {health.Failed} · 上次失败原因 {health.LastReceiptFailureCode}";
             }
             catch
             {
