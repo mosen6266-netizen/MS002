@@ -14,14 +14,27 @@ public static class LiveTaskMonitor
             .Any(word=>item.Detail.Contains(word,StringComparison.Ordinal));
     }
 
-    public static bool IsVisible(LiveBatchItem item,string filter)=>filter switch
+    /// <summary>
+    /// A terminal task belongs in History, never in Current Running Tasks.
+    /// Paused, WaitingSignal, Stopping and RecoveryRequired are NOT terminal:
+    /// operators must still be able to inspect and handle them here.
+    /// </summary>
+    public static bool IsCurrent(LiveBatchItem item)=>item.State is
+        "Created" or "Running" or "Paused" or "WaitingSignal"
+        or "Stopping" or "RecoveryRequired";
+
+    public static bool IsVisible(LiveBatchItem item,string filter)
     {
-        // Default overview includes stopped and failed jobs so a red
-        // status marker is not hidden by the filter itself.
-        "active"=>item.State is "Running" or "Paused" or "WaitingSignal"
-            or "Stopping" or "RecoveryRequired" or "Stopped" or "Failed",
-        "attention"=>NeedsAttention(item),
-        "finished"=>item.State is "Completed" or "Stopped" or "Failed",
-        _=>true
-    };
+        if(!IsCurrent(item))return false;
+        return filter switch
+        {
+            "active"=>true,
+            "attention"=>NeedsAttention(item),
+            "paused"=>item.State is "Paused" or "WaitingSignal"
+                or "Stopping" or "RecoveryRequired",
+            // "all", legacy "finished" and unrecognized filters must never
+            // bring a terminal item back into the active monitor.
+            _=>true
+        };
+    }
 }
