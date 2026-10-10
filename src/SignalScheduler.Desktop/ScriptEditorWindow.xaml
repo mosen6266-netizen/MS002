@@ -3,7 +3,7 @@
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  Background="#0B1828" Foreground="#F0F6FD">
  <UserControl.Resources>
-  <Style x:Key="ActionButton" TargetType="Button">
+  <Style x:Key="ActionButton" TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
    <Setter Property="Background" Value="#1B3A52"/>
    <Setter Property="Foreground" Value="#F5F8FC"/>
    <Setter Property="BorderBrush" Value="#42647C"/>
@@ -44,6 +44,11 @@
        </Trigger>
        <Trigger Property="IsPressed" Value="True">
         <Setter TargetName="ImageActionFace" Property="Opacity" Value="0.75"/>
+       </Trigger>
+       <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="ImageActionFace" Property="Background" Value="#333C47"/>
+        <Setter TargetName="ImageActionFace" Property="BorderBrush" Value="#677888"/>
+        <Setter TargetName="ImageActionFace" Property="Opacity" Value="1"/>
        </Trigger>
       </ControlTemplate.Triggers>
      </ControlTemplate>
