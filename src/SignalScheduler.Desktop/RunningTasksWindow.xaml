@@ -122,6 +122,12 @@
        <Setter Property="Background" Value="#963540"/>
        <Setter Property="Foreground" Value="#FFFFFF"/>
       </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Stopping">
+       <Setter Property="Background" Value="#702D36"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding State}" Value="Stopped">
+       <Setter Property="Background" Value="#5D2A32"/>
+      </DataTrigger>
      </Style.Triggers>
     </Style>
    </DataGrid.RowStyle>
@@ -130,8 +136,32 @@
      ElementStyle="{StaticResource TruncatedGridText}"/>
     <DataGridTextColumn Header="群组" Binding="{Binding GroupName}" Width="2*" MinWidth="100"
      ElementStyle="{StaticResource TruncatedGridText}"/>
-    <DataGridTextColumn Header="状态" Binding="{Binding StateDisplay}" Width="110"
-     ElementStyle="{StaticResource TruncatedGridText}"/>
+    <DataGridTemplateColumn Header="运行状态" Width="150" MinWidth="135">
+     <DataGridTemplateColumn.CellTemplate>
+      <DataTemplate>
+       <Border x:Name="StatePill" Background="#682733"
+        CornerRadius="6" Padding="7,5" Margin="2,3"
+        HorizontalAlignment="Stretch">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+         <TextBlock x:Name="StateIcon" Text="●" FontSize="17"
+          FontWeight="Bold" Foreground="#FF5368" Margin="0,0,7,0"
+          VerticalAlignment="Center"/>
+         <TextBlock x:Name="StateName" Text="{Binding StateDisplay}"
+          FontSize="13" FontWeight="Bold" Foreground="#FFF4F6"
+          VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+       </Border>
+       <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding State}" Value="Running">
+         <Setter TargetName="StatePill" Property="Background" Value="#164A38"/>
+         <Setter TargetName="StateIcon" Property="Text" Value="✔"/>
+         <Setter TargetName="StateIcon" Property="Foreground" Value="#49E4A0"/>
+         <Setter TargetName="StateName" Property="Foreground" Value="#B5FFE0"/>
+        </DataTrigger>
+       </DataTemplate.Triggers>
+      </DataTemplate>
+     </DataGridTemplateColumn.CellTemplate>
+    </DataGridTemplateColumn>
     <DataGridTextColumn Header="发送进度" Binding="{Binding Progress}" Width="90"/>
     <DataGridTextColumn Header="当前阶段" Binding="{Binding Phase}" Width="140"
      ElementStyle="{StaticResource TruncatedGridText}"/>
