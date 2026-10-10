@@ -162,8 +162,7 @@ internal static class UiLayoutSmoke
     {
         if(button.IsEnabled!=enabled)
             throw new InvalidOperationException(description+": 按钮禁用/启用状态不符合预期。");
-        if(!button.ApplyTemplate())
-            throw new InvalidOperationException(description+": WPF 按钮模板没有加载。");
+        button.ApplyTemplate();
         var face=button.Template.FindName("ReadableButtonFace",button) as Border;
         var label=button.Template.FindName("ReadableButtonLabel",button) as ContentPresenter;
         if(face is null || label is null)
