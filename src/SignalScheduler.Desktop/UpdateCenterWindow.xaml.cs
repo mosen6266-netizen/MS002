@@ -338,8 +338,9 @@ public partial class UpdateCenterWindow : UserControl
                     return;
                 }
             }
+            temp=path+".partial";
             await VerifiedInstallerDownloader.DownloadAsync(_http,_downloadUrl!,
-                temp!,path,manifestHash,
+                temp,path,manifestHash,
                 percent=>DownloadProgress.Value=percent,token.Token);
             temp=null;
             _downloaded=path;
