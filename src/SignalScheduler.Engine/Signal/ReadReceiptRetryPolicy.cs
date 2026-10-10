@@ -9,7 +9,8 @@ public static class ReadReceiptRetryPolicy
 {
     public const int MaxAttempts=5;
     public const int MaxReceiptsPerSend=40;
-    public const int MaxAuthorsPerSpeaker=4;
+    public const int MaxAuthorsPerSpeaker=8;
+    public const int MaxRoundsPerSpeaker=8;
     public static readonly TimeSpan MaxPhase=TimeSpan.FromSeconds(20);
     public static readonly TimeSpan RpcTimeout=TimeSpan.FromSeconds(4);
 
