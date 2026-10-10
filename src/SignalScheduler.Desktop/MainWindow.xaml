@@ -5,7 +5,7 @@
  Title="Signal 调度台" Icon="pack://application:,,,/signal-brand.png" Width="1500" Height="950" MinWidth="1050" MinHeight="700"
  WindowStartupLocation="CenterScreen" Closing="MainWindow_Closing"
  WindowStyle="None" ResizeMode="CanResize"
- Background="#111215" Foreground="#F1F2F4">
+ Background="{StaticResource Ui2Canvas}" Foreground="{StaticResource Ui2Text}">
  <shell:WindowChrome.WindowChrome>
   <shell:WindowChrome CaptionHeight="52" ResizeBorderThickness="7"
    GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False"/>
@@ -73,7 +73,7 @@
   </Grid.ColumnDefinitions>
 
   <Border Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource Ui2Sidebar}"
-   BorderBrush="#2D3035" BorderThickness="0,0,0,1">
+   BorderBrush="{StaticResource Ui2SurfaceHover}" BorderThickness="0,0,0,1">
    <Grid>
     <Grid.ColumnDefinitions>
      <ColumnDefinition Width="*"/>
@@ -83,30 +83,30 @@
     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,0">
      <Image Source="pack://application:,,,/signal-brand.png"
       Width="22" Height="22" Margin="0,0,11,0"/>
-     <TextBlock Text="Signal 调度台" Foreground="#F1F2F4"
+     <TextBlock Text="Signal 调度台" Foreground="{StaticResource Ui2Text}"
       FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
-     <TextBlock Text="  /  MS002" Foreground="#777D85"
+     <TextBlock Text="  /  MS002" Foreground="{StaticResource Ui2TextMuted}"
       FontSize="12" VerticalAlignment="Center"/>
     </StackPanel>
     <Button Grid.Column="1" Content="─" ToolTip="最小化" Click="Minimize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#F1F2F4" FontSize="18"
+     Background="Transparent" Foreground="{StaticResource Ui2Text}" FontSize="18"
      BorderThickness="0" Padding="0"/>
     <Button Grid.Column="2" x:Name="MaximizeButton" Content="□"
      ToolTip="最大化 / 还原" Click="Maximize_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="Transparent" Foreground="#F1F2F4" FontSize="18"
+     Background="Transparent" Foreground="{StaticResource Ui2Text}" FontSize="18"
      BorderThickness="0" Padding="0"/>
     <Button Grid.Column="3" Content="×" ToolTip="关闭程序"
      Click="WindowClose_Click"
      shell:WindowChrome.IsHitTestVisibleInChrome="True"
-     Background="#222529" Foreground="#F3F8FD" FontSize="20"
+     Background="{StaticResource Ui2SurfaceRaised}" Foreground="#F3F8FD" FontSize="20"
      BorderThickness="0" Padding="0"/>
    </Grid>
   </Border>
 
   <Border Grid.Row="1" Grid.Column="0" Background="{StaticResource Ui2Sidebar}"
-   BorderBrush="#222529" BorderThickness="0,0,1,0">
+   BorderBrush="{StaticResource Ui2SurfaceRaised}" BorderThickness="0,0,1,0">
    <Grid Margin="16,22">
     <Grid.RowDefinitions>
      <RowDefinition Height="Auto"/>
@@ -117,8 +117,8 @@
     </Grid.RowDefinitions>
     <StackPanel>
      <TextBlock Text="MS002" FontSize="22" FontWeight="Bold"/>
-     <TextBlock Text="V8.0.0-beta.15" Foreground="#A9ADB4" Margin="0,7,0,0"/>
-     <TextBlock Text="智能消息工作台" Foreground="#777D85" Margin="0,4,0,0"/>
+     <TextBlock Text="V8.0.0-beta.15" Foreground="{StaticResource Ui2TextMuted}" Margin="0,7,0,0"/>
+     <TextBlock Text="智能消息工作台" Foreground="{StaticResource Ui2TextMuted}" Margin="0,4,0,0"/>
     </StackPanel>
     <StackPanel Grid.Row="2">
      <Button x:Name="HomeNav" Content="⌂   首页 · 快速开始" Tag="home"
@@ -132,7 +132,7 @@
        ToolTip="查看所有群组任务，角标只统计正在运行的群任务">
       <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
        <TextBlock x:Name="TaskNavLabel" Text="◷   当前运行任务"
-        Foreground="#F1F2F4" VerticalAlignment="Center"/>
+        Foreground="{StaticResource Ui2Text}" VerticalAlignment="Center"/>
        <Border x:Name="TaskNavBadge" Background="#187A62"
         CornerRadius="12" MinWidth="27" MinHeight="23"
         Padding="6,2" Margin="8,0,0,0"
@@ -152,19 +152,19 @@
      <Button x:Name="UpdateNav" Content="↻   检查更新" Tag="update"
        Style="{StaticResource NavButton}" Click="Nav_Click"/>
     </StackPanel>
-    <Border Grid.Row="4" Background="#191B1E" CornerRadius="8" Padding="12">
+    <Border Grid.Row="4" Background="{StaticResource Ui2Surface}" CornerRadius="8" Padding="12">
      <StackPanel>
       <TextBlock x:Name="EngineBadge" Text="● 后台连接中"
        Foreground="#E8C16A" FontWeight="SemiBold" TextWrapping="Wrap"/>
       <TextBlock x:Name="SignalStatusText" Text="Signal 检查中…"
-       Foreground="#D0D2D7" Margin="0,7,0,0" TextWrapping="Wrap"/>
+       Foreground="{StaticResource Ui2TextSecondary}" Margin="0,7,0,0" TextWrapping="Wrap"/>
       <TextBlock x:Name="AccountsCountText" Text="账号检查中"
-       Margin="0,7,0,0" Foreground="#D0D2D7" TextWrapping="Wrap"/>
+       Margin="0,7,0,0" Foreground="{StaticResource Ui2TextSecondary}" TextWrapping="Wrap"/>
       <TextBlock x:Name="MigrationBadge" Text="读取本地数据中"
-       Margin="0,9,0,0" Foreground="#A9ADB4" FontSize="11" TextWrapping="Wrap"/>
+       Margin="0,9,0,0" Foreground="{StaticResource Ui2TextMuted}" FontSize="11" TextWrapping="Wrap"/>
       <Button x:Name="ExportDiagnosticButton" Content="导出脱敏诊断报告"
        Click="ExportDiagnostic_Click" Margin="0,13,0,0"
-       Padding="10,8" Background="#2D3035"
+       Padding="10,8" Background="{StaticResource Ui2SurfaceHover}"
        ToolTip="只导出连接状态、数量、时间等安全统计；不含手机号、群名、消息正文、密钥或原始日志"/>
      </StackPanel>
     </Border>
@@ -178,7 +178,7 @@
     <RowDefinition Height="*"/>
     <RowDefinition Height="Auto"/>
    </Grid.RowDefinitions>
-   <Border Background="#191B1E" BorderBrush="#222529"
+   <Border Background="{StaticResource Ui2Surface}" BorderBrush="{StaticResource Ui2SurfaceRaised}"
     BorderThickness="0,0,0,1" Padding="22,15">
     <Grid>
      <Grid.ColumnDefinitions>
@@ -190,7 +190,7 @@
         FontWeight="Bold"/>
       <TextBlock x:Name="PageSubtitle"
        Text="选择剧本、勾选群组，确认后直接启动。每个群的状态单独保存。"
-       FontSize="12" Foreground="#D0D2D7" Margin="0,5,0,0"
+       FontSize="12" Foreground="{StaticResource Ui2TextSecondary}" Margin="0,5,0,0"
        TextWrapping="Wrap"/>
      </StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal"
@@ -204,7 +204,7 @@
    </Border>
 
    <Border x:Name="AlertStrip" Grid.Row="1" Visibility="Collapsed"
-     Background="#222529" BorderBrush="#986638" BorderThickness="0,0,0,1"
+     Background="{StaticResource Ui2SurfaceRaised}" BorderBrush="#986638" BorderThickness="0,0,0,1"
      Padding="18,8">
     <DockPanel>
      <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
@@ -221,13 +221,13 @@
    <Grid Grid.Row="2">
     <ScrollViewer x:Name="WorkspaceScroll"
       VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled"
-      CanContentScroll="False" Background="#111215" PanningMode="VerticalOnly"
+      CanContentScroll="False" Background="{StaticResource Ui2Canvas}" PanningMode="VerticalOnly"
       Focusable="False">
      <ContentControl x:Name="PageHost" HorizontalContentAlignment="Stretch"
       VerticalContentAlignment="Stretch"/>
     </ScrollViewer>
     <Border x:Name="AlertPanel" Visibility="Collapsed" Panel.ZIndex="6"
-      Background="#191B1E" BorderBrush="#B17D48" BorderThickness="1"
+      Background="{StaticResource Ui2Surface}" BorderBrush="#B17D48" BorderThickness="1"
       CornerRadius="8" Width="470" MaxWidth="470"
       HorizontalAlignment="Right" VerticalAlignment="Top"
       Margin="12" Padding="16">
@@ -244,7 +244,7 @@
         Click="ToggleAlerts_Click" Padding="8,3"/>
       </DockPanel>
       <ListBox x:Name="NotificationsList" Grid.Row="2"
-       Background="#191B1E" Foreground="#EFD8BD"
+       Background="{StaticResource Ui2Surface}" Foreground="#EFD8BD"
        BorderThickness="0" FontSize="12"/>
       <Button Grid.Row="3" Content="清空当前提示" Click="ClearAlerts_Click"
        Margin="0,12,0,0" Padding="10,7"/>
@@ -252,15 +252,15 @@
     </Border>
    </Grid>
 
-   <Border Grid.Row="3" BorderBrush="#222529" BorderThickness="0,1,0,0"
-    Background="#191B1E" Padding="18,8">
+   <Border Grid.Row="3" BorderBrush="{StaticResource Ui2SurfaceRaised}" BorderThickness="0,1,0,0"
+    Background="{StaticResource Ui2Surface}" Padding="18,8">
     <Grid>
      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
      <TextBlock x:Name="BottomStatusText"
-      Text="准备就绪" FontSize="12" Foreground="#D0D2D7"
+      Text="准备就绪" FontSize="12" Foreground="{StaticResource Ui2TextSecondary}"
       TextWrapping="Wrap" TextTrimming="CharacterEllipsis"/>
      <TextBlock x:Name="RuntimeVersionText" Grid.Column="1"
-      Text="Signal 运行环境检查中" FontSize="11" Foreground="#A9ADB4"/>
+      Text="Signal 运行环境检查中" FontSize="11" Foreground="{StaticResource Ui2TextMuted}"/>
     </Grid>
    </Border>
   </Grid>
