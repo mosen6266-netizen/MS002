@@ -23,6 +23,7 @@ public partial class PreviewTasksWindow : Window
     public PreviewTasksWindow()
     {
         InitializeComponent();
+        Ui2WindowChrome.Attach(this);
         ScriptsBox.ItemsSource=_scripts;
         GroupsGrid.ItemsSource=_groups;
         TasksGrid.ItemsSource=_tasks;
