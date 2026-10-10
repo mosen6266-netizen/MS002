@@ -293,6 +293,13 @@ public partial class UpdateCenterWindow : UserControl
             UpdateStatusText.Text="GitHub 静态更新源暂不可用，备用 API 也可能受到 403 限流。"+
                 "这不代表软件或安装包损坏。请点击“GitHub 网页检查”，仍可手动查看官方成功构建。";
         }
+        catch(Exception)
+        {
+            // A UI update check must never crash the WPF event handler.
+            LatestVersionText.Text=_latestBuild>0
+                ?LatestVersionText.Text:"未能核实最新版本";
+            UpdateStatusText.Text="更新检查暂时无法完成。请使用“GitHub 网页检查”直接打开官方构建列表。";
+        }
         finally
         {
             _checking=false;
