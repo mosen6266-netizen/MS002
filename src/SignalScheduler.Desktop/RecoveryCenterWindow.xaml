@@ -1,21 +1,21 @@
 <UserControl x:Class="SignalScheduler.Desktop.RecoveryCenterWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Background="#081522" Foreground="#EDF4FE">
+ Background="#111215" Foreground="#F1F2F4">
  <UserControl.Resources>
   <Style TargetType="Button" BasedOn="{StaticResource ReadableButtonBase}">
-   <Setter Property="Background" Value="#16304B"/>
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="BorderBrush" Value="#39516B"/>
+   <Setter Property="Background" Value="#222529"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
+   <Setter Property="BorderBrush" Value="#2D3035"/>
    <Setter Property="Padding" Value="15,9"/>
    <Setter Property="Margin" Value="0,0,10,0"/>
   </Style>
   <Style TargetType="DataGrid">
-   <Setter Property="Background" Value="#0C1B2B"/>
-   <Setter Property="Foreground" Value="#EAF2FF"/>
-   <Setter Property="BorderBrush" Value="#29435E"/>
-   <Setter Property="RowBackground" Value="#0C1B2B"/>
-   <Setter Property="AlternatingRowBackground" Value="#13263B"/>
+   <Setter Property="Background" Value="#111215"/>
+   <Setter Property="Foreground" Value="#F1F2F4"/>
+   <Setter Property="BorderBrush" Value="#2D3035"/>
+   <Setter Property="RowBackground" Value="#111215"/>
+   <Setter Property="AlternatingRowBackground" Value="#191B1E"/>
    <Setter Property="HeadersVisibility" Value="Column"/>
    <Setter Property="AutoGenerateColumns" Value="False"/>
    <Setter Property="CanUserAddRows" Value="False"/>
@@ -36,7 +36,7 @@
   <StackPanel Grid.Row="0">
    <TextBlock Text="任务恢复中心" FontSize="25" FontWeight="Bold"/>
    <TextBlock Text="优先处理异常任务；所有发送结果不明确的消息必须核对，绝不会自动重发。"
-              Foreground="#9DB2C9" Margin="0,6,0,10" TextWrapping="Wrap"/>
+              Foreground="#A9ADB4" Margin="0,6,0,10" TextWrapping="Wrap"/>
    <WrapPanel Orientation="Horizontal" Margin="0,0,0,8">
     <Button Content="刷新记录" Click="Refresh_Click" Margin="0,0,6,6"/>
     <Button x:Name="PauseButton" Content="暂停选中任务" Click="Pause_Click"
@@ -49,7 +49,7 @@
    </WrapPanel>
    <CheckBox x:Name="ShowAllTasks" Content="显示全部任务（包含正常暂停、已完成和旧版历史）"
     IsChecked="False" Checked="TasksFilterChanged" Unchecked="TasksFilterChanged"
-    Foreground="#B7D5EE" VerticalAlignment="Center" Margin="0,0,0,2"/>
+    Foreground="#D0D2D7" VerticalAlignment="Center" Margin="0,0,0,2"/>
   </StackPanel>
 
   <Grid Grid.Row="2">
@@ -84,7 +84,7 @@
     <TextBlock Text="所选任务的发送审计记录" FontSize="16"
                FontWeight="SemiBold" DockPanel.Dock="Left"/>
     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
-     <Button Content="复制脱敏诊断" Click="CopySafeDiagnostic_Click" Background="#195A64"/>
+     <Button Content="复制脱敏诊断" Click="CopySafeDiagnostic_Click" Background="#2D3035"/>
      <Button Content="复制完整记录" Click="Copy_Click"/>
     </StackPanel>
    </DockPanel>
@@ -110,10 +110,10 @@
               TextWrapping="Wrap" Foreground="#F1BD75"/>
    <TextBox x:Name="EvidenceBox" MaxLength="500"
      Margin="0,9,0,0" Padding="8" Foreground="White"
-     Background="#142D46" BorderBrush="#3A5E7A"
+     Background="#191B1E" BorderBrush="#41454B"
      ToolTip="写明 Signal 中核对的结果，例如群名、消息内容或时间；至少 8 个字符。"/>
    <TextBlock x:Name="StatusText" Text="正在读取任务记录…" Margin="0,7,0,0"
-              Foreground="#9CB6D2" TextWrapping="Wrap"/>
+              Foreground="#A9ADB4" TextWrapping="Wrap"/>
   </StackPanel>
  </Grid>
 </UserControl>
