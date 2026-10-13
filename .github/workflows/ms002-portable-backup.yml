@@ -1,0 +1,75 @@
+name: MS002 Portable Backup 2026-10-13
+on:
+  push:
+    branches:
+      - 'backup/portable-ms002-20261013'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Archive all Git refs and verified installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          BUNDLE="$RUNNER_TEMP/MS002_Portable_GitHub_Backup_20261013"
+          MIRROR="$RUNNER_TEMP/MS002-all-refs.git"
+          mkdir -p "$BUNDLE/git" "$BUNDLE/source/main" "$BUNDLE/source/ui-v2-monochrome" "$BUNDLE/updates/ui2-updates" "$BUNDLE/updates/updates" "$BUNDLE/installer" "$BUNDLE/github"
+          git clone --mirror --quiet "https://github.com/$GITHUB_REPOSITORY.git" "$MIRROR"
+          git --git-dir="$MIRROR" bundle create "$BUNDLE/git/MS002-all-refs.bundle" --all
+          git --git-dir="$MIRROR" show-ref > "$BUNDLE/github/refs.txt"
+          git --git-dir="$MIRROR" archive refs/heads/main | tar -x -C "$BUNDLE/source/main"
+          git --git-dir="$MIRROR" archive refs/heads/ui/v2-monochrome | tar -x -C "$BUNDLE/source/ui-v2-monochrome"
+          git --git-dir="$MIRROR" archive refs/heads/ui2-updates | tar -x -C "$BUNDLE/updates/ui2-updates"
+          git --git-dir="$MIRROR" archive refs/heads/updates | tar -x -C "$BUNDLE/updates/updates"
+          git --git-dir="$MIRROR" archive refs/heads/backup/portable-ms002-20261013 .backup | tar -x -C "$BUNDLE"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" > "$BUNDLE/github/releases.json"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" > "$BUNDLE/github/branches.json"
+          gh release download v8.0.0-ui2.4 --repo "$GITHUB_REPOSITORY" --pattern 'SignalScheduler_Setup_V8.0.0-ui2.4.exe' --dir "$BUNDLE/installer"
+          printf '%s  %s\n' e585140a4f661f50c98a61435ff41e708ca0b1aa65060f021988ca068e41059f "SignalScheduler_Setup_V8.0.0-ui2.4.exe" | (cd "$BUNDLE/installer" && sha256sum --check)
+          cat > "$BUNDLE/RESTORE_INVENTORY.json" << 'EOF'
+          {
+            "source_repo": "mosen6266-netizen/MS002",
+            "date": "2026-10-13",
+            "branch_of_active_ui": "ui/v2-monochrome",
+            "ui_branch_commit": "9f690fb5ad7faa6bd8bb577ab4d373aa2b2b51bd",
+            "active_ui_release": "v8.0.0-ui2.4",
+            "active_ui_setup_sha256": "e585140a4f661f50c98a61435ff41e708ca0b1aa65060f021988ca068e41059f",
+            "github_migration": "git/MS002-all-refs.bundle",
+            "cloudflare_worker": "signal-scheduler-license",
+            "cloudflare_d1_current": "signal_scheduler_license",
+            "cloudflare_d1_binding": "DB",
+            "cloudflare_secret_name": "WORKER_MASTER_KEY",
+            "missing_private_material": ["D1 export SQL", "Worker original script", "Worker secret plaintext", "Signal Scheduler local Windows user data", "VPS image and credentials", "domain account and certificate private keys", "GitHub Actions secrets"],
+            "contains_private_license_records": false
+          }
+          EOF
+          (cd "$BUNDLE" && find . -type f ! -name SHA256SUMS.txt -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt)
+          (cd "$RUNNER_TEMP" && zip -q -r -0 "MS002_Portable_GitHub_Backup_20261013.zip" "MS002_Portable_GitHub_Backup_20261013")
+          mv "$RUNNER_TEMP/MS002_Portable_GitHub_Backup_20261013.zip" "$GITHUB_WORKSPACE/"
+          ls -lh "$GITHUB_WORKSPACE/MS002_Portable_GitHub_Backup_20261013.zip"
+      - name: Publish portable GitHub backup as prerelease (does not change updater)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          TAG="ms002-portable-backup-20261013"
+          FILE="MS002_Portable_GitHub_Backup_20261013.zip"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$FILE" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$FILE" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "MS002 portable GitHub backup 2026-10-13" --notes "Full MS002 Git bundle + UI2.4 original installer + GPT restore command + updated channels. **Private Cloudflare D1 and secrets NOT included; see recovery README.**" --prerelease
+          fi
+      - name: Backup artifact redundancy
+        uses: actions/upload-artifact@v4
+        with:
+          name: MS002-Portable-GitHub-Backup-20261013
+          path: MS002_Portable_GitHub_Backup_20261013.zip
+          if-no-files-found: error
+          retention-days: 90
