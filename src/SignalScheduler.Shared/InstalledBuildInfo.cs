@@ -25,6 +25,7 @@ public sealed record InstalledBuildInfo(string Version,int Build)
                !root.TryGetProperty("version",out var v) ||
                v.ValueKind!=JsonValueKind.String ||
                !root.TryGetProperty("build",out var b) ||
+               b.ValueKind!=JsonValueKind.Number ||
                !b.TryGetInt32(out var build)||build<=0)return null;
             var version=v.GetString();
             return version is not null && Ui2VersionPattern.IsMatch(version)
