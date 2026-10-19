@@ -42,6 +42,7 @@ builder.Services.AddHostedService<LivePilotRunner>();
 builder.Services.AddHostedService<LiveBatchRunner>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<LicenseManager>());
 builder.Services.AddHostedService<NamedPipeControlServer>();
+builder.Services.AddHostedService<NamedPipeHeartbeatServer>();
 
 var host = builder.Build();
 var store = host.Services.GetRequiredService<StateStore>();

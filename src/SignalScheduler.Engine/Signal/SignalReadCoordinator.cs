@@ -163,6 +163,15 @@ public sealed class SignalReadCoordinator : BackgroundService
                     """;
                 await alter.ExecuteNonQueryAsync(ct);
             }
+            // Speed up account/group due scans; preserve all receipt states.
+            await using(var index=db.CreateCommand())
+            {
+                index.CommandText="""
+                    CREATE INDEX IF NOT EXISTS idx_read_events_due
+                    ON v8_read_events(account,group_id,state,next_retry_ms,timestamp_ms);
+                    """;
+                await index.ExecuteNonQueryAsync(ct);
+            }
             // The RPC could have been accepted when the process died.
             // Never infer success or auto-retry these claimed timestamps.
             await using(var recover=db.CreateCommand())

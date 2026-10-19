@@ -2,6 +2,8 @@ name: MS002 UI2 Optional Installer
 on:
   push:
     branches: [ ui/v2-monochrome ]
+  pull_request:
+    branches: [ ui/v2-monochrome ]
   workflow_dispatch:
 permissions:
   contents: write
@@ -50,7 +52,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '8.0.0-ui2.4'
+            version = '8.0.0-ui2.5'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -399,13 +401,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '8.0.0-ui2.4'
+          $version = '8.0.0-ui2.5'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified UI2 installer missing" }
           & gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null | Out-Null
           if ($LASTEXITCODE -eq 0) { throw "The UI2 release tag already exists; never silently overwrite a verified installer." }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Monochrome UI2)" --notes "Windows 10/11 64 位离线安装包，保留黑白灰 UI2 主题。修复界面选中高亮、完整圆角、悬停响应、受限注册表安装问题和有效签名租期内授权服务器暂时不可用的问题。通过完整构建、安装、升级数据保留测试后发布。升级前请安全停止任务。" --prerelease
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Monochrome UI2)" --notes "Windows 10/11 64 位离线安装包，保留黑白灰 UI2 主题。修复正常发送时后台查询超时触发重复重要弹窗的问题，新增独立后台心跳和告警去重，优化已读回执查询；保留 UI2 商务深色界面与真实发送安全机制。通过完整构建、安装、升级数据保留测试后发布。升级前请安全停止任务。" --prerelease
           if ($LASTEXITCODE -ne 0) { throw "UI2 release upload failed; update feed must not change" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -425,7 +427,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '8.0.0-ui2.4'
+            version = '8.0.0-ui2.5'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
