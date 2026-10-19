@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '8.0.0-beta.16'
+            version = '8.0.0-beta.17'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -399,7 +399,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '8.0.0-beta.16'
+          $version = '8.0.0-beta.17'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -407,7 +407,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "Windows 10/11 x64 中文离线安装包；已执行安装和升级数据保留测试。修复注册表安装、有效签名租期内临时断网、剧本选中高亮、群名按钮圆角及窗口控制按钮悬停。更新前请安全停止正在运行的任务。" --prerelease
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "Windows 10/11 x64 中文离线安装包；已执行 Windows CI、安装和数据保留测试。修复后台状态查询超时误报与重复弹窗；采用独立健康心跳检测，优化积压已读回执查询索引。不修改真实发送流程。请在停止运行任务后安全更新。" --prerelease
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -427,7 +427,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '8.0.0-beta.16'
+            version = '8.0.0-beta.17'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
