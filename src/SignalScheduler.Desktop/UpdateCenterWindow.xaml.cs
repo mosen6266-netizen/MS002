@@ -16,7 +16,6 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-ui2.5";
 
     const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/ui2-installer.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
@@ -53,26 +52,14 @@ public partial class UpdateCenterWindow : UserControl
 
     void LoadInstalledBuild()
     {
-        _currentBuild=0;
-        try
-        {
-            var file=Path.Combine(AppContext.BaseDirectory,"build-info.json");
-            if(File.Exists(file))
-            {
-                using var doc=JsonDocument.Parse(File.ReadAllText(file));
-                if(doc.RootElement.TryGetProperty("build",out var value) &&
-                   value.TryGetInt32(out var n) && n>0)
-                    _currentBuild=n;
-            }
-        }
-        catch(JsonException) { }
-        catch(IOException) { }
-        catch(UnauthorizedAccessException) { }
-        CurrentVersionText.Text="V"+CurrentProductVersion+
-            (_currentBuild>0?$"  ·  Build #{_currentBuild}":"");
-        InstalledBuildText.Text=_currentBuild>0
-            ?"安装版本已从本机安装文件确认。"
-            :"旧版没有内置构建编号，首次升级后可精确比较新旧构建。";
+        var installed=InstalledBuildInfo.ReadFromDirectory(AppContext.BaseDirectory);
+        _currentBuild=installed?.Build??0;
+        CurrentVersionText.Text=installed is null
+            ?"版本信息不可用"
+            :$"V{installed.Version}  ·  Build #{installed.Build}";
+        InstalledBuildText.Text=installed is null
+            ?"安装版本元数据未找到或无效；无法确认已安装构建。"
+            :"安装版本已从本机安装文件确认。";
     }
 
     static string? Property(JsonElement item,string name)
