@@ -35,6 +35,11 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        // Use the same installed metadata as the update screen. Upgrades
+        // change build-info.json; the sidebar must never remain on ui2.4.
+        var installed=InstalledBuildInfo.ReadFromDirectory(AppContext.BaseDirectory);
+        SidebarVersionText.Text=installed is null
+            ?"版本信息不可用":"V"+installed.Version;
         // Let controls handle their own mouse wheel; the outer workspace does not scroll.
         SizeChanged+=(_,_)=>AdjustNavigationForViewport();
         WorkspaceScroll.SizeChanged+=(_,_)=>
