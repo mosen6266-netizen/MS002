@@ -25,7 +25,7 @@ public partial class MainWindow : Window
     readonly HashSet<string> _unresolvedJobs=new(StringComparer.Ordinal);
     readonly HashSet<string> _batchAlerts=new(StringComparer.Ordinal);
     bool _refreshing;
-    bool _engineNotified;
+    readonly IpcConnectivityGuard _ipcHealth=new();
     readonly CriticalAlertQueue _criticalQueue=new();
     bool _hasLiveJobs;
     bool _exportingDiagnostic;
@@ -337,13 +337,13 @@ public partial class MainWindow : Window
         _refreshing=true;
         try
         {
-            var raw=await SendAsync(ControlCommands.Dashboard,4000);
+            var raw=await SendAsync(ControlCommands.Dashboard,6000);
             if(string.IsNullOrWhiteSpace(raw))
                 throw new IOException("后台没有响应。");
             var snapshot=Unwrap<DashboardSnapshot>(raw);
             EngineBadge.Text="● 后台引擎已连接";
             EngineBadge.Foreground=Brushes.LightGreen;
-            _engineNotified=false;
+            _ipcHealth.DashboardSucceeded(DateTimeOffset.UtcNow);
 
             var healthy=string.Equals(snapshot.SignalState,"healthy",
                 StringComparison.OrdinalIgnoreCase);
@@ -382,27 +382,69 @@ public partial class MainWindow : Window
         }
         catch(Exception ex)
         {
+            // A dashboard query can time out while the background worker keeps
+            // sending normally. Confirm the *engine* heartbeat independently
+            // before reporting that live tasks have lost their connection.
+            var heartbeatReachable=await ProbeHeartbeatAsync();
+            var confirmedOutage=_ipcHealth.DashboardFailed(
+                DateTimeOffset.UtcNow,heartbeatReachable);
             SetRunningTaskBadge(null);
-            EngineBadge.Text="● 后台未连接";
-            EngineBadge.Foreground=Brushes.IndianRed;
-            ScanButton.IsEnabled=false;
-            SignalStatusText.Text="Signal 状态未知";
-            BottomStatusText.Text="后台连接失败："+ex.Message;
-            if(!_engineNotified)
+            if(heartbeatReachable)
             {
-                _engineNotified=true;
-                var notice="Signal 后台连接异常："+ex.Message+
-                    "\n请检查后台程序；不要假设任务仍在正常运行。";
-                if(_hasLiveJobs)
-                    ShowCriticalAlert("运行中的任务失去后台状态连接。"+
-                        "\n当前发送结果未知，切勿重复启动或覆盖安装；"+
-                        "\n请等待后台恢复并到任务恢复中心核对。"+
-                        "\n\n"+notice);
-                else
-                    AddNotification(notice,false);
+                EngineBadge.Text="● 后台在线 · 状态同步延迟";
+                EngineBadge.Foreground=Brushes.Gold;
+                BottomStatusText.Text="状态查询暂时繁忙，将自动重试；不代表 Signal 发送失败。";
+            }
+            else
+            {
+                EngineBadge.Text="● 后台连接待确认";
+                EngineBadge.Foreground=Brushes.Gold;
+                ScanButton.IsEnabled=false;
+                SignalStatusText.Text="Signal 状态暂时无法核实";
+                BottomStatusText.Text="后台心跳未响应，正在继续检查连接。";
+                if(confirmedOutage)
+                {
+                    var notice="后台心跳连续未响应，任务状态暂时无法核实。"+
+                        "\n错误类型："+ex.GetType().Name+
+                        "\n请检查后台程序，并在恢复中心核对任务状态。";
+                    if(_hasLiveJobs)
+                        ShowCriticalAlert("运行任务的后台连接持续异常。"+
+                            "\n发送结果未能从后台核实；请勿盲目重启或重新发送。"+
+                            "\n\n"+notice);
+                    else
+                        AddNotification(notice,false);
+                }
             }
         }
         finally{_refreshing=false;}
+    }
+
+    static async Task<bool> ProbeHeartbeatAsync()
+    {
+        try
+        {
+            using var timeout=new CancellationTokenSource(
+                TimeSpan.FromMilliseconds(1500));
+            await using var pipe=new NamedPipeClientStream(
+                ".","SignalScheduler.V8.Heartbeat",
+                PipeDirection.InOut,PipeOptions.Asynchronous);
+            await pipe.ConnectAsync(800,timeout.Token);
+            using var reader=new StreamReader(pipe,leaveOpen:true);
+            using var writer=new StreamWriter(pipe,leaveOpen:true)
+                {AutoFlush=true};
+            await writer.WriteLineAsync(JsonSerializer.Serialize(
+                new ControlRequest(ControlCommands.Ping)));
+            var response=await reader.ReadLineAsync(timeout.Token);
+            if(string.IsNullOrWhiteSpace(response))return false;
+            using var parsed=JsonDocument.Parse(response);
+            return parsed.RootElement.TryGetProperty("Ok",out var ok) &&
+                ok.ValueKind==JsonValueKind.True;
+        }
+        catch(Exception ex) when(ex is OperationCanceledException or IOException
+            or JsonException or InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     async Task RefreshLiveJobsAsync()
