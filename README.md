@@ -1,4 +1,14 @@
-# Signal Auto Scheduler V8
+# Signal Auto Scheduler V9
+
+## V9.0.1 正式版 · 卡密激活与验证时间修复
+
+- 联网激活和校验使用 ECDSA 签名凭据内由 Cloudflare Worker 签发的 UTC 时间；电脑选择纽约等时区、误设本地时钟不再造成有效新凭据的错误拒绝
+- 当前 Engine 使用单调时钟延续已验证的服务器时间，避免运行任务再次受到 Windows 时间变更影响
+- 修复永久卡的 `expires_at=0` 被发送前的授权条件错误判定为过期的问题
+- 仍校验设备绑定、签名、公钥 pin、卡密实际到期时间及离线短期租约，不会把到期、撤销或禁用的卡密视作永久有效
+- 覆盖安装保留 `%LOCALAPPDATA%\SignalSchedulerData`，从 V9.0.0 升级无需删除或重新生成卡密
+
+## 既有 V8 迭代记录
 
 Production-oriented Windows rewrite of Signal Auto Scheduler.
 
