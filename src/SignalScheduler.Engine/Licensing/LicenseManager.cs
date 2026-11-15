@@ -12,7 +12,7 @@ namespace SignalScheduler.Engine.Licensing;
 public sealed class LicenseManager : BackgroundService
 {
     const string Server="https://signal-scheduler-license.mosen6266-ms007.workers.dev/";
-    const string Version="9.0.3";
+    const string Version="9.0.4";
 
     readonly RuntimePaths _paths;
     readonly HttpClient _client;
