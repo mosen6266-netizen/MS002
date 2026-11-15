@@ -77,10 +77,16 @@ public static class LicenseLeaseVerifier
         // an existing offline cache. A short term card still expires at the
         // timestamp the Worker signed.
         var validationTime=trustedOnlineResponse?issued:nowSeconds;
-        if(issued<=0 || issued>validationTime+300 || until<=issued ||
-           until>issued+6*3600+300 || until<=validationTime ||
-           (expires>0 && (expires<=validationTime || until>expires)))
-            throw new CryptographicException("授权凭据过期或时间信息异常。");
+        if(issued<=0 || until<=issued || until>issued+6*3600+300 || expires<0)
+            throw new CryptographicException("授权服务器签发的租期数据不符合协议，请检查授权后台。");
+        if(issued>validationTime+300)
+            throw new CryptographicException("本机系统时钟与上次签名的服务器时间不一致，请联网重新验证。");
+        if(until<=validationTime)
+            throw new CryptographicException("本地短期授权凭据已经过期，需要联网续验。");
+        if(expires>0 && expires<=validationTime)
+            throw new CryptographicException("此卡密已经达到服务器记录的真实到期时间。");
+        if(expires>0 && until>expires)
+            throw new CryptographicException("服务器租期超过卡密到期时间，已停止授权，请检查后台期限数据。");
 
         return new VerifiedLicenseLease(
             data.GetProperty("license_id").GetString()!,
