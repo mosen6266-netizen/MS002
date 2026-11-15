@@ -94,8 +94,14 @@ public sealed class LicenseManager : BackgroundService
                 var bytes=await File.ReadAllBytesAsync(DevicePath,ct);
                 var device=Encoding.UTF8.GetString(Unprotect(bytes));
                 if(Guid.TryParseExact(device,"N",out _))return device;
+                throw new CryptographicException(
+                    "已有本机设备标识格式异常，未生成新设备。请检查 Windows 登录账户及本地授权数据。");
             }
-            catch(CryptographicException) { }
+            catch(CryptographicException ex)
+            {
+                throw new CryptographicException(
+                    "无法读取原设备绑定资料，已阻止自动生成新设备标识。请使用原 Windows 用户登录，不要删除旧授权或重复生成卡密。",ex);
+            }
         }
         var id=Guid.NewGuid().ToString("N");
         await AtomicWriteAsync(DevicePath,
@@ -145,8 +151,10 @@ public sealed class LicenseManager : BackgroundService
         try
         {
             var device=await GetDeviceAsync(ct);
-            var response=await PostAsync("api/license/activate",
-                key,device,ct);
+            // The Worker may commit first activation even if the HTTPS reply
+            // is lost. Re-query that exact key/device once before reporting
+            // failure, so a completed binding can be recovered idempotently.
+            var response=await ActivateOrRecoverAsync(key,device,ct);
             var claims=LicenseLeaseVerifier.Verify(
                 response.GetProperty("lease").GetString()!,
                 response.GetProperty("signature").GetString()!,
@@ -266,6 +274,31 @@ public sealed class LicenseManager : BackgroundService
         new(connected?"active":"active-offline",
             detail,saved.TypeName,saved.ActivatedAt,claims.ExpiresAt,
             claims.LeaseUntil,connected,true);
+
+    async Task<JsonElement> ActivateOrRecoverAsync(string key,string device,CancellationToken ct)
+    {
+        try
+        {
+            return await PostAsync("api/license/activate",key,device,ct);
+        }
+        catch(Exception ex) when(ex is HttpRequestException ||
+            ex is TaskCanceledException && !ct.IsCancellationRequested)
+        {
+            // No new device is created and no alternate card is generated.
+            // /check succeeds only when this exact device was already bound
+            // by the first request, and still returns a signed current lease.
+            try
+            {
+                return await PostAsync("api/license/check",key,device,ct);
+            }
+            catch(Exception checkEx) when(checkEx is HttpRequestException or
+                TaskCanceledException or InvalidOperationException)
+            {
+                throw new IOException(
+                    "激活请求可能已到达服务器，但未能确认回执。请联网后使用原卡密在同一台电脑重试，不要另外生成新卡。",ex);
+            }
+        }
+    }
 
     async Task<JsonElement> PostAsync(
         string endpoint,string key,string device,CancellationToken ct)
