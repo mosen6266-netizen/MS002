@@ -165,6 +165,10 @@ public sealed record AccountGroupOverview(
     IReadOnlyList<ManagedAccount> Accounts,IReadOnlyList<ManagedGroup> Groups);
 public sealed record UpdateManagedAccount(
     string Account,string Label,bool Enabled,long ExpectedRevision);
+/// <summary>Remove only the selected device's local Signal data, never the phone account.</summary>
+public sealed record RemoveManagedAccountRequest(
+    string Account,long ExpectedRevision,bool ForRelink);
+public sealed record RemoveManagedAccountResult(string Account,bool ForRelink);
 public sealed record UpdateGroupSelection(IReadOnlyList<string> GroupIds);
 
 /// <summary>
@@ -289,6 +293,7 @@ public static class ControlCommands
     public const string ScriptDelete="script-delete";
     public const string AccountGroupCatalog="account-group-catalog";
     public const string UpdateAccount="update-account";
+    public const string RemoveLocalAccount="remove-local-account";
     public const string SetSelectedGroups="set-selected-groups";
     public const string PreviewPlan="preview-plan";
     public const string PreviewList="preview-list";
