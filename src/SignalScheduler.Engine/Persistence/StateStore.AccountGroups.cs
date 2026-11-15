@@ -296,14 +296,25 @@ public sealed partial class StateStore
         deleted.CommandText="DELETE FROM v8_removed_local_accounts WHERE account=$a";
         deleted.Parameters.AddWithValue("$a",account);
         var count=await deleted.ExecuteNonQueryAsync(ct);
-        if(count>0)
-        {
-            await using var enabled=c.CreateCommand();
-            enabled.Transaction=tx;
-            enabled.CommandText="UPDATE v8_signal_accounts SET enabled=1,online=1 WHERE account=$a";
-            enabled.Parameters.AddWithValue("$a",account);
-            await enabled.ExecuteNonQueryAsync(ct);
-        }
+        // Publish the just-linked account immediately. The 45-second catalog
+        // refresh may not have discovered it yet, but the QR result has been
+        // explicitly confirmed by signal-cli.
+        await using var linked=c.CreateCommand();
+        linked.Transaction=tx;
+        linked.CommandText="""
+            INSERT INTO v8_signal_accounts(account,label,enabled,online,last_seen)
+            VALUES($a,
+              COALESCE((SELECT label FROM v8_account_settings WHERE account=$a),$a),
+              COALESCE((SELECT enabled FROM v8_account_settings WHERE account=$a),1),
+              1,$now)
+            ON CONFLICT(account) DO UPDATE SET
+              online=1,last_seen=excluded.last_seen,
+              enabled=CASE WHEN $wasRemoved=1 THEN 1 ELSE v8_signal_accounts.enabled END;
+            """;
+        linked.Parameters.AddWithValue("$a",account);
+        linked.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        linked.Parameters.AddWithValue("$wasRemoved",count>0?1:0);
+        await linked.ExecuteNonQueryAsync(ct);
         tx.Commit();
     }
 
