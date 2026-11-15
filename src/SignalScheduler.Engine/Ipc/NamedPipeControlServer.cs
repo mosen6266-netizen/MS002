@@ -79,7 +79,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="8.0.0-beta.3",
+                            version="9.0.0",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -387,6 +387,24 @@ public sealed class NamedPipeControlServer : BackgroundService
                                 Data:await _store.UpdateManagedAccountAsync(account,ct));
                         }
                         catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException or InvalidOperationException)
+                        {
+                            response=new ControlResponse(false,Error:ex.Message);
+                        }
+                        break;
+                    case ControlCommands.RemoveLocalAccount:
+                        try
+                        {
+                            var removal=ParsePayload<RemoveManagedAccountRequest>(request.Payload);
+                            await _store.EnsureCanRemoveManagedAccountAsync(removal,ct);
+                            // Run the only irreversible operation first: delete
+                            // this linked device's local Signal data, not its
+                            // server registration or the user's task history.
+                            await _link.RemoveLocalAccountAsync(removal.Account,ct);
+                            response=new ControlResponse(true,
+                                Data:await _store.FinishRemoveManagedAccountAsync(removal,ct));
+                        }
+                        catch(Exception ex) when(ex is ArgumentException or KeyNotFoundException
+                            or InvalidOperationException or HttpRequestException or TaskCanceledException)
                         {
                             response=new ControlResponse(false,Error:ex.Message);
                         }

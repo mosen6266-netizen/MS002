@@ -106,6 +106,16 @@
        <Button x:Name="SaveAccountButton" Content="保存账号设置"
                Background="#147747" Click="SaveAccount_Click"
                IsEnabled="False" HorizontalAlignment="Left"/>
+       <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+        <Button x:Name="RelinkAccountButton" Content="重新扫码登录"
+                Click="RelinkAccount_Click" IsEnabled="False"
+                Background="#176D52" Margin="0,0,10,0"/>
+        <Button x:Name="RemoveAccountButton" Content="删除此账号"
+                Click="RemoveAccount_Click" IsEnabled="False"
+                Background="#A4333C" Margin="0"/>
+       </StackPanel>
+       <TextBlock Text="重新扫码会清理所选账号的旧本机登录数据；删除仅移除本机账号，不删除手机 Signal 主账号。操作前均需确认。"
+                  Margin="0,12,0,0" TextWrapping="Wrap" Foreground="#D7B77A"/>
        <TextBlock Text="禁用账号会阻止未来进入发送阶段；不会删除 Signal 登录凭证或历史数据。"
                   Margin="0,20,0,0" TextWrapping="Wrap" Foreground="#D7B77A"/>
       </StackPanel>

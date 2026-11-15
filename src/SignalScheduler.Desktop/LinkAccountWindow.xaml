@@ -61,6 +61,8 @@
    <TextBlock Text="扫码连接账号" FontSize="25" FontWeight="SemiBold"/>
    <TextBlock Text="手机 Signal → 设置 → 已连接设备 → 连接新设备"
      Foreground="#A8C6DF" Margin="0,7,0,0" TextWrapping="Wrap"/>
+   <TextBlock x:Name="ExpectedAccountText" Visibility="Collapsed"
+     Foreground="#E9BE84" Margin="0,7,0,0" TextWrapping="Wrap"/>
   </StackPanel>
   <Border Grid.Row="2" Background="White" CornerRadius="13"
    Padding="17" Width="295" Height="295" HorizontalAlignment="Center">

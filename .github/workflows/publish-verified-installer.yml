@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       successful_run_id:
-        description: "已成功的 main 分支 Windows V8 Build 运行编号"
+        description: "已成功的 main 分支 Windows V9 Build 运行编号"
         required: true
         type: string
       version_tag:
-        description: "发布标签（例如 v8.0.0-alpha.8）"
+        description: "发布标签（例如 v9.0.0）"
         required: true
         type: string
 
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   release:
-    name: 校验构建并发布测试安装包
+    name: 校验构建并发布正式安装包
     runs-on: ubuntu-latest
     steps:
       - name: 校验来源和构建状态
@@ -31,15 +31,15 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::构建编号无效"; exit 1; }
-          [[ "$VERSION_TAG" =~ ^v8\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]] || {
-            echo "::error::版本标签必须使用 v8.0.0-alpha.8 等格式"; exit 1;
+          [[ "$VERSION_TAG" =~ ^v9\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::版本标签必须使用 v9.0.0 等格式"; exit 1;
           }
           result="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
             --jq '[.conclusion,.head_branch,.name,.head_sha] | join("|")')"
           IFS='|' read -r conclusion branch workflow sha <<< "$result"
           if [[ "$conclusion" != "success" || "$branch" != "main" || \
-                "$workflow" != "Windows V8 Build" ]]; then
-            echo "::error::只能发布 main 分支完整通过 Windows V8 Build 的安装包"
+                "$workflow" != "Windows V9 Build" ]]; then
+            echo "::error::只能发布 main 分支完整通过 Windows V9 Build 的安装包"
             exit 1
           fi
           echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
@@ -49,7 +49,7 @@ jobs:
       - name: 获取已测试的离线安装器
         uses: actions/download-artifact@v4
         with:
-          name: SignalScheduler-V8-Windows
+          name: SignalScheduler-V9-Windows
           path: release-files
           run-id: ${{ steps.verify.outputs.run_id }}
           github-token: ${{ github.token }}
@@ -98,6 +98,5 @@ jobs:
             release-files/INSTALLER_SHA256.txt \
             --repo "$GITHUB_REPOSITORY" \
             --target "$SOURCE_SHA" \
-            --title "Signal Auto Scheduler $version_no_v（测试版）" \
-            --notes "Windows 10/11 x64 中文离线安装包。来源：已成功的 Windows CI 运行 #$SOURCE_RUN。请注意本版本是测试版，尚未开放真实 Signal 自动发送。若有旧版正在运行的任务，请先按照程序提示安全停止后升级。" \
-            --prerelease
+            --title "Signal Auto Scheduler $version_no_v（正式版）" \
+            --notes "Windows 10/11 x64 中文离线安装包。来源：已成功的 Windows CI 运行 #$SOURCE_RUN。这是通过完整 Windows CI 验证的 V9 正式版；包含单账号扫码重连和本机删除功能。若有旧版正在运行的任务，请先按照程序提示安全停止后升级。"

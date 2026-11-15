@@ -21,6 +21,10 @@ public sealed partial class StateStore
               group_id TEXT PRIMARY KEY,
               selected_at INTEGER NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS v8_removed_local_accounts(
+              account TEXT PRIMARY KEY,
+              removed_at INTEGER NOT NULL
+            );
             """;
         await cmd.ExecuteNonQueryAsync(ct);
     }
@@ -43,6 +47,14 @@ public sealed partial class StateStore
             return await q.ExecuteScalarAsync(ct) is not null;
         }
 
+        var removed=new HashSet<string>(StringComparer.Ordinal);
+        await using(var removedQuery=c.CreateCommand())
+        {
+            removedQuery.CommandText="SELECT account FROM v8_removed_local_accounts";
+            await using var reader=await removedQuery.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct))removed.Add(reader.GetString(0));
+        }
+
         var accounts=new Dictionary<string,ManagedAccount>(StringComparer.Ordinal);
         if(await TableExistsAsync("v8_accounts"))
         {
@@ -52,6 +64,7 @@ public sealed partial class StateStore
             while(await r.ReadAsync(ct))
             {
                 var key=r.GetString(0);
+                if(removed.Contains(key))continue;
                 accounts[key]=new ManagedAccount(key,r.GetString(1),
                     r.GetInt64(2)!=0,false,0);
             }
@@ -64,6 +77,7 @@ public sealed partial class StateStore
             while(await r.ReadAsync(ct))
             {
                 var key=r.GetString(0);
+                if(removed.Contains(key))continue;
                 var old=accounts.GetValueOrDefault(key);
                 accounts[key]=new ManagedAccount(key,
                     old?.Label??r.GetString(1),
@@ -96,6 +110,7 @@ public sealed partial class StateStore
             await using var r=await q.ExecuteReaderAsync(ct);
             while(await r.ReadAsync(ct))
             {
+                if(removed.Contains(r.GetString(0)))continue;
                 var key=r.GetString(1);
                 var value=groups.GetValueOrDefault(key);
                 if(value.Members is null)
@@ -111,6 +126,7 @@ public sealed partial class StateStore
             await using var r=await q.ExecuteReaderAsync(ct);
             while(await r.ReadAsync(ct))
             {
+                if(removed.Contains(r.GetString(0)))continue;
                 var key=r.GetString(1);
                 var value=groups.GetValueOrDefault(key);
                 if(value.Members is null)
@@ -192,6 +208,114 @@ public sealed partial class StateStore
         tx.Commit();
         return new ManagedAccount(input.Account,input.Label.Trim(),
             input.Enabled,known.Online,input.ExpectedRevision+1);
+    }
+
+    /// <summary>
+    /// Prevent account credential removal while a real send might be active.
+    /// This check applies to all jobs because their frozen scripts may include
+    /// more than one account. Paused jobs and immutable history are preserved.
+    /// </summary>
+    public async Task EnsureCanRemoveManagedAccountAsync(
+        RemoveManagedAccountRequest request,CancellationToken ct)
+    {
+        if(request is null || string.IsNullOrWhiteSpace(request.Account) ||
+            request.Account.Length>128 || request.ExpectedRevision<0)
+            throw new ArgumentException("请选择有效的账号。");
+        var current=(await GetAccountGroupOverviewAsync(ct)).Accounts
+            .FirstOrDefault(x=>x.Account==request.Account);
+        if(current is null)
+            throw new KeyNotFoundException("该账号已经不存在，请刷新。");
+        if(current.Revision!=request.ExpectedRevision)
+            throw new InvalidOperationException("账号设置已改变，请刷新后再操作。");
+
+        await using var c=Open();
+        await using var active=c.CreateCommand();
+        active.CommandText="""
+            SELECT
+              (SELECT COUNT(*) FROM v8_jobs
+               WHERE state IN ('Running','Stopping','WaitingSignal'))
+             +(SELECT COUNT(*) FROM v8_dispatch_journal
+               WHERE state='Sending');
+            """;
+        if(Convert.ToInt64(await active.ExecuteScalarAsync(ct))>0)
+            throw new InvalidOperationException(
+                "当前存在运行中或正在发送的任务；请先在当前运行任务中暂停，并确认发送结果后重试。");
+    }
+
+    /// <summary>
+    /// Only call after Signal confirmed local credentials were removed (or
+    /// were already absent). No dispatch journal, jobs or script rows are deleted.
+    /// </summary>
+    public async Task<RemoveManagedAccountResult> FinishRemoveManagedAccountAsync(
+        RemoveManagedAccountRequest request,CancellationToken ct)
+    {
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        await using(var state=c.CreateCommand())
+        {
+            state.Transaction=tx;
+            state.CommandText=request.ForRelink
+                ?"UPDATE v8_signal_accounts SET online=0 WHERE account=$a"
+                :"UPDATE v8_signal_accounts SET enabled=0,online=0 WHERE account=$a";
+            state.Parameters.AddWithValue("$a",request.Account);
+            await state.ExecuteNonQueryAsync(ct);
+        }
+        if(!request.ForRelink)
+        {
+            await using(var tombstone=c.CreateCommand())
+            {
+                tombstone.Transaction=tx;
+                tombstone.CommandText="""
+                    INSERT INTO v8_removed_local_accounts(account,removed_at)
+                    VALUES($a,$now) ON CONFLICT(account) DO UPDATE SET removed_at=excluded.removed_at;
+                    """;
+                tombstone.Parameters.AddWithValue("$a",request.Account);
+                tombstone.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                await tombstone.ExecuteNonQueryAsync(ct);
+            }
+            await using var settings=c.CreateCommand();
+            settings.Transaction=tx;
+            settings.CommandText="DELETE FROM v8_account_settings WHERE account=$a";
+            settings.Parameters.AddWithValue("$a",request.Account);
+            await settings.ExecuteNonQueryAsync(ct);
+        }
+        tx.Commit();
+        return new RemoveManagedAccountResult(request.Account,request.ForRelink);
+    }
+
+    /// <summary>
+    /// A deliberate new QR link reactivates a previously forgotten account.
+    /// </summary>
+    public async Task RestoreRemovedAccountAsync(string account,CancellationToken ct)
+    {
+        await InitializeAccountManagementAsync(ct);
+        await using var c=Open();
+        using var tx=c.BeginTransaction();
+        await using var deleted=c.CreateCommand();
+        deleted.Transaction=tx;
+        deleted.CommandText="DELETE FROM v8_removed_local_accounts WHERE account=$a";
+        deleted.Parameters.AddWithValue("$a",account);
+        var count=await deleted.ExecuteNonQueryAsync(ct);
+        // Publish the just-linked account immediately. The 45-second catalog
+        // refresh may not have discovered it yet, but the QR result has been
+        // explicitly confirmed by signal-cli.
+        await using var linked=c.CreateCommand();
+        linked.Transaction=tx;
+        linked.CommandText="""
+            INSERT INTO v8_signal_accounts(account,label,enabled,online,last_seen)
+            VALUES($a,
+              COALESCE((SELECT label FROM v8_account_settings WHERE account=$a),$a),
+              COALESCE((SELECT enabled FROM v8_account_settings WHERE account=$a),1),
+              1,$now)
+            ON CONFLICT(account) DO UPDATE SET
+              online=1,last_seen=excluded.last_seen,
+              enabled=CASE WHEN $wasRemoved=1 THEN 1 ELSE v8_signal_accounts.enabled END;
+            """;
+        linked.Parameters.AddWithValue("$a",account);
+        linked.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+        linked.Parameters.AddWithValue("$wasRemoved",count>0?1:0);
+        await linked.ExecuteNonQueryAsync(ct);
+        tx.Commit();
     }
 
     public async Task<int> SetSelectedGroupsAsync(UpdateGroupSelection input,CancellationToken ct)

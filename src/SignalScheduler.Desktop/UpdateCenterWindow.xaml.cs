@@ -16,7 +16,7 @@ namespace SignalScheduler.Desktop;
 public partial class UpdateCenterWindow : UserControl
 {
     const string Repo="mosen6266-netizen/MS002";
-    const string CurrentProductVersion="8.0.0-beta.17";
+    const string CurrentProductVersion="9.0.0";
 
     const string WorkflowUrl="https://github.com/mosen6266-netizen/MS002/actions/workflows/windows-build.yml";
     static readonly string Api="https://api.github.com/repos/"+Repo;
@@ -38,7 +38,7 @@ public partial class UpdateCenterWindow : UserControl
     public UpdateCenterWindow()
     {
         InitializeComponent();
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("MS002-UpdateCenter/8.0");
+        _http.DefaultRequestHeaders.UserAgent.ParseAdd("MS002-UpdateCenter/9.0");
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         LoadInstalledBuild();
         var cached=TryLoadCache();
@@ -322,7 +322,7 @@ public partial class UpdateCenterWindow : UserControl
             OpenOfficialUrl(_latestRunUrl??WorkflowUrl);
             return;
         }
-        if(!Regex.IsMatch(_releaseName,@"^SignalScheduler_Setup_V8[\w.\-]+\.exe$",
+        if(!Regex.IsMatch(_releaseName,@"^SignalScheduler_Setup_V9\.\d{1,4}\.\d{1,4}\.exe$",
             RegexOptions.CultureInvariant))return;
         _downloading=true;
         DownloadProgress.Visibility=Visibility.Visible;

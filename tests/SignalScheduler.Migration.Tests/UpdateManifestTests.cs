@@ -9,7 +9,7 @@ namespace SignalScheduler.Migration.Tests;
 public sealed class UpdateManifestTests
 {
     static VerifiedUpdateManifest Valid()=>new(
-        "8.0.0-beta.8",551,38000000001,
+        "9.0.0",551,38000000001,
         new string('a',40),new string('b',64));
 
     [Fact]
@@ -26,9 +26,9 @@ public sealed class UpdateManifestTests
     [Theory]
     [InlineData("{}")]
     [InlineData("not json")]
-    [InlineData("{\"version\":\"8.0.0-beta.8\",\"build\":\"fake\",\"runId\":42}")]
+    [InlineData("{\"version\":\"9.0.0\",\"build\":\"fake\",\"runId\":42}")]
     [InlineData("{\"version\":\"https://evil.invalid\",\"build\":551,\"runId\":42}")]
-    [InlineData("{\"version\":\"8.0.0-beta.8\",\"build\":-2,\"runId\":42}")]
+    [InlineData("{\"version\":\"9.0.0\",\"build\":-2,\"runId\":42}")]
     public void InvalidOrUntrustedManifestIsNotAccepted(string json)
     {
         Assert.Null(UpdateManifestCodec.Parse(json));
@@ -63,7 +63,7 @@ public sealed class UpdateManifestTests
         using var http=new HttpClient(handler);
         var result=await UpdateFeedClient.FetchAsync(http,CancellationToken.None);
         Assert.Equal(551,result.Build);
-        Assert.Equal("8.0.0-beta.8",result.Version);
+        Assert.Equal("9.0.0",result.Version);
         Assert.Equal(1,handler.RawRequests);
         Assert.Equal(0,handler.RestRequests);
     }

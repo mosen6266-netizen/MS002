@@ -64,6 +64,9 @@ public sealed partial class StateStore
         CREATE TABLE IF NOT EXISTS v8_selected_groups(
           group_id TEXT PRIMARY KEY,selected_at INTEGER NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS v8_removed_local_accounts(
+          account TEXT PRIMARY KEY,removed_at INTEGER NOT NULL
+        );
         INSERT INTO v8_schema(key,value) VALUES('schema_version','2')
           ON CONFLICT(key) DO UPDATE SET value=excluded.value;
         """;
@@ -253,6 +256,14 @@ public sealed partial class StateStore
         await using var c=Open();
         using var tx=c.BeginTransaction();
         var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var removed=new HashSet<string>(StringComparer.Ordinal);
+        await using(var removedQuery=c.CreateCommand())
+        {
+            removedQuery.Transaction=tx;
+            removedQuery.CommandText="SELECT account FROM v8_removed_local_accounts";
+            await using var reader=await removedQuery.ExecuteReaderAsync(ct);
+            while(await reader.ReadAsync(ct)) removed.Add(reader.GetString(0));
+        }
 
         await using(var offline=c.CreateCommand())
         {
@@ -263,6 +274,7 @@ public sealed partial class StateStore
 
         foreach(var account in liveAccounts.Distinct(StringComparer.Ordinal))
         {
+            if(removed.Contains(account))continue;
             string label=account;
             long enabled=1;
 
@@ -325,7 +337,7 @@ public sealed partial class StateStore
         var onlineSet=liveAccounts.ToHashSet(StringComparer.Ordinal);
         foreach(var account in completeGroupAccounts.Distinct(StringComparer.Ordinal))
         {
-            if(!onlineSet.Contains(account)) continue;
+            if(removed.Contains(account) || !onlineSet.Contains(account)) continue;
             await using var reset=c.CreateCommand();
             reset.Transaction=tx;
             reset.CommandText="UPDATE v8_signal_groups SET is_member=0 WHERE account=$a";
@@ -335,6 +347,7 @@ public sealed partial class StateStore
 
         foreach(var group in groups)
         {
+            if(removed.Contains(group.Account))continue;
             await using var cmd=c.CreateCommand();
             cmd.Transaction=tx;
             cmd.CommandText="""

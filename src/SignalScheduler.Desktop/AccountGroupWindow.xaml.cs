@@ -17,6 +17,7 @@ public partial class AccountGroupWindow : UserControl
     bool _refreshing;
     bool _savingGroups;
     bool _savingAccount;
+    bool _managingAccount;
 
     public AccountGroupWindow()
     {
@@ -41,7 +42,7 @@ public partial class AccountGroupWindow : UserControl
 
     async Task RefreshAsync()
     {
-        if(_refreshing || _savingGroups || _savingAccount)return;
+        if(_refreshing || _savingGroups || _savingAccount || _managingAccount)return;
         _refreshing=true;
         try
         {
@@ -87,7 +88,11 @@ public partial class AccountGroupWindow : UserControl
         {
             StatusText.Text=$"刷新失败：{ex.Message}。现有表单内容仍保留。";
         }
-        finally{_refreshing=false;}
+        finally
+        {
+            _refreshing=false;
+            UpdateAccountActions();
+        }
     }
 
     async void Refresh_Click(object sender,RoutedEventArgs e)=>await RefreshAsync();
@@ -97,6 +102,15 @@ public partial class AccountGroupWindow : UserControl
         if(!_loading) ShowSelectedAccount();
     }
 
+    void UpdateAccountActions()
+    {
+        var available=AccountGrid.SelectedItem is ManagedAccount &&
+            !_refreshing && !_savingAccount && !_managingAccount;
+        SaveAccountButton.IsEnabled=available;
+        RelinkAccountButton.IsEnabled=available;
+        RemoveAccountButton.IsEnabled=available;
+    }
+
     void ShowSelectedAccount()
     {
         if(AccountGrid.SelectedItem is not ManagedAccount account)
@@ -104,19 +118,19 @@ public partial class AccountGroupWindow : UserControl
             AccountIdentity.Text="未选择账号";
             AccountLabel.Text="";
             AccountEnabled.IsChecked=false;
-            SaveAccountButton.IsEnabled=false;
+            UpdateAccountActions();
             return;
         }
 
         AccountIdentity.Text=account.Account;
         AccountLabel.Text=account.Label;
         AccountEnabled.IsChecked=account.Enabled;
-        SaveAccountButton.IsEnabled=true;
+        UpdateAccountActions();
     }
 
     async void SaveAccount_Click(object sender,RoutedEventArgs e)
     {
-        if(_refreshing || _savingAccount ||
+        if(_refreshing || _savingAccount || _managingAccount ||
            AccountGrid.SelectedItem is not ManagedAccount account)return;
         var label=AccountLabel.Text.Trim();
         var enabled=AccountEnabled.IsChecked==true;
@@ -126,7 +140,7 @@ public partial class AccountGroupWindow : UserControl
             return;
         }
         _savingAccount=true;
-        SaveAccountButton.IsEnabled=false;
+        UpdateAccountActions();
         try
         {
             var data=new UpdateManagedAccount(
@@ -159,7 +173,75 @@ public partial class AccountGroupWindow : UserControl
         finally
         {
             _savingAccount=false;
-            SaveAccountButton.IsEnabled=AccountGrid.SelectedItem is ManagedAccount;
+            UpdateAccountActions();
+        }
+    }
+
+    async void RelinkAccount_Click(object sender,RoutedEventArgs e)=>
+        await ManageLocalAccountAsync(true);
+
+    async void RemoveAccount_Click(object sender,RoutedEventArgs e)=>
+        await ManageLocalAccountAsync(false);
+
+    async Task ManageLocalAccountAsync(bool forRelink)
+    {
+        if(_refreshing || _savingAccount || _savingGroups || _managingAccount ||
+           AccountGrid.SelectedItem is not ManagedAccount account)return;
+
+        var warning=forRelink
+            ? $"确定重新扫码登录「{account.Label}」（{account.Account}）吗？\n\n"+
+              "这会先清理这个账号在本机 signal-cli 的旧登录数据，然后显示新二维码。"+
+              "必须使用对应的手机 Signal 扫码。任务历史、备注和其他账号不会删除。"
+            : $"确定从本机删除「{account.Label}」（{account.Account}）吗？\n\n"+
+              "这会删除该账号在本机 signal-cli 的登录数据，并从账号列表中移除。"+
+              "不会删除手机上的 Signal 主账号或其他账号；既有任务历史保留。"+
+              "如需恢复，之后可以重新扫码连接。";
+        var title=forRelink?"确认重新扫码登录":"确认删除本机账号";
+        if(MessageBox.Show(Window.GetWindow(this),warning,title,
+                MessageBoxButton.YesNo,MessageBoxImage.Warning)!=MessageBoxResult.Yes)
+            return;
+
+        _managingAccount=true;
+        UpdateAccountActions();
+        var succeeded=false;
+        var linked=false;
+        try
+        {
+            StatusText.Text=forRelink
+                ?"正在清理所选账号的旧本机登录数据…"
+                :"正在从本机移除选中的账号…";
+            var request=new RemoveManagedAccountRequest(
+                account.Account,account.Revision,forRelink);
+            var raw=await MainWindow.SendAsync(ControlCommands.RemoveLocalAccount,30000,request);
+            _=Unwrap<RemoveManagedAccountResult>(raw);
+            succeeded=true;
+
+            if(forRelink)
+            {
+                StatusText.Text="旧登录数据已清理，请使用对应的手机重新扫码。";
+                var parent=Window.GetWindow(this);
+                if(parent is null)throw new IOException("无法打开扫码窗口。");
+                var dialog=new LinkAccountWindow(account.Account,account.Label){Owner=parent};
+                linked=dialog.ShowDialog()==true;
+            }
+        }
+        catch(Exception ex)
+        {
+            StatusText.Text=$"账号操作未完成：{ex.Message}";
+        }
+        finally
+        {
+            _managingAccount=false;
+            UpdateAccountActions();
+            if(succeeded)
+            {
+                await RefreshAsync();
+                StatusText.Text=forRelink
+                    ?linked
+                        ?$"账号 {account.Account} 已重新扫码连接；备注和任务历史保留。"
+                        :$"账号 {account.Account} 的旧本机登录数据已清理；尚未完成扫码，稍后可再次操作。"
+                    :$"账号 {account.Account} 已从本机移除；手机 Signal 账号及历史任务未被删除。";
+            }
         }
     }
 
