@@ -37,6 +37,17 @@ public sealed class LicenseDispatchPolicyTests
             Valid("active-offline",false),Now+120));
 
     [Fact]
+    public void PermanentCardWithValidSignedLeaseMayDispatch()
+    {
+        Assert.True(LicenseDispatchPolicy.CanDispatch(
+            Valid() with {TypeName="永久卡",ExpiresAt=0},Now));
+        Assert.True(LicenseDispatchPolicy.CanDispatch(
+            Valid("active-offline",false) with {TypeName="永久卡",ExpiresAt=0},Now));
+        Assert.False(LicenseDispatchPolicy.CanDispatch(
+            Valid() with {TypeName="永久卡",ExpiresAt=0},Now+121));
+    }
+
+    [Fact]
     public void CardExpiryAndMissingLicenseCannotBeOverridden() 
     {
         Assert.False(LicenseDispatchPolicy.CanDispatch(
