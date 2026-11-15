@@ -41,10 +41,23 @@ public static class SignalCrashPolicy
         return "";
     }
 
+    /// <summary>Windows native termination codes when Java produced no usable stderr.</summary>
+    public static string ClassifyExitCode(int exitCode)=>exitCode switch
+    {
+        unchecked((int)0xC0000005)=>"OS_ACCESS_VIOLATION",
+        unchecked((int)0xC0000135)=>"OS_DLL_MISSING",
+        unchecked((int)0xC0000142)=>"OS_DLL_INIT",
+        unchecked((int)0xC000001D)=>"OS_ILLEGAL_INSTRUCTION",
+        unchecked((int)0xC0000409)=>"OS_STACK_BUFFER_OVERRUN",
+        _=>""
+    };
+
     public static string SafeCode(string? category)=>
         category is "SIGNAL_BUNDLE" or "JVM_MEMORY" or "JVM_NATIVE" or
             "JVM_CLASSPATH" or "FILE_PERMISSION" or "RPC_PORT" or
-            "SIGNAL_ACCOUNT" or "SIGNAL_NETWORK"
+            "SIGNAL_ACCOUNT" or "SIGNAL_NETWORK" or
+            "OS_ACCESS_VIOLATION" or "OS_DLL_MISSING" or "OS_DLL_INIT" or
+            "OS_ILLEGAL_INSTRUCTION" or "OS_STACK_BUFFER_OVERRUN"
             ?category:"UNCLASSIFIED_EXIT";
 
     public static string Explain(string? category)=>SafeCode(category) switch
@@ -57,6 +70,11 @@ public static class SignalCrashPolicy
         "RPC_PORT"=>"本地 Signal RPC 端口冲突",
         "SIGNAL_ACCOUNT"=>"Signal 账号资料加载异常",
         "SIGNAL_NETWORK"=>"Signal 网络或 TLS 连接异常",
+        "OS_ACCESS_VIOLATION"=>"进程发生 Windows 内存访问异常",
+        "OS_DLL_MISSING"=>"Windows 缺少进程所需运行库",
+        "OS_DLL_INIT"=>"Windows 运行库初始化失败",
+        "OS_ILLEGAL_INSTRUCTION"=>"当前处理器不支持某条机器指令",
+        "OS_STACK_BUFFER_OVERRUN"=>"Windows 检测到进程栈保护异常",
         _=>"尚未取得可确认的退出原因"
     };
 
