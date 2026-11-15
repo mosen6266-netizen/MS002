@@ -25,7 +25,7 @@ public static class RuntimeIntegrityCheck
             var manifestPath=Path.Combine(root,ManifestName);
             if(!File.Exists(manifestPath))
                 return Fail("MISSING_MANIFEST",
-                    "安装包运行库校验清单缺失。请使用官方 V9.0.3 安装包覆盖修复。");
+                    "安装包运行库校验清单缺失。请使用官方 V9.0.4 安装包覆盖修复。");
             var manifest=JsonSerializer.Deserialize<Manifest>(
                 File.ReadAllText(manifestPath),
                 new JsonSerializerOptions{PropertyNameCaseInsensitive=true});
