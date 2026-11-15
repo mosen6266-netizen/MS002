@@ -15,9 +15,17 @@ public sealed record VerifiedLicenseLease(
 /// </summary>
 public static class LicenseLeaseVerifier
 {
+    /// <param name="trustedOnlineResponse">
+    /// Only true for a freshly received HTTPS /activate or /check response.
+    /// The issue time is covered by the verified P-256 signature, so a Windows
+    /// computer with a misconfigured clock or timezone cannot falsely reject
+    /// an otherwise valid online activation. Never enable for cached leases:
+    /// they must still be checked against the actual local clock.
+    /// </param>
     public static VerifiedLicenseLease Verify(
         string lease,string signature,JsonElement publicKey,
-        string expectedDevice,string? pinnedPublicKey,long nowSeconds)
+        string expectedDevice,string? pinnedPublicKey,long nowSeconds,
+        bool trustedOnlineResponse=false)
     {
         if(string.IsNullOrWhiteSpace(lease) || lease.Length>16000 ||
             string.IsNullOrWhiteSpace(signature) || signature.Length>1024)
@@ -63,9 +71,15 @@ public static class LicenseLeaseVerifier
         var issued=data.GetProperty("issued_at").GetInt64();
         var until=data.GetProperty("lease_until").GetInt64();
         var expires=data.GetProperty("expires_at").GetInt64();
-        if(issued>nowSeconds+300 || until<=issued ||
-           until>issued+6*3600+300 || until<=nowSeconds ||
-           (expires>0 && (expires<=nowSeconds || until>expires)))
+        // Fresh responses come from the authenticated HTTPS Worker and the
+        // issued_at claim is covered by its verified ECDSA signature. Trust
+        // that server time only for this new response; never use it to extend
+        // an existing offline cache. A short term card still expires at the
+        // timestamp the Worker signed.
+        var validationTime=trustedOnlineResponse?issued:nowSeconds;
+        if(issued<=0 || issued>validationTime+300 || until<=issued ||
+           until>issued+6*3600+300 || until<=validationTime ||
+           (expires>0 && (expires<=validationTime || until>expires)))
             throw new CryptographicException("授权凭据过期或时间信息异常。");
 
         return new VerifiedLicenseLease(
