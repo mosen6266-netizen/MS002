@@ -38,7 +38,10 @@ public sealed record SafeDiagnosticSnapshot(
     int LastReceiptSelected=0,
     int LastReceiptAccepted=0,
     int UnknownReadReceipts=0,
-    string LastReceiptFailureCode="",long LastReceiptFailureAtMs=0);
+    string LastReceiptFailureCode="",long LastReceiptFailureAtMs=0,
+    int LastDaemonExitCode=int.MinValue,
+    int RecentDaemonCrashCount=0,
+    string LastDaemonExitCategory="");
 
 public sealed record DiagnosticCategoryCount(string Code,int Count);
 
@@ -66,7 +69,8 @@ public static class SafeDiagnosticReport
         var connection=AllowState(input.SignalConnectionState,new[]{
             "ready","running","offline","stopped","starting","degraded",
             "healthy","unhealthy","unknown","Connected","Disconnected",
-            "Ready","Offline","Starting","Failed","NotStarted"});
+            "Ready","Offline","Starting","Failed","NotStarted",
+            "fault","restarting","busy","missing-runtime","external-conflict"});
         var read=AllowState(input.ReadEventStreamState,new[]{
             "已连接","连接中断","尚未连接","数据库错误","未知"});
         var last="未捕获";
@@ -142,7 +146,13 @@ public static class SafeDiagnosticReport
             status is "存在" or "缺失" or "检查失败"?status:"未检查";
         sb.AppendLine($"Java 主程序：{SafeFileStatus(input.RuntimeStatus?.Java)}");
         sb.AppendLine($"signal-cli 库文件：{SafeFileStatus(input.RuntimeStatus?.SignalCli)}");
-        sb.AppendLine("说明：只检查文件存在性，不证明文件未损坏，也不代表账号可正常发送。");
+        var assurance=input.RuntimeStatus?.Assurance;
+        sb.AppendLine("运行库完整性："+(
+            assurance?.StartsWith("已校验 ",StringComparison.Ordinal)==true
+                ?"哈希与必要语言资源校验通过"
+                :assurance?.StartsWith("运行库校验失败",StringComparison.Ordinal)==true
+                    ?"校验未通过":"未取得数据"));
+        sb.AppendLine("说明：文件哈希正常不代表 JVM、账号、系统权限和网络一定可用。");
         sb.AppendLine();
         sb.AppendLine("后台最近一次异常（不能自动归因到某一任务）");
         var daemonCode=input.LastDaemonErrorCategory;
@@ -152,7 +162,21 @@ public static class SafeDiagnosticReport
             "ERROR SignalAccount.UntrustedIdentity",
             "ERROR SignalSend.RpcDispatcher",
             "ERROR SignalNetwork.Connection",
-            "ERROR SignalDaemon.OtherException"
+            "ERROR SignalDaemon.OtherException",
+            "ERROR SignalRuntime.SIGNAL_BUNDLE",
+            "ERROR SignalRuntime.JVM_MEMORY",
+            "ERROR SignalRuntime.JVM_NATIVE",
+            "ERROR SignalRuntime.JVM_CLASSPATH",
+            "ERROR SignalRuntime.FILE_PERMISSION",
+            "ERROR SignalRuntime.RPC_PORT",
+            "ERROR SignalRuntime.SIGNAL_ACCOUNT",
+            "ERROR SignalRuntime.SIGNAL_NETWORK",
+            "ERROR SignalRuntime.UNCLASSIFIED_EXIT",
+            "ERROR SignalRuntime.OS_ACCESS_VIOLATION",
+            "ERROR SignalRuntime.OS_DLL_MISSING",
+            "ERROR SignalRuntime.OS_DLL_INIT",
+            "ERROR SignalRuntime.OS_ILLEGAL_INSTRUCTION",
+            "ERROR SignalRuntime.OS_STACK_BUFFER_OVERRUN"
         };
         sb.AppendLine("错误类型："+(allowedDaemon.Contains(daemonCode,
             StringComparer.Ordinal)?daemonCode:"未记录"));
@@ -165,6 +189,13 @@ public static class SafeDiagnosticReport
             catch(ArgumentOutOfRangeException){ }
         }
         sb.AppendLine("最近出现时间："+daemonTime);
+        var safeExitCategory=SignalCrashPolicy.SafeCode(input.LastDaemonExitCategory);
+        sb.AppendLine("最近退出代码："+(input.LastDaemonExitCode==int.MinValue
+            ?"未记录":input.LastDaemonExitCode.ToString()));
+        sb.AppendLine("最近退出分类："+(input.LastDaemonExitCode==int.MinValue
+            ?"未记录":safeExitCategory));
+        sb.AppendLine("近5分钟异常退出次数："+Math.Clamp(input.RecentDaemonCrashCount,0,99));
+        sb.AppendLine("提示：退出代码和故障类别不等于已确定的根本原因。");
         sb.AppendLine("说明：并发任务可能同时运行，同期 daemon 错误不等于当前任务的直接原因。");
         sb.AppendLine();
         sb.AppendLine("最近发送异常分类（不含原始 RPC 内容）");

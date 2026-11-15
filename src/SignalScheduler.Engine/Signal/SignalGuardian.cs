@@ -36,7 +36,13 @@ public sealed class SignalGuardian : BackgroundService
     int _consecutiveFailures;
     volatile string _lastDaemonErrorCategory="";
     volatile bool _fatalClassPathError;
+    volatile string _lastCrashCategory="";
     long _lastDaemonErrorAtMs;
+    readonly SignalRestartBudget _crashBudget=new();
+    DateTimeOffset _ownedStartedAt=DateTimeOffset.MinValue;
+    int _lastUnexpectedExitCode=int.MinValue;
+    int _recentCrashCount;
+    string _lastExitCategory="";
     SignalGuardianSnapshot _snapshot=new(
         "starting","等待 Signal Guardian 启动","",false,0,DateTimeOffset.UtcNow,Array.Empty<string>());
 
@@ -59,7 +65,10 @@ public sealed class SignalGuardian : BackgroundService
                 state,detail,version,owns,_restartCount,DateTimeOffset.UtcNow,
                 accounts ?? _snapshot.LiveAccounts,
                 _lastDaemonErrorCategory,
-                Interlocked.Read(ref _lastDaemonErrorAtMs));
+                Interlocked.Read(ref _lastDaemonErrorAtMs),
+                _lastUnexpectedExitCode,
+                _recentCrashCount,
+                _lastExitCategory);
         }
     }
 
@@ -122,6 +131,12 @@ public sealed class SignalGuardian : BackgroundService
                 {
                     _consecutiveFailures=0;
                     _firstFailure=null;
+                    if(_owned is { HasExited:false } &&
+                       DateTimeOffset.UtcNow-_ownedStartedAt>TimeSpan.FromMinutes(2))
+                    {
+                        _crashBudget.ResetAfterStableRun();
+                        _recentCrashCount=0;
+                    }
                     SetSnapshot("healthy","Signal JSON-RPC 正常",version,_owned is { HasExited:false },probe.Accounts);
                     continue;
                 }
@@ -137,22 +152,47 @@ public sealed class SignalGuardian : BackgroundService
 
                 if(_owned is { HasExited:true })
                 {
-                    // Revalidate after an unexpected exit: antivirus may have
-                    // quarantined a JAR while the application was running.
+                    // An exited process is not evidence of a particular fault
+                    // cause. Wait for its redirected output to drain before
+                    // classifying it. Never emit a raw stack trace or account.
+                    var dead=_owned;
+                    try { await dead.WaitForExitAsync(stoppingToken); }
+                    catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested) { break; }
+                    var exitCode=SafeExitCode(dead);
+                    _lastUnexpectedExitCode=exitCode;
+                    _lastExitCategory=SignalCrashPolicy.SafeCode(
+                        _lastCrashCategory.Length>0?_lastCrashCategory:
+                        SignalCrashPolicy.ClassifyExitCode(exitCode));
+                    _lastDaemonErrorCategory="ERROR SignalRuntime."+_lastExitCategory;
+                    Interlocked.Exchange(ref _lastDaemonErrorAtMs,
+                        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+
                     var runtime=RuntimeIntegrityCheck.Verify(_paths.RuntimeRoot);
                     if(!runtime.Healthy)
                     {
-                        SetSnapshot("missing-runtime",runtime.Detail,version,true,Array.Empty<string>());
-                        return; // no further crash/restart loop
+                        SetSnapshot("missing-runtime",
+                            "Signal 退出后发现运行文件异常："+runtime.Detail,
+                            version,true,Array.Empty<string>());
+                        return;
                     }
                     if(_fatalClassPathError)
                     {
                         SetSnapshot("missing-runtime",
-                            "Signal 加载 argparse4j 资源失败。运行库校验已通过但 Java 仍无法加载资源；请检查安全软件隔离记录，并使用官方安装包修复。已停止反复重启。",
+                            SignalCrashPolicy.ExitDetail(exitCode,"SIGNAL_BUNDLE",true,1),
                             version,true,Array.Empty<string>());
                         return;
                     }
-                    SetSnapshot("fault","本程序启动的 signal-cli 已退出，正在恢复",version,true,Array.Empty<string>());
+
+                    var mayRetry=_crashBudget.Register(DateTimeOffset.UtcNow);
+                    _recentCrashCount=_crashBudget.Count;
+                    var description=SignalCrashPolicy.ExitDetail(
+                        exitCode,_lastExitCategory,!mayRetry,_recentCrashCount);
+                    if(!mayRetry)
+                    {
+                        SetSnapshot("fault",description,version,true,Array.Empty<string>());
+                        return; // no endless restarts, preserve all task states
+                    }
+                    SetSnapshot("restarting",description,version,true,Array.Empty<string>());
                     await RestartOwnedAsync(version,stoppingToken);
                     continue;
                 }
@@ -216,19 +256,23 @@ public sealed class SignalGuardian : BackgroundService
         }
 
         _fatalClassPathError=false;
+        _lastCrashCategory="";
         var psi=CreateSignalJavaStartInfo("org.asamk.signal.Main",
             "--output=json","daemon","--http=127.0.0.1:7583");
 
-        var p=new Process{StartInfo=psi,EnableRaisingEvents=true};
+        var p=new Process{StartInfo=psi};
         p.OutputDataReceived+=(_,e)=>OnProcessLine(e.Data);
         p.ErrorDataReceived+=(_,e)=>OnProcessLine(e.Data);
-        p.Exited+=(_,_)=>SetSnapshot("fault",$"signal-cli 进程退出，代码 {SafeExitCode(p)}",version,true,Snapshot.LiveAccounts);
+        // Do not subscribe Process.Exited to SetSnapshot("fault"). That
+        // callback previously raced intentional shutdowns and a newer daemon,
+        // producing repeated false critical popups after recovery.
 
         if(!p.Start())
             throw new InvalidOperationException("无法启动 signal-cli");
 
         _owned=p;
-        _lastOutput=DateTimeOffset.UtcNow;
+        _ownedStartedAt=DateTimeOffset.UtcNow;
+        _lastOutput=_ownedStartedAt;
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
         SetSnapshot("starting","正在启动内置 signal-cli",version,true,Array.Empty<string>());
@@ -247,7 +291,12 @@ public sealed class SignalGuardian : BackgroundService
             if(p.HasExited) break;
         }
 
-        SetSnapshot("busy","signal-cli 启动较慢，Guardian 继续观察",version,true,Array.Empty<string>());
+        if(p.HasExited)
+            SetSnapshot("restarting",
+                "Signal 进程在启动期间退出；正在记录退出码并进行有限次数安全恢复。",
+                version,true,Array.Empty<string>());
+        else
+            SetSnapshot("busy","signal-cli 启动较慢，Guardian 继续观察",version,true,Array.Empty<string>());
     }
 
     async Task RestartOwnedAsync(string version,CancellationToken ct)
@@ -348,8 +397,12 @@ public sealed class SignalGuardian : BackgroundService
         if(line.Contains("MissingResourceException",StringComparison.Ordinal) &&
            line.Contains("ArgumentParserImpl",StringComparison.Ordinal))
             _fatalClassPathError=true;
+        var crashCode=SignalCrashPolicy.Classify(line);
+        if(crashCode.Length>0)_lastCrashCategory=crashCode;
         var sanitized=SanitizeDaemonDiagnostic(line);
-        if(sanitized is null)return;
+        if(sanitized is null && crashCode.Length==0)return;
+        if(crashCode.Length>0)
+            sanitized="ERROR SignalRuntime."+crashCode;
         if(sanitized.StartsWith("ERROR ",StringComparison.Ordinal))
         {
             _lastDaemonErrorCategory=sanitized;
