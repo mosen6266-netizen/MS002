@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.2'
+            version = '9.0.3'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -197,6 +197,51 @@ jobs:
           & $bundledJava "-Duser.language=en" "-Duser.country=US" -classpath $bundledCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli direct-Java runtime failed" }
 
+      - name: Generate verified runtime integrity manifest
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
+          $jarDir = Join-Path $runtime "signal-cli/lib"
+          $jars = @(Get-ChildItem -LiteralPath $jarDir -File -Filter "*.jar" | Sort-Object Name)
+          if ($jars.Count -lt 2) { throw "Missing expected signal-cli dependency jars" }
+          $java = Join-Path $runtime "jre/bin/java.exe"
+          $files = @((Get-Item -LiteralPath $java)) + $jars
+          $entries = @(
+            foreach ($item in $files) {
+              $relative = $item.FullName.Substring($runtime.Length + 1).Replace("\","/")
+              [ordered]@{
+                path = $relative
+                length = [long]$item.Length
+                sha256 = (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              }
+            }
+          )
+          $manifest = @{version=1;files=$entries} | ConvertTo-Json -Depth 5 -Compress
+          [System.IO.File]::WriteAllText((Join-Path $runtime "runtime-integrity-v1.json"),
+            $manifest, [System.Text.UTF8Encoding]::new($false))
+
+          # Do not ship a distribution whose expected argparse4j resource is
+          # absent even in the *original* verified upstream release.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $foundClass = $false
+          $foundBundle = $false
+          foreach ($jar in $jars) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+            try {
+              if ($null -ne $zip.GetEntry("net/sourceforge/argparse4j/internal/ArgumentParserImpl.class")) {
+                $foundClass = $true
+                if ($null -ne $zip.GetEntry("net/sourceforge/argparse4j/internal/ArgumentParserImpl.properties") -or
+                    $null -ne $zip.GetEntry("net/sourceforge/argparse4j/internal/ArgumentParserImpl_en.properties")) {
+                  $foundBundle = $true
+                }
+              }
+            } finally { $zip.Dispose() }
+          }
+          if (-not $foundClass -or -not $foundBundle) {
+            throw "Missing argparse4j class or property resource in bundled runtime"
+          }
+
       # Emulate a Chinese Windows JVM locale even on the English GitHub runner.
       # argparse4j no longer falls back to English on an unsupported zh_CN
       # locale. The bundled daemon explicitly overrides it in MS002.
@@ -273,6 +318,18 @@ jobs:
           if (-not (Test-Path (Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"))) { throw "Engine executable missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"))) { throw "Bundled Java missing after install" }
           if (-not (Test-Path (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\bin\signal-cli.bat"))) { throw "Bundled signal-cli missing after install" }
+          $runtimeManifest = Join-Path $testRoot "Runtime\signal-stack-v1\runtime-integrity-v1.json"
+          if (-not (Test-Path -LiteralPath $runtimeManifest)) { throw "Runtime SHA256 manifest missing from installed EXE" }
+          $manifest = Get-Content -LiteralPath $runtimeManifest -Raw | ConvertFrom-Json
+          if ($manifest.version -ne 1 -or @($manifest.files).Count -lt 2) { throw "Invalid installed runtime manifest" }
+          foreach ($entry in @($manifest.files)) {
+            $file = Join-Path (Join-Path $testRoot "Runtime\signal-stack-v1") $entry.path
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing verified installed runtime file" }
+            if ((Get-Item -LiteralPath $file).Length -ne [long]$entry.length -or
+                (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) {
+              throw "SHA256 mismatch in installed runtime file"
+            }
+          }
 
           $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
           $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
@@ -422,7 +479,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.2'
+          $version = '9.0.3'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -430,7 +487,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.2 正式版（Windows 10/11 x64 中文完全离线安装包）。修复部分中文系统运行 signal-cli 时 argparse4j 找不到 zh_CN 语言资源而崩溃、反复出现 Signal 服务异常。只固定内置 Java 语言环境为 en_US，界面仍为中文，保留所有账号和用户数据。已执行 Windows 测试、中文环境启动兼容测试和原地升级数据保留检查。请先停止运行任务，再安全覆盖升级。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.3 正式版（Windows 10/11 x64 中文完全离线安装包）。增加安装时 SHA256 依赖清单、启动时全量验证 JAR 及 argparse4j 资源，发现隔离/损坏则停止故障重启；避免 Signal 反复弹窗。修正授权状态时间校验、明确错误分类和本机续验恢复，保留现有账号、卡密和用户数据。完成 Windows 自动测试、中文环境启动测试、离线安装和覆盖安装数据保留测试后发布。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -450,7 +507,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.2'
+            version = '9.0.3'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA

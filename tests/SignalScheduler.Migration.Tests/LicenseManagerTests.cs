@@ -75,6 +75,49 @@ public sealed class LicenseManagerTests
     }
 
     [Fact]
+    public async Task LostActivationReplyRecoversWithSameBoundDevice()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"SignalLicenseTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var paths=RuntimePaths.ForTesting(root,Path.Combine(root,"data.db"));
+        using var server=new FakeServer{DropActivationReplyOnce=true};
+        using var client=new HttpClient(server)
+        {
+            BaseAddress=new Uri("https://example.invalid/")
+        };
+        var manager=new LicenseManager(paths,client);
+        var active=await manager.ActivateAsync(
+            new LicenseActivationRequest("LOST-REPLY-CARD"),Ct);
+        Assert.Equal("active",active.State);
+        Assert.Equal(1,server.ActivateRequests);
+        Assert.Equal(1,server.CheckRequests);
+        Assert.Single(server.SeenDeviceIds.Distinct(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task CorruptedDeviceIdIsNotSilentlyReplaced()
+    {
+        var root=Path.Combine(Path.GetTempPath(),"SignalLicenseTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var paths=RuntimePaths.ForTesting(root,Path.Combine(root,"data.db"));
+        var devicePath=Path.Combine(root,"device-v8.dpapi");
+        var corrupt=new byte[]{0x12,0x44,0x88,0x12};
+        await File.WriteAllBytesAsync(devicePath,corrupt,Ct);
+        using var server=new FakeServer();
+        using var client=new HttpClient(server)
+        {
+            BaseAddress=new Uri("https://example.invalid/")
+        };
+        var manager=new LicenseManager(paths,client);
+        await Assert.ThrowsAsync<CryptographicException>(()=>
+            manager.ActivateAsync(new LicenseActivationRequest("ANY-CARD"),Ct));
+        Assert.Equal(corrupt,await File.ReadAllBytesAsync(devicePath,Ct));
+        Assert.Equal(0,server.ActivateRequests);
+    }
+
+    [Fact]
     public async Task InvalidSignatureNeverSavesAnActivatedCard()
     {
         var root=Path.Combine(Path.GetTempPath(),"SignalLicenseTests",
@@ -98,6 +141,7 @@ public sealed class LicenseManagerTests
         public int ActivateRequests {get;private set;}
         public int CheckRequests {get;private set;}
         public bool CorruptSignature {get;set;}
+        public bool DropActivationReplyOnce {get;set;}
         public long ClockOffsetSeconds {get;set;}
         public List<string> SeenDeviceIds {get;}=new();
 
@@ -136,6 +180,12 @@ public sealed class LicenseManagerTests
                     kty="EC",crv="P-256",x=B64(pub.Q.X!),y=B64(pub.Q.Y!)
                 }
             });
+            if(DropActivationReplyOnce &&
+               request.RequestUri.AbsolutePath.EndsWith("/activate",StringComparison.Ordinal))
+            {
+                DropActivationReplyOnce=false;
+                throw new HttpRequestException("Simulated lost activation response");
+            }
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content=new StringContent(body,Encoding.UTF8,"application/json")

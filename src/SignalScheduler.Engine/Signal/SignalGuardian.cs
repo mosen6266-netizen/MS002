@@ -35,6 +35,7 @@ public sealed class SignalGuardian : BackgroundService
     int _restartCount;
     int _consecutiveFailures;
     volatile string _lastDaemonErrorCategory="";
+    volatile bool _fatalClassPathError;
     long _lastDaemonErrorAtMs;
     SignalGuardianSnapshot _snapshot=new(
         "starting","等待 Signal Guardian 启动","",false,0,DateTimeOffset.UtcNow,Array.Empty<string>());
@@ -66,21 +67,15 @@ public sealed class SignalGuardian : BackgroundService
     {
         try
         {
-        // Antivirus quarantine can leave a directory intact while removing
-        // executable or library files. Detect that case before starting Java.
-        var libDir=Path.Combine(_paths.SignalCliHome,"lib");
-        var javaPresent=File.Exists(_paths.JavaExe);
-        var jarsPresent=Directory.Exists(libDir) &&
-            Directory.EnumerateFiles(libDir,"*.jar",SearchOption.TopDirectoryOnly).Any();
-        if(!javaPresent || !jarsPresent)
+        // Verify every bundled JAR against the CI-generated hash manifest
+        // before even attempting Java. MissingResourceException is frequently
+        // caused by a partially quarantined or mixed-version classpath.
+        var integrity=RuntimeIntegrityCheck.Verify(_paths.RuntimeRoot);
+        if(!integrity.Healthy)
         {
-            var missing=!javaPresent && !jarsPresent
-                ?"Java 与 signal-cli 库文件"
-                :!javaPresent?"Java 可执行文件":"signal-cli 库文件";
             SetSnapshot("missing-runtime",
-                "安装文件检查失败：缺少"+missing+"；请使用受信任安装包修复安装，用户数据不应删除。",
-                "",false,Array.Empty<string>());
-            return;
+                integrity.Detail,"",false,Array.Empty<string>());
+            return; // Never repeatedly launch a known-broken runtime.
         }
 
         var version=await ReadSignalCliVersionAsync(stoppingToken);
@@ -125,6 +120,21 @@ public sealed class SignalGuardian : BackgroundService
 
                 if(_owned is { HasExited:true })
                 {
+                    // Revalidate after an unexpected exit: antivirus may have
+                    // quarantined a JAR while the application was running.
+                    var runtime=RuntimeIntegrityCheck.Verify(_paths.RuntimeRoot);
+                    if(!runtime.Healthy)
+                    {
+                        SetSnapshot("missing-runtime",runtime.Detail,version,true,Array.Empty<string>());
+                        return; // no further crash/restart loop
+                    }
+                    if(_fatalClassPathError)
+                    {
+                        SetSnapshot("missing-runtime",
+                            "Signal 加载 argparse4j 资源失败。运行库校验已通过但 Java 仍无法加载资源；请检查安全软件隔离记录，并使用官方安装包修复。已停止反复重启。",
+                            version,true,Array.Empty<string>());
+                        return;
+                    }
                     SetSnapshot("fault","本程序启动的 signal-cli 已退出，正在恢复",version,true,Array.Empty<string>());
                     await RestartOwnedAsync(version,stoppingToken);
                     continue;
@@ -188,6 +198,7 @@ public sealed class SignalGuardian : BackgroundService
             return;
         }
 
+        _fatalClassPathError=false;
         var psi=new ProcessStartInfo
         {
             FileName=_paths.JavaExe,
@@ -292,6 +303,9 @@ public sealed class SignalGuardian : BackgroundService
            line.Contains("\"envelope\"",StringComparison.OrdinalIgnoreCase))
             return null;
 
+        if(line.Contains("MissingResourceException",StringComparison.Ordinal) &&
+           line.Contains("ArgumentParserImpl",StringComparison.Ordinal))
+            return "ERROR SignalRuntime.MissingArgumentParserResource";
         if(line.Contains("ServerSideErrorException",StringComparison.Ordinal))
             return "ERROR SignalSend.ServerSideErrorException";
         if(line.Contains("AccountCheckException",StringComparison.Ordinal))
@@ -324,6 +338,9 @@ public sealed class SignalGuardian : BackgroundService
     {
         if(string.IsNullOrWhiteSpace(line)) return;
         _lastOutput=DateTimeOffset.UtcNow;
+        if(line.Contains("MissingResourceException",StringComparison.Ordinal) &&
+           line.Contains("ArgumentParserImpl",StringComparison.Ordinal))
+            _fatalClassPathError=true;
         var sanitized=SanitizeDaemonDiagnostic(line);
         if(sanitized is null)return;
         if(sanitized.StartsWith("ERROR ",StringComparison.Ordinal))

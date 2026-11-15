@@ -1,8 +1,8 @@
 namespace SignalScheduler.Shared;
 
 /// <summary>
-/// Fast, read-only presence check for bundled runtime components. It does
-/// not read user accounts, run Java, modify files or claim hash integrity.
+/// Read-only diagnostics for the installed bundled runtime.
+/// Does not read user accounts, run Java, or change any installed files.
 /// </summary>
 public sealed record InstalledRuntimeStatus(string Java,string SignalCli,string Assurance);
 
@@ -26,7 +26,10 @@ public static class InstalledRuntimeCheck
             var signalStatus=Directory.Exists(signalLib) &&
                 Directory.EnumerateFiles(signalLib,"*.jar",SearchOption.TopDirectoryOnly).Any()
                 ? "存在":"缺失";
-            return new(javaStatus,signalStatus,"仅检查存在性，未核验文件哈希或完整运行能力");
+            var integrity=RuntimeIntegrityCheck.Verify(runtime);
+            return new(javaStatus,signalStatus,integrity.Healthy
+                ?integrity.Detail
+                :"运行库校验失败（"+integrity.Code+"）："+integrity.Detail);
         }
         catch(Exception)
         {
