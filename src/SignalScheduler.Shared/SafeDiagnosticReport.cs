@@ -146,7 +146,13 @@ public static class SafeDiagnosticReport
             status is "存在" or "缺失" or "检查失败"?status:"未检查";
         sb.AppendLine($"Java 主程序：{SafeFileStatus(input.RuntimeStatus?.Java)}");
         sb.AppendLine($"signal-cli 库文件：{SafeFileStatus(input.RuntimeStatus?.SignalCli)}");
-        sb.AppendLine("说明：只检查文件存在性，不证明文件未损坏，也不代表账号可正常发送。");
+        var assurance=input.RuntimeStatus?.Assurance;
+        sb.AppendLine("运行库完整性："+(
+            assurance?.StartsWith("已校验 ",StringComparison.Ordinal)==true
+                ?"哈希与必要语言资源校验通过"
+                :assurance?.StartsWith("运行库校验失败",StringComparison.Ordinal)==true
+                    ?"校验未通过":"未取得数据"));
+        sb.AppendLine("说明：文件哈希正常不代表 JVM、账号、系统权限和网络一定可用。");
         sb.AppendLine();
         sb.AppendLine("后台最近一次异常（不能自动归因到某一任务）");
         var daemonCode=input.LastDaemonErrorCategory;
