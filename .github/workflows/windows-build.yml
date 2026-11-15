@@ -384,6 +384,33 @@ jobs:
           }
           if (-not $ready) { throw "Engine IPC did not become ready for safe upgrade" }
 
+          # An IPC-ready Engine is not proof that signal-cli started. Confirm
+          # the installed daemon actually reaches JSON-RPC healthy when
+          # launched from a Unicode Windows path with an inherited zh_CN JVM.
+          $signalHealthy = $false
+          for ($i=0; $i -lt 50; $i++) {
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut,[System.IO.Pipes.PipeOptions]::Asynchronous)
+            try {
+              $pipe.Connect(800)
+              $writer = [System.IO.StreamWriter]::new($pipe)
+              $writer.AutoFlush = $true
+              $reader = [System.IO.StreamReader]::new($pipe)
+              $writer.WriteLine('{"Command":"signal-status"}')
+              $read = $reader.ReadLineAsync()
+              if (-not $read.Wait(3000)) { throw "Signal state IPC timeout" }
+              $reply = ConvertFrom-Json -InputObject $read.Result
+              if ($reply.Ok -and $reply.Data.State -eq "healthy") {
+                $signalHealthy = $true
+                break
+              }
+              if ($reply.Ok -and $reply.Data.State -in @("fault","missing-runtime","external-conflict")) {
+                throw "Installed Unicode path daemon failed with state $($reply.Data.State)"
+              }
+            } finally { $pipe.Dispose() }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $signalHealthy) { throw "Installed Engine failed to start healthy signal-cli on Unicode path" }
+
           # Snapshot real V8 user-facing records in the isolated runner database:
           # remarks, edited script and revision, selected group, completed
           # dispatch history, local preferences and a user-owned file.
