@@ -28,7 +28,7 @@ public partial class MainWindow : Window
     readonly CriticalAlertQueue _criticalQueue=new();
     bool _hasLiveJobs;
     bool _exportingDiagnostic;
-    string? _signalIssue;
+    readonly HashSet<string> _seenSignalIssues=new(StringComparer.Ordinal);
     string _currentPage="home";
 
     public MainWindow()
@@ -360,11 +360,13 @@ public partial class MainWindow : Window
 
             var failed=snapshot.SignalState.ToLowerInvariant() is
                 "fault" or "external-conflict" or "missing-runtime";
-            var signature=failed?$"{snapshot.SignalState}|{snapshot.SignalDetail}":null;
-            if(failed&&_signalIssue!=signature)
+            // Do not re-display the same failure every time Guardian flips
+            // between fault/busy/starting while repeatedly trying to start.
+            // Real recovery resets the deduplication for the next incident.
+            if(healthy)_seenSignalIssues.Clear();
+            else if(failed&&_seenSignalIssues.Add(snapshot.SignalState))
                 ShowCriticalAlert("Signal 服务异常："+snapshot.SignalDetail+
                     "\n已运行的任务不会因为连接恢复而自动继续。");
-            _signalIssue=signature;
 
             var unresolved=snapshot.JobItems
                 .Where(x=>x.RecoveryRequired ||
