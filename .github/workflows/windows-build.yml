@@ -332,10 +332,14 @@ jobs:
             }
           }
 
+          # The Windows JRE launcher can fail to resolve java.dll under a
+          # Unicode directory. The Engine MUST stage the verified runtime in
+          # a protected ASCII directory before invoking the JVM. Do not run
+          # the source java.exe directly here: that is the regression case.
           $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
-          $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
-          & $installedJava "-Duser.language=en" "-Duser.country=US" -classpath $installedCp org.asamk.signal.Main --version
-          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
+          if (-not (Test-Path -LiteralPath $installedJava)) {
+            throw "Bundled Java missing from Unicode app installation"
+          }
 
           $desktop = [Environment]::GetFolderPath("Desktop")
           $programs = [Environment]::GetFolderPath("Programs")
@@ -412,6 +416,41 @@ jobs:
           }
           if (-not $signalHealthy) { throw "Installed Engine failed to start healthy signal-cli on Unicode path" }
 
+          # This test must run as the installed executable's Windows user:
+          # confirm that the Java process actually uses the private, ASCII-
+          # only staged runtime and that this stage is hash-verified.
+          $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          $commonDocs = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDocuments)
+          $privateRuntime = Join-Path $commonDocs ("MS002_Runtime_" + $userSid)
+          if (-not (Test-Path -LiteralPath $privateRuntime)) {
+            throw "Unicode installation did not stage bundled Java to a protected ASCII path"
+          }
+          $stages = @(Get-ChildItem -LiteralPath $privateRuntime -Directory)
+          if ($stages.Count -lt 1) { throw "No staged Java runtime was created" }
+          $staged = $stages[0].FullName
+          if ($staged.ToCharArray() | Where-Object { [int]$_ -gt 127 }) {
+            throw "Staged Java runtime path is not ASCII-only"
+          }
+          $stagedJava = Join-Path $staged "jre\bin\java.exe"
+          $stagedCp = Join-Path $staged "signal-cli\lib\*"
+          if (-not (Test-Path -LiteralPath $stagedJava)) {
+            throw "Protected runtime lacks java.exe"
+          }
+          & $stagedJava "-Duser.language=en" "-Duser.country=US" -classpath $stagedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Staged ASCII Java runtime could not load signal-cli"
+          }
+          $stagedManifest = Join-Path $staged "runtime-integrity-v1.json"
+          if (-not (Test-Path -LiteralPath $stagedManifest)) { throw "Staged runtime missing integrity manifest" }
+          $verifyStage = Get-Content -LiteralPath $stagedManifest -Raw | ConvertFrom-Json
+          foreach ($entry in @($verifyStage.files)) {
+            $stagedFile = Join-Path $staged $entry.path
+            if (-not (Test-Path -LiteralPath $stagedFile) -or
+                (Get-FileHash -LiteralPath $stagedFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) {
+              throw "Staged runtime JAR integrity mismatch"
+            }
+          }
+
           # Snapshot real V8 user-facing records in the isolated runner database:
           # remarks, edited script and revision, selected group, completed
           # dispatch history, local preferences and a user-owned file.
@@ -466,8 +505,10 @@ jobs:
               throw "Missing installed file after upgrade: $requiredFile"
             }
           }
-          & $upgradedJava "-Duser.language=en" "-Duser.country=US" -classpath $upgradedCp org.asamk.signal.Main --version
-          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
+          # Source remains under a Unicode path. Launch the verified ASCII
+          # stage instead; no Java DLL must ever be loaded from the path above.
+          & $stagedJava "-Duser.language=en" "-Duser.country=US" -classpath $stagedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Protected signal-cli runtime unusable after upgrade" }
 
           # Run desktop from the upgraded installation rather than just from
           # the pre-install publish output. No account or network send needed.
