@@ -13,6 +13,10 @@ namespace SignalScheduler.Engine.Signal;
 public sealed class SignalGuardian : BackgroundService
 {
     const string RpcUrl="http://127.0.0.1:7583/api/v1/rpc";
+    // argparse4j 0.9.0 no longer falls back to English for zh_CN and
+    // other unsupported JVM locales. Only force the bundled signal-cli
+    // Java process to English, never the Windows OS or the Chinese WPF UI.
+    internal const string JavaLocaleOptions="-Duser.language=en -Duser.country=US";
     static readonly Regex PhoneRegex=new(@"\+\d{7,15}",RegexOptions.Compiled);
     static readonly string[] DiagnosticTokens={
         "INFO","WARN","ERROR","FATAL","Exception","Connection","Socket","SSL","HTTP","failed","unable","timeout","Timeout"
@@ -188,7 +192,7 @@ public sealed class SignalGuardian : BackgroundService
         {
             FileName=_paths.JavaExe,
             WorkingDirectory=_paths.SignalCliHome,
-            Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583",
+            Arguments=$"{JavaLocaleOptions} -classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583",
             UseShellExecute=false,
             CreateNoWindow=true,
             RedirectStandardOutput=true,
@@ -359,7 +363,7 @@ public sealed class SignalGuardian : BackgroundService
             {
                 FileName=_paths.JavaExe,
                 WorkingDirectory=_paths.SignalCliHome,
-                Arguments=$"-classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --version",
+                Arguments=$"{JavaLocaleOptions} -classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --version",
                 UseShellExecute=false,
                 CreateNoWindow=true,
                 RedirectStandardOutput=true,

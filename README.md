@@ -1,5 +1,13 @@
 # Signal Auto Scheduler V9
 
+## V9.0.2 正式版 · 中文系统 signal-cli 启动兼容性修复
+
+- 部分 Windows 系统的默认 Java 区域设置为 `zh_CN`，signal-cli 内置的 argparse4j 可能找不到对应的本地化资源文件，导致服务启动即崩溃，并被自动守护程序反复尝试重新启动
+- 仅对**内置 signal-cli Java 进程**强制设置 `-Duser.language=en -Duser.country=US`，不会更改 Windows 系统语言、中文界面、账号、卡密或用户配置
+- 版本探测和后台 daemon 使用同样的 Java 参数，避免出现“版本检查成功但实际服务崩溃”的不一致
+- Windows CI 增加模拟 `zh_CN` JVM 环境的运行验证以及安装后 Engine 启动验证；覆盖安装仍保留 `%LOCALAPPDATA%\SignalSchedulerData`
+
+
 ## V9.0.1 正式版 · 卡密激活与验证时间修复
 
 - 联网激活和校验使用 ECDSA 签名凭据内由 Cloudflare Worker 签发的 UTC 时间；电脑选择纽约等时区、误设本地时钟不再造成有效新凭据的错误拒绝
