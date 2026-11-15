@@ -25,7 +25,7 @@ public static class RuntimeIntegrityCheck
             var manifestPath=Path.Combine(root,ManifestName);
             if(!File.Exists(manifestPath))
                 return Fail("MISSING_MANIFEST",
-                    "安装包运行库校验清单缺失。请使用官方 V9.0.4 安装包覆盖修复。");
+                    "安装包运行库校验清单缺失。请使用官方 V9.0.5 安装包覆盖修复。");
             var manifest=JsonSerializer.Deserialize<Manifest>(
                 File.ReadAllText(manifestPath),
                 new JsonSerializerOptions{PropertyNameCaseInsensitive=true});
@@ -39,6 +39,9 @@ public static class RuntimeIntegrityCheck
             var argparseClass=false;
             var argparseResource=false;
             var signalMain=false;
+            var hasResourceOverlayRoot=false;
+            var hasResourceOverlayEnglish=false;
+            var hasBootstrapProbe=false;
             var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach(var entry in manifest.Files)
             {
@@ -71,6 +74,15 @@ public static class RuntimeIntegrityCheck
                         return Fail("CORRUPT_FILE",$"运行库文件校验不匹配：{name}。请检查安全软件隔离记录并重新覆盖安装。");
                 }
                 count++;
+                var overlayPrefix="signal-cli/resource-overlay/";
+                if(entry.Path.Equals(overlayPrefix+
+                    "net/sourceforge/argparse4j/internal/ArgumentParserImpl.properties",StringComparison.OrdinalIgnoreCase))
+                    hasResourceOverlayRoot=true;
+                if(entry.Path.Equals(overlayPrefix+
+                    "net/sourceforge/argparse4j/internal/ArgumentParserImpl_en.properties",StringComparison.OrdinalIgnoreCase))
+                    hasResourceOverlayEnglish=true;
+                if(entry.Path.Equals(overlayPrefix+"MS002ResourceBundleProbe.class",StringComparison.OrdinalIgnoreCase))
+                    hasBootstrapProbe=true;
                 if(entry.Path.Equals("jre/bin/java.exe",StringComparison.OrdinalIgnoreCase))
                     java=true;
                 if(!entry.Path.StartsWith("signal-cli/lib/",StringComparison.OrdinalIgnoreCase)
@@ -109,6 +121,9 @@ public static class RuntimeIntegrityCheck
             }
             if(!java || jars==0 || !signalMain)
                 return Fail("INCOMPLETE_RUNTIME","内置 Java 或 signal-cli 主程序不完整，请使用官方安装包修复。");
+            if(!hasResourceOverlayRoot || !hasResourceOverlayEnglish || !hasBootstrapProbe)
+                return Fail("MISSING_OVERLAY",
+                    "启动资源检测组件缺失或未经完整性验证，请使用 V9.0.5 官方安装包覆盖修复。");
             if(!argparseClass || !argparseResource)
                 return Fail("MISSING_RESOURCE",
                     "argparse4j 命令行解析资源缺失，不能启动 Signal。请使用官方安装包修复，不要删除账号数据。");
