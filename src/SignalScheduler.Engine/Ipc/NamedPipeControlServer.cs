@@ -79,7 +79,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="9.0.0",
+                            version="9.0.1",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
