@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.0'
+            version = '9.0.1'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -399,7 +399,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.0'
+          $version = '9.0.1'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -407,7 +407,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.0 正式版（Windows 10/11 x64 中文完全离线安装包）。新增单账号重新扫码登录与本机账号删除；保留其他账号、剧本、任务历史和本地数据。已通过 Windows 编译、自动测试、安装/覆盖安装与数据保留检查。请先停止所有运行任务，再安全升级。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.1 正式版（Windows 10/11 x64 中文完全离线安装包）。修复联网卡密激活或续验受 Windows 时区/系统时间偏差影响的误判；已签名的 Cloudflare 服务器时间作为在线验证依据，仍保留签名、设备绑定、卡密期限与离线租约保护。已通过 Windows 编译、自动测试、安装/覆盖安装与数据保留检查。请先停止所有运行任务再安全覆盖升级。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -427,7 +427,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.0'
+            version = '9.0.1'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA

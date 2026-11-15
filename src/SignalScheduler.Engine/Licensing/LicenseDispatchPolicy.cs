@@ -14,7 +14,7 @@ public static class LicenseDispatchPolicy
     {
         if(status is null || !status.HasSavedLicense ||
            status.LeaseUntil<=nowUnixSeconds ||
-           status.ExpiresAt<=nowUnixSeconds)
+           (status.ExpiresAt>0 && status.ExpiresAt<=nowUnixSeconds))
             return false;
 
         return (status.State=="active" && status.ServerReachable) ||

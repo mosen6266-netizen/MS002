@@ -44,7 +44,7 @@ public sealed class LivePilotRunner : BackgroundService
             }
             var license=await _license.CheckAsync(ct);
             if(license.State!="active" || !license.ServerReachable ||
-               license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+               license.LeaseUntil<=_license.LicenseNowUnixSeconds())
             {
                 await _store.PauseLivePilotForSafetyAsync(jobId,
                     "在线授权检查失败，自动实发任务已暂停，等待手动继续。",ct);
