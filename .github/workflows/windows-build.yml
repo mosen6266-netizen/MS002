@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.1'
+            version = '9.0.2'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -194,8 +194,28 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Bundled Java failed" }
           $bundledJava = Join-Path $runtime "jre\bin\java.exe"
           $bundledCp = Join-Path $runtime "signal-cli\lib\*"
-          & $bundledJava -classpath $bundledCp org.asamk.signal.Main --version
+          & $bundledJava -Duser.language=en -Duser.country=US -classpath $bundledCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli direct-Java runtime failed" }
+
+      # Emulate a Chinese Windows JVM locale even on the English GitHub runner.
+      # argparse4j no longer falls back to English on an unsupported zh_CN
+      # locale. The bundled daemon explicitly overrides it in MS002.
+      - name: Chinese locale / argparse4j compatibility smoke test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
+          $java = Join-Path $runtime "jre/bin/java.exe"
+          $cp = Join-Path $runtime "signal-cli/lib/*"
+          $env:JAVA_TOOL_OPTIONS = "-Duser.language=zh -Duser.country=CN"
+          try {
+            & $java -Duser.language=en -Duser.country=US -classpath $cp org.asamk.signal.Main --version
+            if ($LASTEXITCODE -ne 0) {
+              throw "signal-cli failed on a simulated zh_CN Windows Java locale"
+            }
+          } finally {
+            Remove-Item Env:JAVA_TOOL_OPTIONS -ErrorAction SilentlyContinue
+          }
 
       - name: Signal JSON-RPC daemon smoke test
         shell: powershell
@@ -206,7 +226,7 @@ jobs:
           $cp = Join-Path $runtime "signal-cli/lib/*"
           $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
           $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
-          $proc = Start-Process -FilePath $java -ArgumentList @("-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          $proc = Start-Process -FilePath $java -ArgumentList @("-Duser.language=en","-Duser.country=US","-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
             $ok = $false
             for ($i=0; $i -lt 45; $i++) {
@@ -256,7 +276,7 @@ jobs:
 
           $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
           $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
-          & $installedJava -classpath $installedCp org.asamk.signal.Main --version
+          & $installedJava -Duser.language=en -Duser.country=US -classpath $installedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
 
           $desktop = [Environment]::GetFolderPath("Desktop")
@@ -268,6 +288,9 @@ jobs:
           # The installer must close them through the safe IPC handshake without an English
           # Restart Manager prompt or a force-kill on safe-protocol builds.
           $engineExe = Join-Path $testRoot "Engine\SignalScheduler.Engine.exe"
+          # Regression: a Chinese locale inherited by Java must not crash the
+          # bundled signal-cli daemon launched by the installed Engine.
+          $env:JAVA_TOOL_OPTIONS = "-Duser.language=zh -Duser.country=CN"
           $engineProc = Start-Process -FilePath $engineExe -ArgumentList @("--background") -PassThru -WindowStyle Hidden
           # Startup may hold the single-instance mutex before IPC becomes ready,
           # especially while the bundled Java daemon initializes. Require an
@@ -345,7 +368,7 @@ jobs:
               throw "Missing installed file after upgrade: $requiredFile"
             }
           }
-          & $upgradedJava -classpath $upgradedCp org.asamk.signal.Main --version
+          & $upgradedJava -Duser.language=en -Duser.country=US -classpath $upgradedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
 
           # Run desktop from the upgraded installation rather than just from
@@ -399,7 +422,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.1'
+          $version = '9.0.2'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -407,7 +430,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.1 正式版（Windows 10/11 x64 中文完全离线安装包）。修复联网卡密激活或续验受 Windows 时区/系统时间偏差影响的误判；已签名的 Cloudflare 服务器时间作为在线验证依据，仍保留签名、设备绑定、卡密期限与离线租约保护。已通过 Windows 编译、自动测试、安装/覆盖安装与数据保留检查。请先停止所有运行任务再安全覆盖升级。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.2 正式版（Windows 10/11 x64 中文完全离线安装包）。修复部分中文系统运行 signal-cli 时 argparse4j 找不到 zh_CN 语言资源而崩溃、反复出现 Signal 服务异常。只固定内置 Java 语言环境为 en_US，界面仍为中文，保留所有账号和用户数据。已执行 Windows 测试、中文环境启动兼容测试和原地升级数据保留检查。请先停止运行任务，再安全覆盖升级。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -427,7 +450,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.1'
+            version = '9.0.2'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
