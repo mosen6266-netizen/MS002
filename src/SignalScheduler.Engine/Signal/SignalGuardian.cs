@@ -199,18 +199,7 @@ public sealed class SignalGuardian : BackgroundService
         }
 
         _fatalClassPathError=false;
-        var psi=new ProcessStartInfo
-        {
-            FileName=_paths.JavaExe,
-            WorkingDirectory=_paths.SignalCliHome,
-            Arguments=$"{JavaLocaleOptions} -classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --output=json daemon --http=127.0.0.1:7583",
-            UseShellExecute=false,
-            CreateNoWindow=true,
-            RedirectStandardOutput=true,
-            RedirectStandardError=true
-        };
-        psi.Environment["JAVA_HOME"]=Path.GetDirectoryName(Path.GetDirectoryName(_paths.JavaExe))!;
-        psi.Environment["PATH"]=$"{Path.GetDirectoryName(_paths.JavaExe)};{psi.Environment["PATH"]}";
+        var psi=CreateSignalJavaStartInfo("--output=json","daemon","--http=127.0.0.1:7583");
 
         var p=new Process{StartInfo=psi,EnableRaisingEvents=true};
         p.OutputDataReceived+=(_,e)=>OnProcessLine(e.Data);
@@ -372,21 +361,43 @@ public sealed class SignalGuardian : BackgroundService
         catch { }
     }
 
+    private ProcessStartInfo CreateSignalJavaStartInfo(params string[] signalArguments)
+    {
+        // Use ArgumentList rather than concatenating command-line strings.
+        // Windows accounts / install paths can contain non-ASCII characters
+        // and spaces. The API escapes each JVM argument unambiguously.
+        var psi=new ProcessStartInfo
+        {
+            FileName=_paths.JavaExe,
+            WorkingDirectory=_paths.SignalCliHome,
+            UseShellExecute=false,
+            CreateNoWindow=true,
+            RedirectStandardOutput=true,
+            RedirectStandardError=true
+        };
+        foreach(var option in JavaLocaleOptions.Split(' ',StringSplitOptions.RemoveEmptyEntries))
+            psi.ArgumentList.Add(option);
+        psi.ArgumentList.Add("-classpath");
+        psi.ArgumentList.Add(_paths.SignalCliLibWildcard);
+        psi.ArgumentList.Add("org.asamk.signal.Main");
+        foreach(var arg in signalArguments)
+            psi.ArgumentList.Add(arg);
+        psi.Environment["JAVA_HOME"]=Path.GetDirectoryName(Path.GetDirectoryName(_paths.JavaExe))!;
+        psi.Environment["PATH"]=$"{Path.GetDirectoryName(_paths.JavaExe)};{psi.Environment["PATH"]}";
+        // A globally configured JVM agent or system-class-loader override
+        // may redirect ResourceBundle lookups even when JAR hashes match.
+        // These environment variables are isolated from this one child only.
+        psi.Environment.Remove("JAVA_TOOL_OPTIONS");
+        psi.Environment.Remove("JDK_JAVA_OPTIONS");
+        psi.Environment.Remove("_JAVA_OPTIONS");
+        return psi;
+    }
+
     async Task<string> ReadSignalCliVersionAsync(CancellationToken ct)
     {
         try
         {
-            var psi=new ProcessStartInfo
-            {
-                FileName=_paths.JavaExe,
-                WorkingDirectory=_paths.SignalCliHome,
-                Arguments=$"{JavaLocaleOptions} -classpath \"{_paths.SignalCliLibWildcard}\" org.asamk.signal.Main --version",
-                UseShellExecute=false,
-                CreateNoWindow=true,
-                RedirectStandardOutput=true,
-                RedirectStandardError=true
-            };
-            psi.Environment["JAVA_HOME"]=Path.GetDirectoryName(Path.GetDirectoryName(_paths.JavaExe))!;
+            var psi=CreateSignalJavaStartInfo("--version");
             using var p=Process.Start(psi)!;
             var stdout=await p.StandardOutput.ReadToEndAsync(ct);
             var stderr=await p.StandardError.ReadToEndAsync(ct);
