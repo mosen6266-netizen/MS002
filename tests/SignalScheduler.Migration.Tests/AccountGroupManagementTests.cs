@@ -105,6 +105,79 @@ public sealed class AccountGroupManagementTests
             .Accounts.Single().Label);
     }
 
+    [Fact]
+    public async Task RemovingLocalAccountHidesOnlySelected_AndPreservesHistory()
+    {
+        var (store,db)=await CreateAsync();
+        var first="+49111";
+        var second="+49222";
+        var members=new[]{
+            new SignalGroupCatalogItem(first,"g1","共同群",true,Array.Empty<string>()),
+            new SignalGroupCatalogItem(second,"g1","共同群",true,Array.Empty<string>())
+        };
+        await store.SyncSignalCatalogAsync(new[]{first,second},members,
+            new[]{first,second},C);
+        var request=new RemoveManagedAccountRequest(first,0,false);
+        await store.EnsureCanRemoveManagedAccountAsync(request,C);
+        Assert.Equal(first,(await store.FinishRemoveManagedAccountAsync(request,C)).Account);
+        Assert.Equal(second,(await store.GetAccountGroupOverviewAsync(C)).Accounts.Single().Account);
+        Assert.Equal(1,(await store.GetAccountGroupOverviewAsync(C)).Groups.Single().MemberAccounts);
+        Assert.Equal("0",await ScalarAsync(db,
+            "SELECT enabled FROM v8_signal_accounts WHERE account='+49111'"));
+
+        // A stale Guardian snapshot cannot resurrect a manually deleted account.
+        await store.SyncSignalCatalogAsync(new[]{first,second},members,
+            new[]{first,second},C);
+        Assert.Equal(second,(await store.GetAccountGroupOverviewAsync(C)).Accounts.Single().Account);
+
+        // Once this same phone completes a new QR provisioning, it is visible again.
+        await store.RestoreRemovedAccountAsync(first,C);
+        Assert.Equal(2,(await store.GetAccountGroupOverviewAsync(C)).Accounts.Count);
+        await store.SyncSignalCatalogAsync(new[]{first,second},members,
+            new[]{first,second},C);
+        Assert.Equal(2,(await store.GetAccountGroupOverviewAsync(C)).Groups.Single().MemberAccounts);
+    }
+
+    [Fact]
+    public async Task RelinkRetainsLabelAndDisabledPreferenceWithoutRemovingAccount()
+    {
+        var (store,db)=await CreateAsync();
+        var account="+49333";
+        await store.SyncSignalCatalogAsync(new[]{account},
+            Array.Empty<SignalGroupCatalogItem>(),new[]{account},C);
+        var saved=await store.UpdateManagedAccountAsync(
+            new UpdateManagedAccount(account,"原备注",false,0),C);
+        var request=new RemoveManagedAccountRequest(account,saved.Revision,true);
+        await store.EnsureCanRemoveManagedAccountAsync(request,C);
+        var result=await store.FinishRemoveManagedAccountAsync(request,C);
+        Assert.True(result.ForRelink);
+        var row=(await store.GetAccountGroupOverviewAsync(C)).Accounts.Single();
+        Assert.Equal("原备注",row.Label);
+        Assert.False(row.Enabled);
+        Assert.False(row.Online);
+        Assert.Equal(saved.Revision,row.Revision);
+    }
+
+    [Fact]
+    public async Task RemovingLocalCredentialsIsRejectedWhileAnyJobMayBeSending()
+    {
+        var (store,db)=await CreateAsync();
+        var account="+49444";
+        await store.SyncSignalCatalogAsync(new[]{account},
+            Array.Empty<SignalGroupCatalogItem>(),new[]{account},C);
+        await using(var connection=new SqliteConnection($"Data Source={db}"))
+        {
+            await connection.OpenAsync();
+            await using var command=connection.CreateCommand();
+            command.CommandText="INSERT INTO v8_jobs(job_id,state,cursor,updated_at) VALUES('active','Running',0,1)";
+            await command.ExecuteNonQueryAsync();
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(()=>
+            store.EnsureCanRemoveManagedAccountAsync(
+                new RemoveManagedAccountRequest(account,0,false),C));
+        Assert.Single((await store.GetAccountGroupOverviewAsync(C)).Accounts);
+    }
+
     static async Task<(StateStore,string)> CreateAsync()
     {
         var dir=Path.Combine(Path.GetTempPath(),"SignalV8AccountTests",
