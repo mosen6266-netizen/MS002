@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -18,6 +19,11 @@ public sealed class LicenseManager : BackgroundService
     readonly SemaphoreSlim _gate=new(1,1);
     readonly object _statusLock=new();
     LicensePublicStatus _status=new("unknown","尚未检查卡密。","",0,0,0,false,false);
+    // Anchored only by a freshly received, signature-verified online lease.
+    // Monotonic elapsed time avoids relying on Windows timezone or manual clock
+    // changes for dispatch while the current Engine process is running.
+    long _verifiedServerUnixSeconds;
+    long _verifiedServerStopwatchTicks;
 
     sealed record SavedLicense(
         string LicenseKey,string DeviceId,string Lease,
@@ -43,6 +49,32 @@ public sealed class LicenseManager : BackgroundService
     void SetStatus(LicensePublicStatus status)
     {
         lock(_statusLock)_status=status;
+    }
+
+    void RememberSignedServerTime(long signedIssuedAt)
+    {
+        lock(_statusLock)
+        {
+            _verifiedServerUnixSeconds=signedIssuedAt;
+            _verifiedServerStopwatchTicks=Stopwatch.GetTimestamp();
+        }
+    }
+
+    /// <summary>
+    /// A fresh online response establishes a trusted UTC anchor for this
+    /// process. Stopwatch time stays monotonic across user timezone changes.
+    /// After restart without a successful online check, fall back to UTC for
+    /// conservative offline lease checks; never infer unlimited validity.
+    /// </summary>
+    public long LicenseNowUnixSeconds()
+    {
+        lock(_statusLock)
+        {
+            if(_verifiedServerUnixSeconds>0 && _verifiedServerStopwatchTicks>0)
+                return _verifiedServerUnixSeconds+
+                    (long)Stopwatch.GetElapsedTime(_verifiedServerStopwatchTicks).TotalSeconds;
+        }
+        return DateTimeOffset.UtcNow.ToUnixTimeSeconds();
     }
 
     string KeyPath=>Path.Combine(_paths.DataRoot,"license-v8.dpapi");
@@ -121,6 +153,7 @@ public sealed class LicenseManager : BackgroundService
                 response.GetProperty("public_key"),device,null,
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                 trustedOnlineResponse:true);
+            RememberSignedServerTime(claims.IssuedAt);
             var saved=new SavedLicense(key,device,
                 response.GetProperty("lease").GetString()!,
                 response.GetProperty("signature").GetString()!,
@@ -172,6 +205,7 @@ public sealed class LicenseManager : BackgroundService
                     publicKey,device,saved.PublicKeyPin,
                     DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
                     trustedOnlineResponse:true);
+                RememberSignedServerTime(claims.IssuedAt);
                 var renewed=saved with
                 {
                     Lease=response.GetProperty("lease").GetString()!,
@@ -212,7 +246,7 @@ public sealed class LicenseManager : BackgroundService
             var claims=LicenseLeaseVerifier.Verify(
                 saved.Lease,saved.Signature,key.RootElement,
                 saved.DeviceId,saved.PublicKeyPin,
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                LicenseNowUnixSeconds());
             var cached=ToStatus(saved,claims,false,
                 $"{reason} 已验证本地签名，仅在剩余授权租期内临时有效。");
             SetStatus(cached);
