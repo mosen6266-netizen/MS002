@@ -194,7 +194,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Bundled Java failed" }
           $bundledJava = Join-Path $runtime "jre\bin\java.exe"
           $bundledCp = Join-Path $runtime "signal-cli\lib\*"
-          & $bundledJava -Duser.language=en -Duser.country=US -classpath $bundledCp org.asamk.signal.Main --version
+          & $bundledJava "-Duser.language=en" "-Duser.country=US" -classpath $bundledCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli direct-Java runtime failed" }
 
       # Emulate a Chinese Windows JVM locale even on the English GitHub runner.
@@ -209,7 +209,7 @@ jobs:
           $cp = Join-Path $runtime "signal-cli/lib/*"
           $env:JAVA_TOOL_OPTIONS = "-Duser.language=zh -Duser.country=CN"
           try {
-            & $java -Duser.language=en -Duser.country=US -classpath $cp org.asamk.signal.Main --version
+            & $java "-Duser.language=en" "-Duser.country=US" -classpath $cp org.asamk.signal.Main --version
             if ($LASTEXITCODE -ne 0) {
               throw "signal-cli failed on a simulated zh_CN Windows Java locale"
             }
@@ -276,7 +276,7 @@ jobs:
 
           $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
           $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
-          & $installedJava -Duser.language=en -Duser.country=US -classpath $installedCp org.asamk.signal.Main --version
+          & $installedJava "-Duser.language=en" "-Duser.country=US" -classpath $installedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
 
           $desktop = [Environment]::GetFolderPath("Desktop")
@@ -368,7 +368,7 @@ jobs:
               throw "Missing installed file after upgrade: $requiredFile"
             }
           }
-          & $upgradedJava -Duser.language=en -Duser.country=US -classpath $upgradedCp org.asamk.signal.Main --version
+          & $upgradedJava "-Duser.language=en" "-Duser.country=US" -classpath $upgradedCp org.asamk.signal.Main --version
           if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
 
           # Run desktop from the upgraded installation rather than just from
