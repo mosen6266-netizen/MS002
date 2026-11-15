@@ -160,7 +160,9 @@ public sealed class SignalGuardian : BackgroundService
                     catch(OperationCanceledException) when(stoppingToken.IsCancellationRequested) { break; }
                     var exitCode=SafeExitCode(dead);
                     _lastUnexpectedExitCode=exitCode;
-                    _lastExitCategory=SignalCrashPolicy.SafeCode(_lastCrashCategory);
+                    _lastExitCategory=SignalCrashPolicy.SafeCode(
+                        _lastCrashCategory.Length>0?_lastCrashCategory:
+                        SignalCrashPolicy.ClassifyExitCode(exitCode));
                     _lastDaemonErrorCategory="ERROR SignalRuntime."+_lastExitCategory;
                     Interlocked.Exchange(ref _lastDaemonErrorAtMs,
                         DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
