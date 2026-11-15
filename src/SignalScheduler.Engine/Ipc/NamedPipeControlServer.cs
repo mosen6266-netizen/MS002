@@ -79,7 +79,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                     case ControlCommands.Status:
                         var s=_guardian.Snapshot;
                         response=new ControlResponse(true,Data:new{
-                            version="9.0.2",
+                            version="9.0.3",
                             engine="running",
                             signal=s.State,
                             signalDetail=s.Detail,
@@ -189,7 +189,7 @@ public sealed class NamedPipeControlServer : BackgroundService
                             var requestData=ParsePayload<LiveBatchStartRequest>(request.Payload);
                             var license=await _license.CheckAsync(ct);
                             if(license.State!="active" || !license.ServerReachable ||
-                                license.LeaseUntil<=DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+                                license.LeaseUntil<=_license.LicenseNowUnixSeconds())
                                 throw new InvalidOperationException("没有有效的在线卡密，请先联网校验。");
                             if(!string.Equals(_guardian.Snapshot.State,"healthy",
                                 StringComparison.OrdinalIgnoreCase))
