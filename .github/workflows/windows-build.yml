@@ -320,7 +320,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $runtime = Join-Path $pwd "artifacts/publish/Runtime/signal-stack-v1"
           $java = Join-Path $runtime "jre/bin/java.exe"
-          $cp = Join-Path $runtime "signal-cli/lib/*"
+          $cp = (Join-Path $runtime "signal-cli/resource-overlay") + ";" +
+            (Join-Path $runtime "signal-cli/lib/*")
           $stdout = Join-Path $env:RUNNER_TEMP "signal-daemon.out.log"
           $stderr = Join-Path $env:RUNNER_TEMP "signal-daemon.err.log"
           $proc = Start-Process -FilePath $java -ArgumentList @("-Duser.language=en","-Duser.country=US","-classpath",$cp,"org.asamk.signal.Main","--output=json","daemon","--http=127.0.0.1:7583") -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
