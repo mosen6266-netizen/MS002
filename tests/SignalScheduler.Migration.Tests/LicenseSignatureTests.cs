@@ -76,6 +76,62 @@ public sealed class LicenseSignatureTests
                 "device",null,now+24*3600));
     }
 
+    [Theory]
+    [InlineData(-86400L)]
+    [InlineData(86400L)]
+    public void SignedOnlineLeaseIgnoresWindowsClockDrift_OfflineDoesNot(long driftSeconds)
+    {
+        using var key=ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var issued=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        const string device="clock-drift-device";
+        var payload=new
+        {
+            v=1,license_id="license-clock-test",card_type="month",
+            device_hash=device,issued_at=issued,expires_at=issued+2592000,
+            lease_until=issued+6*3600,max_devices=1,server_version="1.4.1"
+        };
+        var lease=B64(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var signature=B64(key.SignData(Encoding.UTF8.GetBytes(lease),
+            HashAlgorithmName.SHA256,DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        var ec=key.ExportParameters(false);
+        using var pub=JsonDocument.Parse(JsonSerializer.Serialize(new{
+            kty="EC",crv="P-256",x=B64(ec.Q.X!),y=B64(ec.Q.Y!)
+        }));
+        // Activation and online refresh must succeed even when a user has
+        // accidentally set their Windows clock a day ahead or behind UTC.
+        var claims=LicenseLeaseVerifier.Verify(
+            lease,signature,pub.RootElement,device,null,
+            issued+driftSeconds,trustedOnlineResponse:true);
+        Assert.Equal("license-clock-test",claims.LicenseId);
+        // An offline cache MUST NOT be extended by the signed issue time:
+        // the desktop clock still bounds the offline lease's expiration.
+        Assert.Throws<CryptographicException>(()=>
+            LicenseLeaseVerifier.Verify(lease,signature,pub.RootElement,
+                device,null,issued+driftSeconds));
+    }
+
+    [Fact]
+    public void OnlineLeaseStillRejectsSignatureValidButExpiredCard()
+    {
+        using var key=ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var issued=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var payload=new{
+            v=1,license_id="expired-card",card_type="test",
+            device_hash="device",issued_at=issued,
+            expires_at=issued-10,lease_until=issued+3600
+        };
+        var lease=B64(JsonSerializer.SerializeToUtf8Bytes(payload));
+        var sig=B64(key.SignData(Encoding.UTF8.GetBytes(lease),
+            HashAlgorithmName.SHA256,DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+        var ec=key.ExportParameters(false);
+        using var pub=JsonDocument.Parse(JsonSerializer.Serialize(new{
+            kty="EC",crv="P-256",x=B64(ec.Q.X!),y=B64(ec.Q.Y!)
+        }));
+        Assert.Throws<CryptographicException>(()=>
+            LicenseLeaseVerifier.Verify(lease,sig,pub.RootElement,
+                "device",null,issued+86400,trustedOnlineResponse:true));
+    }
+
     static string B64(byte[] bytes)=>Convert.ToBase64String(bytes)
         .TrimEnd('=').Replace('+','-').Replace('/','_');
 }
