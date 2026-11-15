@@ -11,7 +11,7 @@ namespace SignalScheduler.Engine.Licensing;
 public sealed class LicenseManager : BackgroundService
 {
     const string Server="https://signal-scheduler-license.mosen6266-ms007.workers.dev/";
-    const string Version="8.0.0-beta.3";
+    const string Version="9.0.1";
 
     readonly RuntimePaths _paths;
     readonly HttpClient _client;
@@ -119,7 +119,8 @@ public sealed class LicenseManager : BackgroundService
                 response.GetProperty("lease").GetString()!,
                 response.GetProperty("signature").GetString()!,
                 response.GetProperty("public_key"),device,null,
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                trustedOnlineResponse:true);
             var saved=new SavedLicense(key,device,
                 response.GetProperty("lease").GetString()!,
                 response.GetProperty("signature").GetString()!,
@@ -169,7 +170,8 @@ public sealed class LicenseManager : BackgroundService
                     response.GetProperty("lease").GetString()!,
                     response.GetProperty("signature").GetString()!,
                     publicKey,device,saved.PublicKeyPin,
-                    DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                    DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                    trustedOnlineResponse:true);
                 var renewed=saved with
                 {
                     Lease=response.GetProperty("lease").GetString()!,
