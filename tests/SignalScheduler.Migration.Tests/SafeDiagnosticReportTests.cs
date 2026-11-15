@@ -53,6 +53,22 @@ public sealed class SafeDiagnosticReportTests
     }
 
     [Fact]
+    public void SanitizedReportIncludesDaemonExitReasonWithoutPrivateStderr()
+    {
+        var report=SafeDiagnosticReport.Render(new SafeDiagnosticSnapshot(
+            DateTimeOffset.UtcNow,"9.0.6",true,"fault",0,0,0,0,0,0,
+            "未知",0,0,0,true,
+            LastDaemonExitCode:-1073741819,
+            RecentDaemonCrashCount:3,
+            LastDaemonExitCategory:"JVM_NATIVE"));
+        Assert.Contains("Signal 服务状态：fault",report);
+        Assert.Contains("最近退出代码：-1073741819",report);
+        Assert.Contains("最近退出分类：JVM_NATIVE",report);
+        Assert.Contains("近5分钟异常退出次数：3",report);
+        Assert.DoesNotContain("java.dll C:\\private",report);
+    }
+
+    [Fact]
     public void InvalidMetricsAreClampedInsteadOfExportingSurprisingValues()
     {
         var data=new SafeDiagnosticSnapshot(DateTimeOffset.UtcNow,
