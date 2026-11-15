@@ -35,6 +35,22 @@ public sealed class SignalCrashPolicyTests
         Assert.Equal("",SignalCrashPolicy.Classify(raw));
     }
 
+    [Theory]
+    [InlineData(unchecked((int)0xC0000005),"OS_ACCESS_VIOLATION")]
+    [InlineData(unchecked((int)0xC0000135),"OS_DLL_MISSING")]
+    [InlineData(unchecked((int)0xC0000142),"OS_DLL_INIT")]
+    [InlineData(unchecked((int)0xC000001D),"OS_ILLEGAL_INSTRUCTION")]
+    [InlineData(unchecked((int)0xC0000409),"OS_STACK_BUFFER_OVERRUN")]
+    [InlineData(0,"")]
+    [InlineData(1,"")]
+    public void WindowsExitCodesAreSafelyClassified(int exitCode,string category)
+    {
+        Assert.Equal(category,SignalCrashPolicy.ClassifyExitCode(exitCode));
+        if(category.Length>0)
+            Assert.Contains(category,SignalCrashPolicy.ExitDetail(
+                exitCode,category,true,3));
+    }
+
     [Fact]
     public void ThreeRapidUnexpectedExitsOpenCircuitInsteadOfInfiniteRestart()
     {
