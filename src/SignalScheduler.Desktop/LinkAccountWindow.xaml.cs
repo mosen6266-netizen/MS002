@@ -16,10 +16,18 @@ public partial class LinkAccountWindow : Window
     bool _linkComplete;
     string _linkedAccount="";
     readonly HashSet<string> _beforeAccounts=new(StringComparer.Ordinal);
+    readonly string? _expectedAccount;
 
-    public LinkAccountWindow()
+    public LinkAccountWindow(string? expectedAccount=null,string? existingRemark=null)
     {
         InitializeComponent();
+        _expectedAccount=expectedAccount;
+        if(!string.IsNullOrWhiteSpace(expectedAccount))
+        {
+            ExpectedAccountText.Text=$"正在重新连接：{expectedAccount}。请勿扫描其他手机账号。";
+            ExpectedAccountText.Visibility=Visibility.Visible;
+            RemarkBox.Text=existingRemark??"";
+        }
         Loaded+=async(_,_)=>{
             try
             {
@@ -82,11 +90,22 @@ public partial class LinkAccountWindow : Window
             if(snap.State=="complete")
             {
                 _timer.Stop();
-                _linkComplete=true;
                 _linkedAccount=snap.Account;
+                if(!string.IsNullOrWhiteSpace(_expectedAccount) &&
+                   !string.Equals(_expectedAccount,_linkedAccount,StringComparison.Ordinal))
+                {
+                    _linkComplete=false;
+                    FinishButton.IsEnabled=false;
+                    StatusText.Text="扫码账号与选中账号不一致";
+                    DetailText.Text=$"预期账号：{_expectedAccount}；实际扫码账号：{_linkedAccount}。"+
+                        "不会把当前备注写到其他账号。请关闭窗口，确认手机后再操作。"+
+                        "误扫的账号可能已经作为新设备连接，需在账号管理中自行核查。";
+                    return;
+                }
+                _linkComplete=true;
                 FinishButton.IsEnabled=true;
                 StatusText.Text="✓ 已扫码连接成功";
-                DetailText.Text="请确认上方备注，点击「保存备注并完成」。";
+                DetailText.Text="请确认上方备注，点击「保存备注并完成」。"
             }
         }
         catch { }
@@ -107,7 +126,9 @@ public partial class LinkAccountWindow : Window
 
     async Task SaveRemarkAndFinishAsync()
     {
-        if(!_linkComplete || _saving)return;
+        if(!_linkComplete || _saving ||
+           (!string.IsNullOrWhiteSpace(_expectedAccount) &&
+            !string.Equals(_expectedAccount,_linkedAccount,StringComparison.Ordinal)))return;
         _saving=true;
         FinishButton.IsEnabled=false;
         try
