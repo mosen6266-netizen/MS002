@@ -43,7 +43,10 @@ public sealed record SignalGuardianSnapshot(
     DateTimeOffset UpdatedAt,
     IReadOnlyList<string> LiveAccounts,
     string LastDaemonErrorCategory="",
-    long LastDaemonErrorAtMs=0);
+    long LastDaemonErrorAtMs=0,
+    int LastExitCode=int.MinValue,
+    int RecentCrashCount=0,
+    string LastExitCategory="");
 
 public sealed record DashboardAccount(long LegacyId,string Account,string Label,bool Enabled);
 public sealed record DashboardGroup(long LegacyId,string Account,string GroupId,string Name,bool Enabled);
