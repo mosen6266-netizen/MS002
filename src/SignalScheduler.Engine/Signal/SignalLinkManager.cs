@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using SignalScheduler.Engine.Persistence;
 using SignalScheduler.Shared;
 
 namespace SignalScheduler.Engine.Signal;
@@ -10,12 +11,17 @@ public sealed class SignalLinkManager
 
     readonly HttpClient _http=new(){Timeout=Timeout.InfiniteTimeSpan};
     readonly SignalGuardian _guardian;
+    readonly StateStore _store;
     readonly object _gate=new();
 
     CancellationTokenSource? _sessionCts;
     SignalLinkSnapshot _snapshot=new("idle","","","",DateTimeOffset.MinValue);
 
-    public SignalLinkManager(SignalGuardian guardian)=>_guardian=guardian;
+    public SignalLinkManager(SignalGuardian guardian,StateStore store)
+    {
+        _guardian=guardian;
+        _store=store;
+    }
 
     public SignalLinkSnapshot Snapshot
     {
@@ -94,6 +100,10 @@ public sealed class SignalLinkManager
                     account=aci.GetString()??"";
             }
 
+            // A previously removed account is visible again only after an
+            // explicitly completed QR link for that exact Signal identity.
+            if(!string.IsNullOrWhiteSpace(account))
+                await _store.RestoreRemovedAccountAsync(account,ct);
             Set("complete","",account,string.IsNullOrWhiteSpace(account)?"Signal 账号已链接。":$"已链接：{account}",started);
         }
         catch(OperationCanceledException)
@@ -105,6 +115,44 @@ public sealed class SignalLinkManager
         {
             Set("failed","","",$"扫码登录失败：{Short(ex.Message)}",started);
         }
+    }
+
+    /// <summary>
+    /// Delete only the selected linked device's local signal-cli credentials.
+    /// This MUST NOT invoke unregister or removeDevice: those can affect the
+    /// server-side registration and other devices. The UI confirms separately.
+    /// </summary>
+    public async Task RemoveLocalAccountAsync(string account,CancellationToken ct)
+    {
+        if(string.IsNullOrWhiteSpace(account) || account.Length>128)
+            throw new ArgumentException("账号编号无效。");
+        if(!string.Equals(_guardian.Snapshot.State,"healthy",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Signal 后台未就绪；未删除任何本机登录数据。");
+
+        var catalog=await RpcAsync("listAccounts",null,TimeSpan.FromSeconds(8),ct);
+        if(catalog.ValueKind!=JsonValueKind.Array)
+            throw new InvalidOperationException("无法验证 Signal 本机账号列表，已停止删除。");
+
+        static bool Matches(JsonElement node,string expected)
+        {
+            if(node.ValueKind==JsonValueKind.String)
+                return string.Equals(node.GetString(),expected,StringComparison.Ordinal);
+            if(node.ValueKind!=JsonValueKind.Object)return false;
+            foreach(var key in new[]{"number","aci","username"})
+            {
+                if(node.TryGetProperty(key,out var v) && v.ValueKind==JsonValueKind.String &&
+                    string.Equals(v.GetString(),expected,StringComparison.Ordinal))
+                    return true;
+            }
+            return false;
+        }
+        if(!catalog.EnumerateArray().Any(item=>Matches(item,account)))
+            return; // Already disconnected locally; only stale catalog metadata remains.
+
+        await RpcAsync("deleteLocalAccountData",
+            new{account,ignoreRegistered=true},TimeSpan.FromSeconds(20),ct);
+        // Do not delete SQL records when signal-cli reports an error. The
+        // in-memory daemon may need a probe cycle before its list refreshes.
     }
 
     async Task<JsonElement> RpcAsync(string method,object? parameters,TimeSpan timeout,CancellationToken ct)
