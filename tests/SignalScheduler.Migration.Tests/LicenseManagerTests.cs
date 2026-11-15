@@ -49,6 +49,31 @@ public sealed class LicenseManagerTests
         Assert.Single(server.SeenDeviceIds.Distinct(StringComparer.Ordinal));
     }
 
+    [Theory]
+    [InlineData(-86400L)]
+    [InlineData(86400L)]
+    public async Task FreshSignedServerTimeAllowsActivationAndDispatchEvenWithClockSkew(
+        long serverOffsetSeconds)
+    {
+        var root=Path.Combine(Path.GetTempPath(),"SignalLicenseTests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var paths=RuntimePaths.ForTesting(root,Path.Combine(root,"data.db"));
+        using var server=new FakeServer{ClockOffsetSeconds=serverOffsetSeconds};
+        using var client=new HttpClient(server)
+        {
+            BaseAddress=new Uri("https://example.invalid/")
+        };
+        var manager=new LicenseManager(paths,client);
+        var status=await manager.ActivateAsync(
+            new LicenseActivationRequest("TIME-SKEW-CARD"),Ct);
+        Assert.Equal("active",status.State);
+        // Actual Windows time is intentionally NOT the server's signed UTC.
+        Assert.True(LicenseDispatchPolicy.CanDispatch(
+            status,manager.LicenseNowUnixSeconds()));
+        Assert.Equal("active",(await manager.CheckAsync(Ct)).State);
+    }
+
     [Fact]
     public async Task InvalidSignatureNeverSavesAnActivatedCard()
     {
@@ -73,6 +98,7 @@ public sealed class LicenseManagerTests
         public int ActivateRequests {get;private set;}
         public int CheckRequests {get;private set;}
         public bool CorruptSignature {get;set;}
+        public long ClockOffsetSeconds {get;set;}
         public List<string> SeenDeviceIds {get;}=new();
 
         protected override async Task<HttpResponseMessage> SendAsync(
@@ -88,7 +114,7 @@ public sealed class LicenseManagerTests
                 StringComparison.Ordinal))CheckRequests++;
             else throw new InvalidOperationException("Unexpected request");
 
-            var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var now=DateTimeOffset.UtcNow.ToUnixTimeSeconds()+ClockOffsetSeconds;
             var lease=B64(JsonSerializer.SerializeToUtf8Bytes(new
             {
                 v=1,license_id="test-license",card_type="month",
