@@ -105,7 +105,7 @@ public partial class LinkAccountWindow : Window
                 _linkComplete=true;
                 FinishButton.IsEnabled=true;
                 StatusText.Text="✓ 已扫码连接成功";
-                DetailText.Text="请确认上方备注，点击「保存备注并完成」。"
+                DetailText.Text="请确认上方备注，点击「保存备注并完成」。";
             }
         }
         catch { }
