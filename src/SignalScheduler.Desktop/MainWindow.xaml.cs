@@ -652,6 +652,15 @@ public partial class MainWindow : Window
                 return Math.Max(0,number);
             }
 
+            static int SignedNumber(JsonElement? data,string key)
+            {
+                if(!data.HasValue ||
+                   !data.Value.TryGetProperty(key,out var value) ||
+                   !value.TryGetInt32(out var number))
+                    return int.MinValue;
+                return number;
+            }
+
             static string State(JsonElement? data,string key)
             {
                 if(!data.HasValue ||
@@ -725,7 +734,10 @@ public partial class MainWindow : Window
                 Count(read,"LastReceiptAccepted"),
                 Count(read,"Unknown"),
                 State(read,"LastReceiptFailureCode"),
-                Number(read,"LastReceiptFailureAtMs")));
+                Number(read,"LastReceiptFailureAtMs"),
+                SignedNumber(signalDiagnostic,"LastExitCode"),
+                Count(signalDiagnostic,"RecentCrashCount"),
+                State(signalDiagnostic,"LastExitCategory")));
             await File.WriteAllTextAsync(picker.FileName,report,
                 new System.Text.UTF8Encoding(true));
             MessageBox.Show(this,
