@@ -309,7 +309,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V9*.exe | Select-Object -First 1
           if (-not $setup) { throw "Installer not found" }
-          $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV9-中文路径-CI-Smoke"
+          $unicodePath = "SignalSchedulerV9-" + [char]0x4E2D + [char]0x6587 + "-CI-Smoke"
+          $testRoot = Join-Path $env:LOCALAPPDATA $unicodePath
           $install = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
           Start-Sleep -Seconds 2
