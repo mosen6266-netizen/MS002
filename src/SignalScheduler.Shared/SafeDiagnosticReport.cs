@@ -171,7 +171,12 @@ public static class SafeDiagnosticReport
             "ERROR SignalRuntime.RPC_PORT",
             "ERROR SignalRuntime.SIGNAL_ACCOUNT",
             "ERROR SignalRuntime.SIGNAL_NETWORK",
-            "ERROR SignalRuntime.UNCLASSIFIED_EXIT"
+            "ERROR SignalRuntime.UNCLASSIFIED_EXIT",
+            "ERROR SignalRuntime.OS_ACCESS_VIOLATION",
+            "ERROR SignalRuntime.OS_DLL_MISSING",
+            "ERROR SignalRuntime.OS_DLL_INIT",
+            "ERROR SignalRuntime.OS_ILLEGAL_INSTRUCTION",
+            "ERROR SignalRuntime.OS_STACK_BUFFER_OVERRUN"
         };
         sb.AppendLine("错误类型："+(allowedDaemon.Contains(daemonCode,
             StringComparer.Ordinal)?daemonCode:"未记录"));
