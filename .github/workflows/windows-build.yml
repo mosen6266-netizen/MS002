@@ -58,7 +58,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.4'
+            version = '9.0.5'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -497,6 +497,10 @@ jobs:
             throw "Staged ASCII Java runtime could not load signal-cli"
           }
           $stagedManifest = Join-Path $staged "runtime-integrity-v1.json"
+          $stagedProbe=Join-Path $staged "signal-cli/resource-overlay/MS002ResourceBundleProbe.class"
+          if (-not (Test-Path -LiteralPath $stagedProbe)) {
+            throw "Java ResourceBundle preflight missing from installed runtime"
+          }
           if (-not (Test-Path -LiteralPath $stagedManifest)) { throw "Staged runtime missing integrity manifest" }
           $verifyStage = Get-Content -LiteralPath $stagedManifest -Raw | ConvertFrom-Json
           foreach ($entry in @($verifyStage.files)) {
@@ -617,7 +621,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.4'
+          $version = '9.0.5'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -625,7 +629,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.4 正式版（Windows 10/11 x64 中文离线安装包）。修复旧版覆盖安装残留的 Java JAR 导致 argparse4j 资源加载失败：安全清除应用运行库旧依赖，检测清单外 JAR，并使用 Unicode 安全参数启动内置 Java。新增中文安装路径、旧 JAR 残留、覆盖安装及数据保留测试；账号、卡密、剧本和任务历史保持不变。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.5 正式版（Windows 10/11 x64 离线安装包）。针对部分电脑反复出现的 argparse4j MissingResourceException：从已验证的原版 JAR 提取英语语言资源到独立哈希校验目录，Java 启动时优先加载该目录，且 Signal daemon 启动前实际测试 ResourceBundle.getBundle 是否成功。继续保留 V9.0.4 的中文路径、旧版 JAR 清理及安全覆盖升级机制。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -645,7 +649,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.4'
+            version = '9.0.5'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
