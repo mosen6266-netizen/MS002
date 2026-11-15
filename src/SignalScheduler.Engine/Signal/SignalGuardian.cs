@@ -133,7 +133,10 @@ public sealed class SignalGuardian : BackgroundService
                     _firstFailure=null;
                     if(_owned is { HasExited:false } &&
                        DateTimeOffset.UtcNow-_ownedStartedAt>TimeSpan.FromMinutes(2))
+                    {
                         _crashBudget.ResetAfterStableRun();
+                        _recentCrashCount=0;
+                    }
                     SetSnapshot("healthy","Signal JSON-RPC 正常",version,_owned is { HasExited:false },probe.Accounts);
                     continue;
                 }
