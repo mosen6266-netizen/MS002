@@ -51,7 +51,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.3'
+            version = '9.0.4'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -309,7 +309,8 @@ jobs:
           $ErrorActionPreference = "Stop"
           $setup = Get-ChildItem artifacts/installer/SignalScheduler_Setup_V9*.exe | Select-Object -First 1
           if (-not $setup) { throw "Installer not found" }
-          $testRoot = Join-Path $env:LOCALAPPDATA "SignalSchedulerV9-CI-Smoke"
+          $unicodePath = "SignalSchedulerV9-" + [char]0x4E2D + [char]0x6587 + "-CI-Smoke"
+          $testRoot = Join-Path $env:LOCALAPPDATA $unicodePath
           $install = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon") -Wait -PassThru
           if ($install.ExitCode -ne 0) { throw "Installer exited with $($install.ExitCode)" }
           Start-Sleep -Seconds 2
@@ -331,10 +332,14 @@ jobs:
             }
           }
 
+          # The Windows JRE launcher can fail to resolve java.dll under a
+          # Unicode directory. The Engine MUST stage the verified runtime in
+          # a protected ASCII directory before invoking the JVM. Do not run
+          # the source java.exe directly here: that is the regression case.
           $installedJava = Join-Path $testRoot "Runtime\signal-stack-v1\jre\bin\java.exe"
-          $installedCp = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\*"
-          & $installedJava "-Duser.language=en" "-Duser.country=US" -classpath $installedCp org.asamk.signal.Main --version
-          if ($LASTEXITCODE -ne 0) { throw "Installed signal-cli direct-Java runtime failed" }
+          if (-not (Test-Path -LiteralPath $installedJava)) {
+            throw "Bundled Java missing from Unicode app installation"
+          }
 
           $desktop = [Environment]::GetFolderPath("Desktop")
           $programs = [Environment]::GetFolderPath("Programs")
@@ -384,6 +389,68 @@ jobs:
           }
           if (-not $ready) { throw "Engine IPC did not become ready for safe upgrade" }
 
+          # An IPC-ready Engine is not proof that signal-cli started. Confirm
+          # the installed daemon actually reaches JSON-RPC healthy when
+          # launched from a Unicode Windows path with an inherited zh_CN JVM.
+          $signalHealthy = $false
+          for ($i=0; $i -lt 50; $i++) {
+            $pipe = [System.IO.Pipes.NamedPipeClientStream]::new(".","SignalScheduler.V8.Control",[System.IO.Pipes.PipeDirection]::InOut,[System.IO.Pipes.PipeOptions]::Asynchronous)
+            try {
+              $pipe.Connect(800)
+              $writer = [System.IO.StreamWriter]::new($pipe)
+              $writer.AutoFlush = $true
+              $reader = [System.IO.StreamReader]::new($pipe)
+              $writer.WriteLine('{"Command":"signal-status"}')
+              $read = $reader.ReadLineAsync()
+              if (-not $read.Wait(3000)) { throw "Signal state IPC timeout" }
+              $reply = ConvertFrom-Json -InputObject $read.Result
+              if ($reply.Ok -and $reply.Data.State -eq "healthy") {
+                $signalHealthy = $true
+                break
+              }
+              if ($reply.Ok -and $reply.Data.State -in @("fault","missing-runtime","external-conflict")) {
+                throw "Installed Unicode path daemon failed with state $($reply.Data.State)"
+              }
+            } finally { $pipe.Dispose() }
+            Start-Sleep -Seconds 1
+          }
+          if (-not $signalHealthy) { throw "Installed Engine failed to start healthy signal-cli on Unicode path" }
+
+          # This test must run as the installed executable's Windows user:
+          # confirm that the Java process actually uses the private, ASCII-
+          # only staged runtime and that this stage is hash-verified.
+          $userSid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+          $commonDocs = [Environment]::GetFolderPath([Environment+SpecialFolder]::CommonDocuments)
+          $privateRuntime = Join-Path $commonDocs ("MS002_Runtime_" + $userSid)
+          if (-not (Test-Path -LiteralPath $privateRuntime)) {
+            throw "Unicode installation did not stage bundled Java to a protected ASCII path"
+          }
+          $stages = @(Get-ChildItem -LiteralPath $privateRuntime -Directory)
+          if ($stages.Count -lt 1) { throw "No staged Java runtime was created" }
+          $staged = $stages[0].FullName
+          if ($staged.ToCharArray() | Where-Object { [int]$_ -gt 127 }) {
+            throw "Staged Java runtime path is not ASCII-only"
+          }
+          $stagedJava = Join-Path $staged "jre\bin\java.exe"
+          $stagedCp = Join-Path $staged "signal-cli\lib\*"
+          if (-not (Test-Path -LiteralPath $stagedJava)) {
+            throw "Protected runtime lacks java.exe"
+          }
+          & $stagedJava "-Duser.language=en" "-Duser.country=US" -classpath $stagedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) {
+            throw "Staged ASCII Java runtime could not load signal-cli"
+          }
+          $stagedManifest = Join-Path $staged "runtime-integrity-v1.json"
+          if (-not (Test-Path -LiteralPath $stagedManifest)) { throw "Staged runtime missing integrity manifest" }
+          $verifyStage = Get-Content -LiteralPath $stagedManifest -Raw | ConvertFrom-Json
+          foreach ($entry in @($verifyStage.files)) {
+            $stagedFile = Join-Path $staged $entry.path
+            if (-not (Test-Path -LiteralPath $stagedFile) -or
+                (Get-FileHash -LiteralPath $stagedFile -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.sha256) {
+              throw "Staged runtime JAR integrity mismatch"
+            }
+          }
+
           # Snapshot real V8 user-facing records in the isolated runner database:
           # remarks, edited script and revision, selected group, completed
           # dispatch history, local preferences and a user-owned file.
@@ -397,6 +464,16 @@ jobs:
           python tools/verify_upgrade_userdata.py verify "$userDataRoot" "$expectedData"
           if ($LASTEXITCODE -ne 0) { throw "CI fixture self-check failed before upgrade" }
 
+          # Simulate a stale JAR from an older install. Pre-V9.0.4 releases
+          # laid the new files over existing ones without removing old libs.
+          # V9.0.4 must remove this *application-owned* file during upgrade,
+          # while preserving all user-owned data under SignalSchedulerData.
+          $staleJar = Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib\legacy-argparse4j.jar"
+          $jar = Get-ChildItem -LiteralPath (Join-Path $testRoot "Runtime\signal-stack-v1\signal-cli\lib") -Filter "*.jar" -File | Select-Object -First 1
+          if (-not $jar) { throw "Missing installation JAR fixture" }
+          Copy-Item -LiteralPath $jar.FullName -Destination $staleJar
+          if (-not (Test-Path -LiteralPath $staleJar)) { throw "Could not seed stale JAR fixture" }
+
           $upgradeLog = Join-Path $env:RUNNER_TEMP "ms002-upgrade-setup.log"
           $upgrade = Start-Process -FilePath $setup.FullName -ArgumentList @("/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$testRoot","/TASKS=desktopicon","/LOG=$upgradeLog") -Wait -PassThru
           if ($upgrade.ExitCode -ne 0) {
@@ -408,6 +485,9 @@ jobs:
           }
           Start-Sleep -Seconds 2
 
+          if (Test-Path -LiteralPath $staleJar) {
+            throw "In-place upgrade failed to remove stale unmanifested JAR"
+          }
           if (Get-Process "SignalScheduler.Engine" -ErrorAction SilentlyContinue) { throw "Engine still running after safe upgrade handshake" }
           if (Get-Process "java" -ErrorAction SilentlyContinue) { throw "Engine-owned Java still running after safe upgrade handshake" }
 
@@ -425,8 +505,10 @@ jobs:
               throw "Missing installed file after upgrade: $requiredFile"
             }
           }
-          & $upgradedJava "-Duser.language=en" "-Duser.country=US" -classpath $upgradedCp org.asamk.signal.Main --version
-          if ($LASTEXITCODE -ne 0) { throw "Bundled signal-cli unusable after upgrade" }
+          # Source remains under a Unicode path. Launch the verified ASCII
+          # stage instead; no Java DLL must ever be loaded from the path above.
+          & $stagedJava "-Duser.language=en" "-Duser.country=US" -classpath $stagedCp org.asamk.signal.Main --version
+          if ($LASTEXITCODE -ne 0) { throw "Protected signal-cli runtime unusable after upgrade" }
 
           # Run desktop from the upgraded installation rather than just from
           # the pre-install publish output. No account or network send needed.
@@ -479,7 +561,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.3'
+          $version = '9.0.4'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -487,7 +569,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.3 正式版（Windows 10/11 x64 中文完全离线安装包）。增加安装时 SHA256 依赖清单、启动时全量验证 JAR 及 argparse4j 资源，发现隔离/损坏则停止故障重启；避免 Signal 反复弹窗。修正授权状态时间校验、明确错误分类和本机续验恢复，保留现有账号、卡密和用户数据。完成 Windows 自动测试、中文环境启动测试、离线安装和覆盖安装数据保留测试后发布。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.4 正式版（Windows 10/11 x64 中文离线安装包）。修复旧版覆盖安装残留的 Java JAR 导致 argparse4j 资源加载失败：安全清除应用运行库旧依赖，检测清单外 JAR，并使用 Unicode 安全参数启动内置 Java。新增中文安装路径、旧 JAR 残留、覆盖安装及数据保留测试；账号、卡密、剧本和任务历史保持不变。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -507,7 +589,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.3'
+            version = '9.0.4'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA

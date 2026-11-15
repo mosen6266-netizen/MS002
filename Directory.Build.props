@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <VersionPrefix>9.0.3</VersionPrefix>
+    <VersionPrefix>9.0.4</VersionPrefix>
     <Company>Signal Auto Scheduler</Company>
     <Product>Signal Auto Scheduler</Product>
     <Authors>MS002</Authors>

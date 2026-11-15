@@ -7,6 +7,7 @@ public sealed class RuntimePaths
     public string BackupRoot { get; }
     public string LogRoot { get; }
     public string RuntimeRoot { get; }
+    public string? RuntimePreparationError { get; }
     public string JavaExe { get; }
     public string SignalCliHome { get; }
     public string SignalCliLibWildcard { get; }
@@ -24,7 +25,17 @@ public sealed class RuntimePaths
         LogRoot=Path.Combine(DataRoot,"logs");
 
         var installRoot=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
-        RuntimeRoot=Path.Combine(installRoot,"Runtime","signal-stack-v1");
+        var bundledRuntime=Path.Combine(installRoot,"Runtime","signal-stack-v1");
+        try
+        {
+            RuntimeRoot=JavaRuntimePath.Resolve(bundledRuntime);
+        }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException
+            or System.Security.SecurityException or ArgumentException)
+        {
+            RuntimeRoot=bundledRuntime;
+            RuntimePreparationError="内置 Java 路径兼容修复失败："+ex.Message;
+        }
         JavaExe=Path.Combine(RuntimeRoot,"jre","bin","java.exe");
         SignalCliHome=Path.Combine(RuntimeRoot,"signal-cli");
         SignalCliLibWildcard=Path.Combine(SignalCliHome,"lib","*");

@@ -1,6 +1,6 @@
 #define MyAppName "Signal Auto Scheduler"
 #ifndef MyAppVersion
- #define MyAppVersion "9.0.3"
+ #define MyAppVersion "9.0.4"
 #endif
 #ifndef PublishRoot
  #define PublishRoot "..\artifacts\publish"
@@ -20,7 +20,7 @@ DefaultGroupName=Signal Auto Scheduler
 DisableDirPage=no
 DisableProgramGroupPage=no
 OutputDir={#OutputRoot}
-OutputBaseFilename=SignalScheduler_Setup_V9.0.3
+OutputBaseFilename=SignalScheduler_Setup_V9.0.4
 Compression=lzma2/ultra64
 SolidCompression=yes
 PrivilegesRequired=lowest
@@ -50,6 +50,15 @@ Source: "{#PublishRoot}\Engine\*"; DestDir: "{app}\Engine"; Flags: ignoreversion
 Source: "{#PublishRoot}\Runtime\*"; DestDir: "{app}\Runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "update-protocol-v1.marker"; DestDir: "{app}"; Flags: ignoreversion
 Source: "third_party\ChineseSimplified-LICENSE.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
+
+; The runtime's lib folder belongs exclusively to the application.
+; In-place upgrades must remove leftover legacy jars before installing the
+; complete, SHA256-verified distribution. All user settings, license keys,
+; scripts, Signal device state, and dispatch journals live in the separate
+; %LOCALAPPDATA%\SignalSchedulerData folder and are never touched here.
+; Safe update preparation (PrepareToInstall) stops the owned Java daemon first.
+[InstallDelete]
+Type: files; Name: "{app}\Runtime\signal-stack-v1\signal-cli\lib\*.jar"
 
 [Icons]
 Name: "{userdesktop}\Signal Auto Scheduler"; Filename: "{app}\SignalScheduler.exe"; WorkingDir: "{app}"; IconFilename: "{app}\signal-brand.ico"; Tasks: desktopicon

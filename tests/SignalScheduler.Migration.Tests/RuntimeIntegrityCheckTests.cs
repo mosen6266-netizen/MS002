@@ -54,6 +54,24 @@ public sealed class RuntimeIntegrityCheckTests
     }
 
     [Fact]
+    public void AdditionalLegacyJarInWildcardDirectoryIsRejected()
+    {
+        var root=CreateFixture(includeResource:true);
+        try
+        {
+            // Simulates an old jar that Inno Setup's ignoreversion overlay
+            // previously left behind, which could shadow current classes.
+            var oldJar=Path.Combine(root,"signal-cli","lib","legacy-argparse4j.jar");
+            File.Copy(Path.Combine(root,"signal-cli","lib","argparse4j.jar"),oldJar);
+            var result=RuntimeIntegrityCheck.Verify(root);
+            Assert.False(result.Healthy);
+            Assert.Equal("EXTRA_JAR",result.Code);
+            Assert.Contains("legacy-argparse4j.jar",result.Detail);
+        }
+        finally{Directory.Delete(root,true);}
+    }
+
+    [Fact]
     public void JarWithArgparseClassButWithoutResourceIsRejected()
     {
         var root=CreateFixture(includeResource:false);
