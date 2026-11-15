@@ -27,6 +27,13 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Compiler is used only by GitHub CI. End users still receive the
+      # completely offline JRE; no JDK installation is needed.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
       - name: Generate desktop and installer icon
         shell: powershell
         run: .\tools\GenerateBrandIcon.ps1
@@ -205,8 +212,48 @@ jobs:
           $jarDir = Join-Path $runtime "signal-cli/lib"
           $jars = @(Get-ChildItem -LiteralPath $jarDir -File -Filter "*.jar" | Sort-Object Name)
           if ($jars.Count -lt 2) { throw "Missing expected signal-cli dependency jars" }
+          # Extract the *pinned upstream* argparse4j resource bundle to a
+          # separate, hash-verified directory placed first on the classpath.
+          # A JAR can be byte-perfect yet Windows/JVM resource lookups may
+          # fail on some supported hosts. The standalone resources provide
+          # the identical English strings without changing argparse4j code.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $overlay = Join-Path $runtime "signal-cli/resource-overlay"
+          $bundleDir = Join-Path $overlay "net/sourceforge/argparse4j/internal"
+          New-Item -ItemType Directory -Force $bundleDir | Out-Null
+          $resourceNames = @(
+            "net/sourceforge/argparse4j/internal/ArgumentParserImpl.properties",
+            "net/sourceforge/argparse4j/internal/ArgumentParserImpl_en.properties"
+          )
+          $copied = [System.Collections.Generic.HashSet[string]]::new()
+          foreach ($jar in $jars) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($jar.FullName)
+            try {
+              foreach ($resource in $resourceNames) {
+                $entry = $zip.GetEntry($resource)
+                if ($null -eq $entry) { continue }
+                if (-not $copied.Add($resource)) { throw "Duplicate argparse4j resource found in multiple JARs" }
+                $target = Join-Path $overlay ($resource.Replace("/","\"))
+                [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry,$target)
+              }
+            } finally { $zip.Dispose() }
+          }
+          if ($copied.Count -ne $resourceNames.Count) { throw "Pinned argparse4j bundle missing root or English resource" }
+          & javac --release 17 -d $overlay "resources/MS002ResourceBundleProbe.java"
+          if ($LASTEXITCODE -ne 0) { throw "Could not compile bundled Java ResourceBundle probe" }
+
+          # Execute the same exact ResourceBundle.getBundle() call before the
+          # installer is allowed to ship, not just check JAR ZIP entries.
+          $jreJava = Join-Path $runtime "jre/bin/java.exe"
+          $probeCp = "$overlay;$jarDir/*"
+          $probeResult = & $jreJava "-Duser.language=en" "-Duser.country=US" -classpath $probeCp MS002ResourceBundleProbe
+          if ($LASTEXITCODE -ne 0 -or $probeResult -notcontains "MS002_BUNDLE_OK") {
+            throw "Java cannot resolve argparse4j ResourceBundle even with pinned resource overlay"
+          }
+
           $java = Join-Path $runtime "jre/bin/java.exe"
-          $files = @((Get-Item -LiteralPath $java)) + $jars
+          $overlayFiles = @(Get-ChildItem -LiteralPath $overlay -File -Recurse)
+          $files = @((Get-Item -LiteralPath $java)) + $jars + $overlayFiles
           $entries = @(
             foreach ($item in $files) {
               $relative = $item.FullName.Substring($runtime.Length + 1).Replace("\","/")
@@ -217,6 +264,7 @@ jobs:
               }
             }
           )
+          if ($overlayFiles.Count -lt 3) { throw "Missing hashed ResourceBundle overlay and Java bootstrap" }
           $manifest = @{version=1;files=$entries} | ConvertTo-Json -Depth 5 -Compress
           [System.IO.File]::WriteAllText((Join-Path $runtime "runtime-integrity-v1.json"),
             $manifest, [System.Text.UTF8Encoding]::new($false))
@@ -254,6 +302,10 @@ jobs:
           $cp = Join-Path $runtime "signal-cli/lib/*"
           $env:JAVA_TOOL_OPTIONS = "-Duser.language=zh -Duser.country=CN"
           try {
+            $overlay = Join-Path $runtime "signal-cli/resource-overlay"
+            $cp = "$overlay;$cp"
+            & $java "-Duser.language=en" "-Duser.country=US" -classpath $cp MS002ResourceBundleProbe
+            if ($LASTEXITCODE -ne 0) { throw "Actual ResourceBundle lookup failed on zh_CN" }
             & $java "-Duser.language=en" "-Duser.country=US" -classpath $cp org.asamk.signal.Main --version
             if ($LASTEXITCODE -ne 0) {
               throw "signal-cli failed on a simulated zh_CN Windows Java locale"
@@ -432,7 +484,11 @@ jobs:
             throw "Staged Java runtime path is not ASCII-only"
           }
           $stagedJava = Join-Path $staged "jre\bin\java.exe"
-          $stagedCp = Join-Path $staged "signal-cli\lib\*"
+          $stagedCp = (Join-Path $staged "signal-cli\resource-overlay") + ";" + (Join-Path $staged "signal-cli\lib\*")
+          & $stagedJava "-Duser.language=en" "-Duser.country=US" -classpath $stagedCp MS002ResourceBundleProbe
+          if ($LASTEXITCODE -ne 0) {
+            throw "Installed staged Java could not load argparse4j ResourceBundle"
+          }
           if (-not (Test-Path -LiteralPath $stagedJava)) {
             throw "Protected runtime lacks java.exe"
           }
