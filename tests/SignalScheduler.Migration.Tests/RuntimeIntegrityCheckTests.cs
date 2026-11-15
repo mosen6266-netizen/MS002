@@ -17,7 +17,7 @@ public sealed class RuntimeIntegrityCheckTests
             var result=RuntimeIntegrityCheck.Verify(root);
             Assert.True(result.Healthy,result.Detail);
             Assert.Equal("OK",result.Code);
-            Assert.Equal(3,result.FilesVerified);
+            Assert.Equal(6,result.FilesVerified);
         }
         finally{Directory.Delete(root,true);}
     }
@@ -103,8 +103,17 @@ public sealed class RuntimeIntegrityCheckTests
         {
             archive.CreateEntry("org/asamk/signal/Main.class");
         }
+        var overlay=Path.Combine(root,"signal-cli","resource-overlay");
+        var resDir=Path.Combine(overlay,"net","sourceforge","argparse4j","internal");
+        Directory.CreateDirectory(resDir);
+        File.WriteAllText(Path.Combine(resDir,"ArgumentParserImpl.properties"),"usage=usage");
+        File.WriteAllText(Path.Combine(resDir,"ArgumentParserImpl_en.properties"),"usage=usage");
+        File.WriteAllBytes(Path.Combine(overlay,"MS002ResourceBundleProbe.class"),new byte[]{1,2,3});
         var entries=new[]{"jre/bin/java.exe",
-            "signal-cli/lib/argparse4j.jar","signal-cli/lib/signal.jar"}
+            "signal-cli/lib/argparse4j.jar","signal-cli/lib/signal.jar",
+            "signal-cli/resource-overlay/net/sourceforge/argparse4j/internal/ArgumentParserImpl.properties",
+            "signal-cli/resource-overlay/net/sourceforge/argparse4j/internal/ArgumentParserImpl_en.properties",
+            "signal-cli/resource-overlay/MS002ResourceBundleProbe.class"}
             .Select(relative=>{
                 var file=Path.Combine(root,relative.Replace('/',Path.DirectorySeparatorChar));
                 return new RuntimeIntegrityCheck.Entry(
