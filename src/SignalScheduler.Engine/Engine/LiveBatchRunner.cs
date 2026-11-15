@@ -100,7 +100,7 @@ public sealed class LiveBatchRunner : BackgroundService
                 return;
             }
             if(!LicenseDispatchPolicy.CanDispatch(license,
-               DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
+               _license.LicenseNowUnixSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
                     "授权未生效、已失效或已超出服务器签名的有效租期，群组已暂停。",
@@ -151,7 +151,7 @@ public sealed class LiveBatchRunner : BackgroundService
                 return;
             }
             if(!LicenseDispatchPolicy.CanDispatch(license,
-               DateTimeOffset.UtcNow.ToUnixTimeSeconds()))
+               _license.LicenseNowUnixSeconds()))
             {
                 await _store.PauseLiveBatchForSafetyAsync(jobId,
                     "输入等待期间授权已失效或本地签名租期结束，未发送下一条。",
