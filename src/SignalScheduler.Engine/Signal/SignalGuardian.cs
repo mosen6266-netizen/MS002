@@ -67,6 +67,13 @@ public sealed class SignalGuardian : BackgroundService
     {
         try
         {
+        if(!string.IsNullOrWhiteSpace(_paths.RuntimePreparationError))
+        {
+            SetSnapshot("missing-runtime",_paths.RuntimePreparationError,
+                "",false,Array.Empty<string>());
+            return;
+        }
+
         // Verify every bundled JAR against the CI-generated hash manifest
         // before even attempting Java. MissingResourceException is frequently
         // caused by a partially quarantined or mixed-version classpath.
