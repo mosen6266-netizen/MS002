@@ -89,6 +89,24 @@ public static class RuntimeIntegrityCheck
                 }
             }
 
+            // A wildcard -classpath lib/* loads EVERY JAR in the directory.
+            // Inno's previous ignoreversion overlay left old JARs behind,
+            // and the manifest could declare success without checking them.
+            // Unknown JARs can supply shadow copies of argparse4j classes.
+            var expectedJars=manifest.Files
+                .Where(e=>e.Path.StartsWith("signal-cli/lib/",StringComparison.OrdinalIgnoreCase)
+                       && e.Path.EndsWith(".jar",StringComparison.OrdinalIgnoreCase))
+                .Select(e=>Path.GetFileName(e.Path))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var jarDirectory=Path.Combine(root,"signal-cli","lib");
+            foreach(var extra in Directory.EnumerateFiles(jarDirectory,"*.jar",
+                SearchOption.TopDirectoryOnly))
+            {
+                if(!expectedJars.Contains(Path.GetFileName(extra)))
+                    return Fail("EXTRA_JAR",
+                        "发现安装清单以外的旧运行库："+Path.GetFileName(extra)+
+                        "。旧版本覆盖安装可能留下冲突文件，请关闭程序后使用新版官方安装包覆盖修复。");
+            }
             if(!java || jars==0 || !signalMain)
                 return Fail("INCOMPLETE_RUNTIME","内置 Java 或 signal-cli 主程序不完整，请使用官方安装包修复。");
             if(!argparseClass || !argparseResource)
