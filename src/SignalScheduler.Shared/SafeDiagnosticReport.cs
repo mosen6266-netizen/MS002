@@ -38,7 +38,10 @@ public sealed record SafeDiagnosticSnapshot(
     int LastReceiptSelected=0,
     int LastReceiptAccepted=0,
     int UnknownReadReceipts=0,
-    string LastReceiptFailureCode="",long LastReceiptFailureAtMs=0);
+    string LastReceiptFailureCode="",long LastReceiptFailureAtMs=0,
+    int LastDaemonExitCode=int.MinValue,
+    int RecentDaemonCrashCount=0,
+    string LastDaemonExitCategory="");
 
 public sealed record DiagnosticCategoryCount(string Code,int Count);
 
@@ -66,7 +69,8 @@ public static class SafeDiagnosticReport
         var connection=AllowState(input.SignalConnectionState,new[]{
             "ready","running","offline","stopped","starting","degraded",
             "healthy","unhealthy","unknown","Connected","Disconnected",
-            "Ready","Offline","Starting","Failed","NotStarted"});
+            "Ready","Offline","Starting","Failed","NotStarted",
+            "fault","restarting","busy","missing-runtime","external-conflict"});
         var read=AllowState(input.ReadEventStreamState,new[]{
             "已连接","连接中断","尚未连接","数据库错误","未知"});
         var last="未捕获";
@@ -152,7 +156,16 @@ public static class SafeDiagnosticReport
             "ERROR SignalAccount.UntrustedIdentity",
             "ERROR SignalSend.RpcDispatcher",
             "ERROR SignalNetwork.Connection",
-            "ERROR SignalDaemon.OtherException"
+            "ERROR SignalDaemon.OtherException",
+            "ERROR SignalRuntime.SIGNAL_BUNDLE",
+            "ERROR SignalRuntime.JVM_MEMORY",
+            "ERROR SignalRuntime.JVM_NATIVE",
+            "ERROR SignalRuntime.JVM_CLASSPATH",
+            "ERROR SignalRuntime.FILE_PERMISSION",
+            "ERROR SignalRuntime.RPC_PORT",
+            "ERROR SignalRuntime.SIGNAL_ACCOUNT",
+            "ERROR SignalRuntime.SIGNAL_NETWORK",
+            "ERROR SignalRuntime.UNCLASSIFIED_EXIT"
         };
         sb.AppendLine("错误类型："+(allowedDaemon.Contains(daemonCode,
             StringComparer.Ordinal)?daemonCode:"未记录"));
@@ -165,6 +178,13 @@ public static class SafeDiagnosticReport
             catch(ArgumentOutOfRangeException){ }
         }
         sb.AppendLine("最近出现时间："+daemonTime);
+        var safeExitCategory=SignalCrashPolicy.SafeCode(input.LastDaemonExitCategory);
+        sb.AppendLine("最近退出代码："+(input.LastDaemonExitCode==int.MinValue
+            ?"未记录":input.LastDaemonExitCode.ToString()));
+        sb.AppendLine("最近退出分类："+(input.LastDaemonExitCode==int.MinValue
+            ?"未记录":safeExitCategory));
+        sb.AppendLine("近5分钟异常退出次数："+Math.Clamp(input.RecentDaemonCrashCount,0,99));
+        sb.AppendLine("提示：退出代码和故障类别不等于已确定的根本原因。");
         sb.AppendLine("说明：并发任务可能同时运行，同期 daemon 错误不等于当前任务的直接原因。");
         sb.AppendLine();
         sb.AppendLine("最近发送异常分类（不含原始 RPC 内容）");
