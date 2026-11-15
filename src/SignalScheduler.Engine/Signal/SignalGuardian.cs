@@ -85,6 +85,16 @@ public sealed class SignalGuardian : BackgroundService
             return; // Never repeatedly launch a known-broken runtime.
         }
 
+        var bundleReady=await ProbeJavaResourceBundleAsync(stoppingToken);
+        if(!bundleReady)
+        {
+            SetSnapshot("missing-runtime",
+                "内置 Java 实际加载 argparse4j 资源失败（已通过独立资源文件验证仍无法读取）。"+
+                "已阻止 Signal 反复启动。请在诊断报告中查看 Java 运行环境并检查安全软件隔离记录。",
+                "",false,Array.Empty<string>());
+            return;
+        }
+
         var version=await ReadSignalCliVersionAsync(stoppingToken);
 
         var initial=await ProbeAsync(stoppingToken);
@@ -206,7 +216,8 @@ public sealed class SignalGuardian : BackgroundService
         }
 
         _fatalClassPathError=false;
-        var psi=CreateSignalJavaStartInfo("--output=json","daemon","--http=127.0.0.1:7583");
+        var psi=CreateSignalJavaStartInfo("org.asamk.signal.Main",
+            "--output=json","daemon","--http=127.0.0.1:7583");
 
         var p=new Process{StartInfo=psi,EnableRaisingEvents=true};
         p.OutputDataReceived+=(_,e)=>OnProcessLine(e.Data);
@@ -368,7 +379,8 @@ public sealed class SignalGuardian : BackgroundService
         catch { }
     }
 
-    private ProcessStartInfo CreateSignalJavaStartInfo(params string[] signalArguments)
+    private ProcessStartInfo CreateSignalJavaStartInfo(
+        string entryClass,params string[] signalArguments)
     {
         // Use ArgumentList rather than concatenating command-line strings.
         // Windows accounts / install paths can contain non-ASCII characters
@@ -385,8 +397,12 @@ public sealed class SignalGuardian : BackgroundService
         foreach(var option in JavaLocaleOptions.Split(' ',StringSplitOptions.RemoveEmptyEntries))
             psi.ArgumentList.Add(option);
         psi.ArgumentList.Add("-classpath");
-        psi.ArgumentList.Add(_paths.SignalCliLibWildcard);
-        psi.ArgumentList.Add("org.asamk.signal.Main");
+        // Put the SHA256-verified upstream English bundles on the classpath
+        // as ordinary files before the JAR collection. This makes resource
+        // resolution independent of JAR ZIP resource lookup peculiarities.
+        psi.ArgumentList.Add(Path.Combine(_paths.SignalCliHome,"resource-overlay")+
+            Path.PathSeparator+_paths.SignalCliLibWildcard);
+        psi.ArgumentList.Add(entryClass);
         foreach(var arg in signalArguments)
             psi.ArgumentList.Add(arg);
         psi.Environment["JAVA_HOME"]=Path.GetDirectoryName(Path.GetDirectoryName(_paths.JavaExe))!;
@@ -400,11 +416,52 @@ public sealed class SignalGuardian : BackgroundService
         return psi;
     }
 
+    private async Task<bool> ProbeJavaResourceBundleAsync(CancellationToken ct)
+    {
+        // Test the exact ResourceBundle.getBundle() operation which formerly
+        // threw MissingResourceException on some Windows computers. Never
+        // accept file presence or JAR hashes alone as a startup guarantee.
+        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(18));
+        using var process=new Process{
+            StartInfo=CreateSignalJavaStartInfo("MS002ResourceBundleProbe")
+        };
+        try
+        {
+            if(!process.Start())return false;
+            var output=process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var error=process.StandardError.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+            var stdout=await output;
+            _=await error; // Never log raw Java stderr containing local paths.
+            return process.ExitCode==0 &&
+                stdout.Contains("MS002_BUNDLE_OK",StringComparison.Ordinal);
+        }
+        catch(Exception ex) when(ex is IOException or InvalidOperationException
+            or OperationCanceledException)
+        {
+            return false;
+        }
+        finally
+        {
+            // Kill only the one probe process created by this Engine.
+            try
+            {
+                if(!process.HasExited)
+                {
+                    process.Kill(entireProcessTree:true);
+                    await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(3));
+                }
+            }
+            catch { }
+        }
+    }
+
     async Task<string> ReadSignalCliVersionAsync(CancellationToken ct)
     {
         try
         {
-            var psi=CreateSignalJavaStartInfo("--version");
+            var psi=CreateSignalJavaStartInfo("org.asamk.signal.Main","--version");
             using var p=Process.Start(psi)!;
             var stdout=await p.StandardOutput.ReadToEndAsync(ct);
             var stderr=await p.StandardError.ReadToEndAsync(ct);
