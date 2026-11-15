@@ -209,7 +209,7 @@ jobs:
           $files = @((Get-Item -LiteralPath $java)) + $jars
           $entries = @(
             foreach ($item in $files) {
-              $relative = $item.FullName.Substring($runtime.Length).TrimStart("\\","/").Replace("\\","/")
+              $relative = $item.FullName.Substring($runtime.Length + 1).Replace("\\","/")
               [ordered]@{
                 path = $relative
                 length = [long]$item.Length
