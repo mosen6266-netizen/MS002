@@ -107,7 +107,7 @@ internal static class UiLayoutSmoke
                 updateWindow.Show();
                 updates.UpdateLayout();
                 if(updates.CheckButton.ActualWidth<70 ||
-                   !updates.CurrentVersionText.Text.StartsWith("V8",StringComparison.Ordinal))
+                   !updates.CurrentVersionText.Text.StartsWith("V9",StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         "更新页面当前版本或检查按钮无法正常显示。");
                 // The two buttons from the user's screenshot were unreadable
