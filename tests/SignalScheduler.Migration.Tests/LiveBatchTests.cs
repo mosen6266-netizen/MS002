@@ -653,7 +653,7 @@ public sealed class LiveBatchTests
         Assert.Contains(preflight.Issues,x=>x.Level=="提醒" &&
             x.Message.Contains("图片"));
         Assert.Contains(preflight.Issues,x=>x.Level=="错误" &&
-            x.Message.Contains("指定的账号"));
+            x.Message.Contains("同备注账号"));
         Assert.Equal("0",await ScalarAsync(db,
             "SELECT COUNT(*) FROM v8_live_batch_jobs"));
     }
