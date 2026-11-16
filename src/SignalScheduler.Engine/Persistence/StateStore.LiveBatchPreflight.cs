@@ -71,10 +71,11 @@ public sealed partial class StateStore
         // Read-only queries mirror the account membership and job conflict
         // conditions that the transactional start command checks again.
         await using var c=Open();
+        var senderLabels=await ReadSenderLabelsAsync(c,null,ct);
         for(var i=0;i<groups.Length;i++)
         {
             var groupId=groups[i];
-            var eligible=new HashSet<string>(StringComparer.Ordinal);
+            var eligible=new List<string>();
             string groupName=$"所选群组 {i+1}";
             try
             {
@@ -123,14 +124,17 @@ public sealed partial class StateStore
                             Error($"群「{groupName}」已有未结束的任务，请先处理。");
                     }
                 }
+                // Match the final transactional Start behavior: each step
+                // resolves by remark within this specific group's online
+                // membership, never by remark alone across all groups.
                 var bad=script.Steps
-                    .Where(x=>!string.IsNullOrWhiteSpace(x.Account) &&
-                        ( !string.IsNullOrWhiteSpace(x.Message) ||
+                    .Where(x=>(!string.IsNullOrWhiteSpace(x.Message) ||
                           !string.IsNullOrWhiteSpace(x.Attachment)) &&
-                         !eligible.Contains(x.Account.Trim()))
+                          SenderRoleSelector.Resolve(x.Account,
+                              eligible,senderLabels) is null)
                     .Take(8).ToArray();
                 foreach(var step in bad)
-                    Error($"群「{groupName}」第 {step.Position+1} 条指定的账号不可用或未加入群组。");
+                    Error($"群「{groupName}」第 {step.Position+1} 条没有已入群、在线且启用的同备注账号。");
             }
             catch(SqliteException)
             {
