@@ -57,7 +57,7 @@ public sealed class SenderRoleRoutingTests
     public async Task SingleRemarkStillPinsItsExactAccount_AndDoesNotSubstitute()
     {
         var (store,db)=await NewStoreAsync();
-        await SeedAsync(store,new(B,"g2","群二",true,Array.Empty<string>()));
+        await SeedAsync(store,new SignalGroupCatalogItem(B,"g2","群二",true,Array.Empty<string>()));
         await store.UpdateManagedAccountAsync(new(A,"水军1",true,0),Ct);
         await store.UpdateManagedAccountAsync(new(B,"水军2",true,0),Ct);
         var script=await SaveAsync(store,Step(0,A,"不允许换其他备注"));
@@ -73,7 +73,7 @@ public sealed class SenderRoleRoutingTests
     public async Task SameRemarkButAccountNotOnlineOrEnabledNeverSends()
     {
         var (store,db)=await NewStoreAsync();
-        await SeedAsync(store,new(B,"g2","群二",true,Array.Empty<string>()));
+        await SeedAsync(store,new SignalGroupCatalogItem(B,"g2","群二",true,Array.Empty<string>()));
         await store.UpdateManagedAccountAsync(new(A,"水军1",true,0),Ct);
         await store.UpdateManagedAccountAsync(new(B,"水军1",false,0),Ct);
         var script=await SaveAsync(store,Step(0,A,"不使用已停用的同备注号"));
