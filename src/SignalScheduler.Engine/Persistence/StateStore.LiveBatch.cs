@@ -208,8 +208,8 @@ public sealed partial class StateStore
                     step.Account,eligible,senderLabels);
                 if(sender is null)
                     throw new ArgumentException(
-                        $"群「{groupName}」第 {step.Position+1} 条没有已入群、在线且启用的同备注账号；"+
-                        "已取消启动，未发送任何消息。");
+                        $"群「{groupName}」第 {step.Position+1} 条指定的账号或同备注账号"+
+                        "不在线、未启用或未加入群组；已取消启动，未发送任何消息。");
                 return step with {Account=sender,Position=index};
             }).ToArray();
 
