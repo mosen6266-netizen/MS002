@@ -150,6 +150,7 @@ public sealed partial class StateStore
         var created=new List<string>();
         await using var c=Open();
         using var tx=c.BeginTransaction();
+        var senderLabels=await ReadSenderLabelsAsync(c,tx,ct);
         foreach(var groupId in groups)
         {
             var eligible=new List<string>();
@@ -195,18 +196,20 @@ public sealed partial class StateStore
                         $"群「{groupName}」已有尚未结束的剧本任务，请先处理旧任务。");
             }
 
-            // Preserve explicit per-step sender assignments in the immutable
-            // task plan. A blank sender uses the first eligible group member;
-            // it never silently substitutes for an explicitly named sender.
-            var fallbackSender=eligible[0];
+            // Resolve each script role against THIS group's online, enabled
+            // members. Two accounts with the same remark are alternatives:
+            // whichever is a member here becomes the sender. Explicit legacy
+            // phone IDs also fall back to an exact duplicate-label identity.
+            // Freeze the chosen real phone in the durable job plan, so a
+            // mid-task membership/label change cannot silently reroute sends.
             var steps=sendable.Select((step,index)=>
             {
-                var sender=string.IsNullOrWhiteSpace(step.Account)
-                    ?fallbackSender:step.Account.Trim();
-                if(!eligible.Contains(sender,StringComparer.Ordinal))
+                var sender=SenderRoleSelector.Resolve(
+                    step.Account,eligible,senderLabels);
+                if(sender is null)
                     throw new ArgumentException(
-                        $"群「{groupName}」剧本第 {step.Position+1} 条指定账号「{sender}」"+
-                        "不在线、未启用或未加入该群，已取消本次启动。");
+                        $"群「{groupName}」第 {step.Position+1} 条指定的账号或同备注账号"+
+                        "不在线、未启用或未加入群组；已取消启动，未发送任何消息。");
                 return step with {Account=sender,Position=index};
             }).ToArray();
 
