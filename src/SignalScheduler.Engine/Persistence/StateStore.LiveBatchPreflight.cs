@@ -134,7 +134,8 @@ public sealed partial class StateStore
                               eligible,senderLabels) is null)
                     .Take(8).ToArray();
                 foreach(var step in bad)
-                    Error($"群「{groupName}」第 {step.Position+1} 条没有已入群、在线且启用的同备注账号。");
+                    Error($"群「{groupName}」第 {step.Position+1} 条指定的账号或同备注账号"+
+                        "不在线、未启用或未加入群组。");
             }
             catch(SqliteException)
             {
