@@ -247,6 +247,20 @@ public partial class ScriptEditorWindow : UserControl
             var catalog=ReadData<AccountGroupOverview>(raw);
             AccountOptions.Clear();
             AccountOptions.Add(new AccountChoice("","默认账号（本群在线成员）"));
+
+            // Offer a role choice when several Signal phones share a remark.
+            // The durable sender will be resolved separately in each group.
+            var duplicateLabels=catalog.Accounts
+                .Where(x=>!string.IsNullOrWhiteSpace(x.Label) &&
+                    x.Label!=x.Account)
+                .GroupBy(x=>x.Label,StringComparer.Ordinal)
+                .Where(g=>g.Count()>1)
+                .OrderBy(g=>g.Key,StringComparer.CurrentCulture);
+            foreach(var group in duplicateLabels)
+                AccountOptions.Add(new AccountChoice(
+                    SenderRoleSelector.ForLabel(group.Key),
+                    $"备注「{group.Key}」 · 按所在群自动匹配（{group.Count()}个号）"));
+
             foreach(var account in catalog.Accounts.OrderBy(x=>x.Label,StringComparer.CurrentCulture))
             {
                 var label=string.IsNullOrWhiteSpace(account.Label) ||
@@ -254,7 +268,8 @@ public partial class ScriptEditorWindow : UserControl
                     ? "未设置备注 · "+LastFour(account.Account)
                     : account.Label;
                 var suffix=account.Online?(account.Enabled?" · 在线":" · 已停用"):" · 离线";
-                AccountOptions.Add(new AccountChoice(account.Account,label+suffix));
+                AccountOptions.Add(new AccountChoice(account.Account,
+                    label+" · "+LastFour(account.Account)+suffix));
             }
             foreach(var row in _steps) SetDisplayResolver(row);
         }
@@ -271,8 +286,13 @@ public partial class ScriptEditorWindow : UserControl
     {
         if(!string.IsNullOrWhiteSpace(row.Account) &&
             AccountOptions.All(x=>x.Account!=row.Account))
-            AccountOptions.Add(new AccountChoice(row.Account,
-                "旧账号 · "+LastFour(row.Account)));
+        {
+            var missingLabel=SenderRoleSelector.TryGetLabel(
+                row.Account,out var role)
+                ?$"备注「{role}」 · 当前未找到同备注角色"
+                :"旧账号 · "+LastFour(row.Account);
+            AccountOptions.Add(new AccountChoice(row.Account,missingLabel));
+        }
         row.LabelResolver=account=>
             AccountOptions.FirstOrDefault(x=>x.Account==account)?.Label
             ?? (string.IsNullOrWhiteSpace(account)
