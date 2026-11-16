@@ -58,7 +58,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $info = @{
-            version = '9.0.6'
+            version = '9.0.7'
             build = [int]${{ github.run_number }}
             sourceSha = '${{ github.sha }}'
           } | ConvertTo-Json -Compress
@@ -622,7 +622,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $version = '9.0.6'
+          $version = '9.0.7'
           $tag = "v$version"
           $installer = "artifacts/installer/SignalScheduler_Setup_V$version.exe"
           if (-not (Test-Path -LiteralPath $installer)) { throw "Verified installer missing" }
@@ -630,7 +630,7 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             throw "Release $tag already exists; bump version before publishing another build."
           }
-          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.6 正式版（Windows 10/11 x64 离线安装包）。修复 Signal 进程退出事件与后台正常恢复之间的竞争，避免短暂恢复阶段反复弹出严重故障。增加真实进程退出码、固定脱敏 JVM 故障分类（内存、原生依赖、类路径、语言资源、端口、权限、账号及网络）及诊断导出；同一进程在 5 分钟内连续异常退出三次时停止无意义的自动重启，保留任务与账号资料。沿用 V9.0.5 的完整性检查、中文路径兼容、独立资源探针与安全覆盖升级。"
+          & gh release create $tag $installer "artifacts/installer/SHA256.txt" --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "Signal Auto Scheduler $version (Windows x64)" --notes "MS002 V9.0.7 正式版（Windows 10/11 x64 完全离线安装包）。实现同备注 Signal 账号智能群匹配：一个剧本角色可对应多个同备注账号，按每个目标群的在线、启用及已入群账号选择实际发送者；旧剧本中指定的同备注账号可自动匹配其他在群成员。启动前检查与正式任务一致；启动后冻结真实账号，避免半途自动改号。保留旧账号、卡密、剧本、任务和覆盖安装方式。"
           if ($LASTEXITCODE -ne 0) { throw "Release upload failed; do not publish update manifest" }
 
       # Publish only after the installer was built, installed, smoke-tested,
@@ -650,7 +650,7 @@ jobs:
           $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($hash -notmatch '^[0-9a-f]{64}$') { throw "Invalid installer hash" }
           $manifest = @{
-            version = '9.0.6'
+            version = '9.0.7'
             build = [int]$env:GITHUB_RUN_NUMBER
             runId = [long]$env:GITHUB_RUN_ID
             sourceSha = $env:GITHUB_SHA
